@@ -77,6 +77,8 @@ npm run tauri build
 
 This creates `src-tauri/target/release/bundle/macos/Nowboard.app` and a `.dmg`. Drag the app into Applications.
 
+Or in one step: `npm run install-app` builds the app and replaces `/Applications/Nowboard.app` with it. Quit Nowboard first, then run it again after changing the code.
+
 ## Project map
 
 ```

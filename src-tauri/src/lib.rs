@@ -177,6 +177,13 @@ tauri_nspanel::tauri_panel! {
             is_floating_panel: true
         }
     })
+
+    // Listens to macOS window events for the panel. "Resign key" = the panel
+    // stopped receiving keyboard input because you clicked somewhere else.
+    panel_event!(QuickPanelEvents {
+        window_did_become_key(notification: &NSNotification) -> (),
+        window_did_resign_key(notification: &NSNotification) -> ()
+    })
 }
 
 /// Turns the hidden "quick" window into a floating, non-activating panel (macOS only).
@@ -195,6 +202,22 @@ fn setup_quick_window(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>
         panel.set_collection_behavior(CollectionBehavior::new().can_join_all_spaces().full_screen_auxiliary().into());
         panel.set_transparent(true); // the rounded box draws itself; the rest of the window is see-through
         panel.set_has_shadow(false); // the box has its own CSS shadow
+
+        // Close when you click anywhere else. We use macOS's own signal for this:
+        // the web page's "blur" event fires unreliably inside a non-activating panel.
+        let events = QuickPanelEvents::new();
+        events.window_did_become_key(|_| {
+            #[cfg(debug_assertions)]
+            eprintln!("quick window became key");
+        });
+        let handle = app.handle().clone();
+        events.window_did_resign_key(move |_| {
+            #[cfg(debug_assertions)]
+            eprintln!("quick window hidden: resigned key (clicked elsewhere)");
+            let _ = handle.emit_to("quick", "quick-closed", ()); // page empties itself
+            hide_quick_window(&handle);
+        });
+        panel.set_event_handler(Some(events.as_ref())); // the panel keeps `events` alive
     }
     #[cfg(not(target_os = "macos"))]
     let _ = app; // nothing to set up elsewhere
@@ -224,13 +247,28 @@ fn toggle_quick(app: &AppHandle) {
         return;
     }
     place_quick_window(app, &window);
+    #[cfg(debug_assertions)]
+    eprintln!("quick window shown");
     // Tell the page to reset and play its pop-in animation.
     let _ = app.emit_to("quick", "quick-open", ());
     #[cfg(target_os = "macos")]
     {
         use tauri_nspanel::ManagerExt;
         if let Ok(panel) = app.get_webview_panel("quick") {
-            panel.show_and_make_key();
+            panel.order_front_regardless(); // on top, without activating the app
+            panel.make_key_window(); // keyboard input goes to this window
+            // Inside the window, give keyboard focus to the web page itself.
+            // (`show_and_make_key` would focus the window's container view instead;
+            // the page then gets a "blur" right away and the box closes again.)
+            let _ = window.with_webview(|wv| unsafe {
+                use tauri_nspanel::objc2::{msg_send, runtime::AnyObject};
+                // Raw Objective-C pointers to the WKWebView and its NSWindow.
+                let webview = wv.inner() as *mut AnyObject;
+                let ns_window = wv.ns_window() as *mut AnyObject;
+                if !webview.is_null() && !ns_window.is_null() {
+                    let _: bool = msg_send![&*ns_window, makeFirstResponder: webview];
+                }
+            });
             return;
         }
     }
@@ -255,7 +293,11 @@ fn hide_quick_window(app: &AppHandle) {
 /// The quick window calls this when you add a task, press Esc or click elsewhere.
 /// Not `async`, so Tauri runs it on the main thread, where macOS wants window changes.
 #[tauri::command]
-fn hide_quick(app: AppHandle) {
+fn hide_quick(app: AppHandle, reason: String) {
+    // Only in development builds: print why it closed (Esc, added, clicked elsewhere…).
+    #[cfg(debug_assertions)]
+    eprintln!("quick window hidden: {reason}");
+    let _ = reason;
     hide_quick_window(&app);
 }
 

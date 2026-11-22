@@ -17,24 +17,25 @@ export function QuickWindow() {
   const [session, setSession] = useState(0); // a fresh box (empty, animated) on every open
   const [error, setError] = useState<string | null>(null);
 
-  const close = useCallback(() => {
+  const close = useCallback((reason: string) => {
     // Empty the window first, then hide it, so the next open never flashes the old box.
     setOpen(false);
-    requestAnimationFrame(() => requestAnimationFrame(() => api.hideQuick()));
+    requestAnimationFrame(() => requestAnimationFrame(() => api.hideQuick(reason)));
   }, []);
 
   useEffect(() => {
     api.getSettings().then(setSettings);
-    let unlisten: (() => void) | undefined;
+    let unlisten: (() => void) | undefined, unlistenClosed: (() => void) | undefined;
+    // Clicking anywhere outside the box closes it. Rust notices that (macOS tells
+    // the panel it lost keyboard focus), hides the window and tells us to empty it.
+    api.onQuickClosed(() => setOpen(false)).then((u) => (unlistenClosed = u));
     api.onQuickOpen(() => {
       api.getSettings().then(setSettings); // categories may have changed in the board window
       setError(null);
       setSession((n) => n + 1);
       setOpen(true);
     }).then((u) => (unlisten = u));
-    // Clicking anywhere outside the box (another app, the desktop) closes it.
-    window.addEventListener("blur", close);
-    return () => { unlisten?.(); window.removeEventListener("blur", close); };
+    return () => { unlisten?.(); unlistenClosed?.(); };
   }, [close]);
 
   const add = async (title: string, area: string, status: Status) => {
@@ -43,7 +44,7 @@ export function QuickWindow() {
       const orders = (await api.listTasks()).filter((t) => t.status === status).map((t) => t.order);
       const order = orders.length ? Math.min(...orders) - 1024 : 0;
       await api.saveTask({ id: "", title, area, status, order, focus: false, created: nowStamp(), doneOn: null, items: [], notes: "" });
-      close();
+      close("task added");
     } catch (e) {
       setError(String(e));
     }
@@ -56,7 +57,7 @@ export function QuickWindow() {
 
   return (
     <div className="quick-window" style={themeVars(theme)}>
-      <QuickAdd key={session} floating categories={cats} colourOf={colourOf} initialColour={cats[0]?.id ?? ""} onAdd={add} onClose={close} />
+      <QuickAdd key={session} floating categories={cats} colourOf={colourOf} initialColour={cats[0]?.id ?? ""} onAdd={add} onClose={() => close("esc")} />
       {error && <div className="quick-error">{error}</div>}
     </div>
   );

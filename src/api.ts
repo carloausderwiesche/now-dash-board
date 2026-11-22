@@ -31,8 +31,10 @@ export interface Api {
   onTasksChanged(cb: () => void): Promise<() => void>;
   /** Quick-add window only: called each time ⌥ Space shows it. */
   onQuickOpen(cb: () => void): Promise<() => void>;
+  /** Quick-add window only: called when it was closed from outside (you clicked elsewhere). */
+  onQuickClosed(cb: () => void): Promise<() => void>;
   /** Quick-add window only: hides it again. */
-  hideQuick(): Promise<void>;
+  hideQuick(reason: string): Promise<void>;
   /** Browser demo only: puts the sample tasks and settings back. */
   resetDemo(): void;
 }
@@ -51,7 +53,8 @@ const tauriApi: Api = {
   knownVaults: () => invoke("known_vaults"),
   onTasksChanged: (cb) => listen("tasks-changed", () => cb()),
   onQuickOpen: (cb) => listen("quick-open", () => cb()),
-  hideQuick: () => invoke("hide_quick"),
+  onQuickClosed: (cb) => listen("quick-closed", () => cb()),
+  hideQuick: (reason) => invoke("hide_quick", { reason }),
   resetDemo: () => {},
 };
 
@@ -164,6 +167,7 @@ const demoApi: Api = {
   async knownVaults() { return []; },
   async onTasksChanged() { return () => {}; },
   async onQuickOpen() { return () => {}; },
+  async onQuickClosed() { return () => {}; },
   async hideQuick() {},
   resetDemo() {
     try { localStorage.removeItem("nowboard-demo-tasks-v1"); localStorage.removeItem("nowboard-demo-settings"); } catch { /* ignore */ }
