@@ -32,7 +32,7 @@ export interface Task {
 }
 
 export type PaletteKey =
-  | "rose" | "red" | "orange" | "amber" | "green" | "teal" | "cyan"
+  | "rose" | "red" | "orange" | "amber" | "lime" | "green" | "teal" | "cyan"
   | "blue" | "indigo" | "violet" | "pink" | "brown" | "slate";
 
 export interface Category {
@@ -53,4 +53,6 @@ export interface Settings {
   dailyFolder: string;
   theme: ThemeKey;
   categories: Category[];
+  /** Smaller cards, so more fit on screen. */
+  compact?: boolean;
 }

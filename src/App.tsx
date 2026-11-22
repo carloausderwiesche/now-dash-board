@@ -69,6 +69,9 @@ export default function App() {
     const root = document.documentElement.style;
     Object.entries(themeVars(themeKey)).forEach(([k, v]) => root.setProperty(k, String(v)));
   }, [themeKey]);
+  // Compact cards: one class on <html>, the sizes live in styles.css.
+  const compact = !!settings?.compact;
+  useEffect(() => { document.documentElement.classList.toggle("compact", compact); }, [compact]);
 
   if (!settings) return null;
   const theme = settings.theme as ThemeKey;
@@ -267,6 +270,7 @@ export default function App() {
           onMove={() => (openTask.status === "suggested" ? board.accept(openTask.id) : board.move(openTask.id, openTask.status === "today" ? "backlog" : "today"))}
           onDone={() => { const id = openTask.id; setOpenId(null); setTimeout(() => finish(id), 260); }}
           onOpenInObsidian={() => api.openInObsidian(openTask.id)}
+          onDelete={() => { const id = openTask.id; setOpenId(null); board.remove(id); }}
           onClose={() => setOpenId(null)}
         />
       )}

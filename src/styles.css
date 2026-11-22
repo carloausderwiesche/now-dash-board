@@ -140,9 +140,12 @@ html.grabbing, html.grabbing * { cursor: grabbing !important; }
 .card.ghost * { pointer-events: none; }
 @keyframes ghost-in { from { opacity: 0; } }
 .card .reveal { opacity: 0; transition: opacity .15s; }
-.card:hover .reveal, .card:focus-within .reveal { opacity: 1; }
-/* Pointing at the done circle is about finishing, so hide Focus / Today. */
-.card:has(.ringbtn:hover) .reveal { opacity: 0; }
+/* A short delay before showing, so a pointer passing through on its way to the
+   done circle (e.g. coming in from the bottom-right corner) doesn't flash Focus. */
+.card:hover .reveal { opacity: 1; transition-delay: .12s; }
+.card:focus-within .reveal { opacity: 1; }
+/* Pointing at the done circle is about finishing, so hide Focus / Today (right away). */
+.card:has(.ringbtn:hover) .reveal { opacity: 0; transition-delay: 0s; }
 /* Card buttons keep the card's text colour on hover (the focus card is ink-coloured). */
 .card .iconbtn.reveal:hover { color: inherit; text-decoration: underline; text-underline-offset: 3px; }
 .card-foot { display: flex; align-items: center; gap: 2px; margin-top: auto; }
@@ -160,19 +163,54 @@ html.grabbing, html.grabbing * { cursor: grabbing !important; }
 .backlog-card { min-height: 88px; gap: 10px; padding: 12px 12px 4px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); }
 .backlog-card .title { font-size: 14px; line-height: 1.3; font-weight: 500; }
 
+/* Compact cards (Settings → Cards): same layout, less air, so more fit on screen. */
+.compact .grid-today { grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 8px; }
+.compact .grid-backlog { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 6px; }
+.compact .today-card { min-height: 84px; gap: 6px; padding: 10px 12px 2px; }
+.compact .today-card .title { font-size: 15px; }
+.compact .today-card.is-focus .title { font-size: 19px; }
+.compact .today-card .sub { margin-top: 4px; }
+.compact .backlog-card { min-height: 60px; gap: 4px; padding: 8px 10px 0; }
+.compact .backlog-card .title { font-size: 13px; }
+.compact .card .ringbtn { height: 34px; }
+.compact .empty.small { min-height: 60px; }
+
 /* ---------- the round check ---------- */
 .ringbtn { width: 40px; height: 40px; margin-right: -8px; flex: none; border: 0; background: transparent; padding: 0; display: flex; align-items: center; justify-content: center; cursor: pointer; }
+/* The circle's hover area reaches into the card's bottom-right corner, so arriving
+   from that corner counts as pointing at the circle, not at the card. */
+.ringbtn { position: relative; }
+.ringbtn::before { content: ""; position: absolute; top: -4px; left: -4px; right: -8px; bottom: -8px; }
 .ring {
   width: 22px; height: 22px; border-radius: 50%; border: 1.5px solid currentColor;
   display: flex; align-items: center; justify-content: center;
   transition: background-color .2s, border-color .2s;
 }
 .ringbtn:hover .ring { background-color: var(--hover); }
-.tick { stroke-dasharray: 24; stroke-dashoffset: 24; transition: stroke-dashoffset .24s .06s ease-out; }
+.tick { stroke-dasharray: 24; stroke-dashoffset: 24; transition: stroke-dashoffset .24s .06s ease-out, opacity .2s; }
+/* Hover hint: a faint tick in the card's text colour, so it's clear what a click does. */
+.ringbtn:hover .tick { stroke-dashoffset: 0; stroke: currentColor; opacity: .4; }
 
 /* Completing: ring fills, tick draws, title strikes through, then the card flies down into Done. */
 .completing .ring { background: var(--accent); border-color: var(--accent); }
-.completing .tick { stroke-dashoffset: 0; }
+.completing .tick, .completing .ringbtn:hover .tick { stroke-dashoffset: 0; stroke: var(--onaccent); opacity: 1; }
+/* Long titles stop after a few lines with "…" (the panel shows the whole title).
+   The clamp sits on a wrapper so .ttl stays inline and its strike-through still
+   crosses every line. */
+.clamp { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; overflow: hidden; overflow-wrap: anywhere; }
+.backlog-card .clamp, .today-card.is-focus .clamp { -webkit-line-clamp: 2; }
+/* Only for a cut-off title: the whole title in a tooltip under the card, as wide
+   as the card. It waits a moment, so sweeping across the board stays quiet. */
+.opener[data-clipped]::after {
+  content: attr(data-full); position: absolute; top: calc(100% + 6px); left: 0; right: 0; z-index: 50;
+  padding: 8px 10px; border-radius: var(--r); background: var(--ink); color: var(--bg);
+  font-size: 12px; font-weight: 500; line-height: 17px; letter-spacing: 0; overflow-wrap: anywhere;
+  box-shadow: 0 12px 28px -12px rgba(0,0,0,.4);
+  opacity: 0; transform: translateY(-3px); pointer-events: none; transition: opacity .15s, transform .15s;
+}
+.opener[data-clipped]:hover::after, .opener[data-clipped]:focus-visible::after { opacity: 1; transform: none; transition-delay: .5s; }
+.is-focus .opener[data-clipped]::after { background: var(--bg); color: var(--ink); }
+.is-dragging .opener::after, .drag-clone .opener::after, .completing .opener::after, .ghost .opener::after { display: none; }
 .ttl { background-image: linear-gradient(currentColor, currentColor); background-repeat: no-repeat; background-position: 0 56%; background-size: 0% 1.5px; transition: background-size .3s .12s cubic-bezier(.6,0,.2,1); }
 .completing .ttl { background-size: 100% 1.5px; }
 /* Then one smooth move: it glides into the Done number (--fx/--fy are measured
@@ -236,6 +274,31 @@ html.grabbing, html.grabbing * { cursor: grabbing !important; }
 .cat-row:hover .cat-del, .cat-del:focus-visible { opacity: 1; }
 /* The colour palette: floats over the settings, anchored under the category's dot. */
 .cat-block { position: relative; }
+/* Reorder grip: hangs in the popover's left padding, so it takes no room in the row. */
+.cat-row { position: relative; }
+.cat-grip {
+  position: absolute; left: -13px; top: 50%; width: 12px; height: 28px; margin-top: -14px; padding: 0;
+  display: flex; align-items: center; justify-content: center; cursor: grab; touch-action: none;
+  opacity: 0; transition: opacity .15s, color .2s;
+}
+.cat-row:hover .cat-grip, .cat-grip:focus-visible, .lifted .cat-grip { opacity: 1; }
+/* While sorting, rows slide out of the way; the dragged row tracks the pointer exactly. */
+.cat-block.sorting { transition: transform .2s cubic-bezier(.2,.8,.3,1); }
+.cat-block.following, .cat-block.settling { transition: none; }
+/* The lifted row is one even chip: it wraps the grip, dot and name, with the same
+   margin on every side and a soft shadow all around. The name's underline is hidden
+   meanwhile, so no line runs through the chip. */
+.cat-block.lifted { z-index: 6; }
+.cat-block.lifted::before {
+  content: ""; position: absolute; z-index: -1; top: -3px; bottom: -3px; left: -15px; right: 30px;
+  background: var(--surface); border-radius: var(--r);
+  box-shadow: 0 0 0 1px var(--line), 0 8px 22px -6px rgba(0,0,0,.22), 0 2px 6px -2px rgba(0,0,0,.12);
+}
+.cat-block.lifted .cat-row input { border-bottom-color: transparent; }
+/* No × while sorting (on any row): dragging is about order, not deleting. The chip
+   ends just after the name instead, so it stays balanced without it. */
+.cat-block.sorting .cat-del { opacity: 0; pointer-events: none; }
+.cat-block.lifted, .cat-block.lifted * { cursor: grabbing; }
 .swatches {
   position: absolute; top: 38px; left: -6px; z-index: 5;
   display: grid; grid-template-columns: repeat(7, 30px); gap: 2px; padding: 8px;
@@ -283,8 +346,10 @@ html.grabbing, html.grabbing * { cursor: grabbing !important; }
 
 /* ---------- detail panel ---------- */
 .drawer {
-  position: fixed; top: 0; right: 0; bottom: 0; width: min(460px, 100%); z-index: 36;
-  background: var(--surface); box-shadow: -30px 0 80px -30px rgba(0,0,0,.4);
+  /* Floats a little off the window edges, like a sheet lifted over the board. */
+  position: fixed; top: 12px; right: 12px; bottom: 12px; width: min(460px, calc(100% - 24px)); z-index: 36;
+  background: var(--surface); border-radius: var(--R);
+  box-shadow: 0 0 0 1px var(--line), 0 30px 70px -20px rgba(0,0,0,.45), 0 10px 24px -12px rgba(0,0,0,.25);
   display: flex; flex-direction: column; overflow: hidden;
   animation: slidein .42s cubic-bezier(.2,1.1,.3,1);
 }
@@ -293,12 +358,19 @@ html.grabbing, html.grabbing * { cursor: grabbing !important; }
 .drawer-body { padding: 20px 28px 28px; display: flex; flex-direction: column; gap: 26px; flex: 1; min-height: 0; overflow-y: auto; }
 .drawer-top { display: flex; align-items: center; gap: 10px; }
 .drawer-top .catname { font-size: 13px; color: var(--muted); }
-.drawer-title { font-size: 30px; line-height: 1.15; font-weight: 600; letter-spacing: -0.02em; resize: none; padding: 0; width: 100%; }
+.del-btn { width: 36px; height: 44px; display: flex; align-items: center; justify-content: center; }
+/* Second step of deleting: a small accent pill in place of the bin. */
+.del-confirm {
+  height: 30px; padding: 0 12px; border: 0; border-radius: 999px; cursor: pointer;
+  background: var(--accent); color: var(--onaccent); font-size: 12px; font-weight: 600;
+  animation: fade .15s ease-out;
+}
+.drawer-title { font-size: 30px; line-height: 1.15; font-weight: 600; letter-spacing: -0.02em; resize: none; padding: 0; width: 100%; overflow: hidden; display: block; }
 .field { border: 0; background: transparent; color: var(--ink); font-family: inherit; }
 .field:focus { outline: none; }
 .where { display: flex; align-items: center; gap: 10px; font-size: 13px; }
 .where .muted { color: var(--muted); }
-.where .sep { color: var(--line); }
+.where .segmented { align-self: flex-start; }
 .block-head { display: flex; align-items: baseline; gap: 10px; border-bottom: 2px solid var(--ink); padding-bottom: 8px; font-size: 15px; font-weight: 600; }
 .block-head .count { color: var(--muted); }
 .check-row { display: flex; align-items: center; gap: 12px; min-height: 44px; border-bottom: 1px solid var(--line); cursor: pointer; font-size: 15px; }
@@ -311,16 +383,36 @@ html.grabbing, html.grabbing * { cursor: grabbing !important; }
   transition: background-color .2s, border-color .2s, transform .3s cubic-bezier(.2,1.6,.4,1);
 }
 .ck:checked { background: var(--accent); border-color: var(--accent); transform: scale(1.08); }
+.ck:not(:checked):hover::after { content: ""; width: 8px; height: 4px; border-left: 2px solid var(--ink); border-bottom: 2px solid var(--ink); opacity: .35; transform: translateY(-1px) rotate(-45deg); }
 .ck:checked::after { content: ""; width: 8px; height: 4px; border-left: 2px solid var(--onaccent); border-bottom: 2px solid var(--onaccent); transform: translateY(-1px) rotate(-45deg); }
 .add-row { display: flex; align-items: center; gap: 12px; min-height: 44px; border-bottom: 1px solid var(--line); }
 .add-row .plus-mark { width: 20px; text-align: center; color: var(--muted); font-size: 18px; }
 .add-row input { flex: 1; font-size: 15px; height: 40px; }
 .notes { font-size: 15px; line-height: 1.5; resize: vertical; padding: 12px 14px; border-radius: var(--r); background: var(--bg); width: 100%; }
-.md-toggle { display: flex; align-items: center; gap: 8px; border: 0; background: transparent; padding: 0; height: 32px; cursor: pointer; color: var(--muted); font-size: 12px; }
+.md-toggle { display: flex; align-items: flex-start; gap: 8px; border: 0; background: transparent; padding: 8px 0; min-height: 32px; cursor: pointer; color: var(--muted); font-size: 12px; line-height: 16px; text-align: left; overflow-wrap: anywhere; }
+.md-toggle .chev { flex: none; margin-top: 2px; }
 .md { margin: 0; background: var(--bg); border-radius: var(--r); padding: 14px 16px; font-size: 12px; line-height: 19px; color: var(--muted); white-space: pre-wrap; }
 .drawer-foot { flex: none; display: flex; gap: 10px; padding: 16px 28px 22px; border-top: 1px solid var(--line); background: var(--surface); }
-.btn-primary { flex: 1; height: 52px; border: 0; border-radius: 999px; background: var(--ink); color: var(--bg); font-size: 15px; font-weight: 600; letter-spacing: -0.01em; cursor: pointer; }
-.btn-secondary { height: 52px; padding: 0 20px; border-radius: 999px; border: 1px solid var(--line); background: transparent; font-size: 14px; cursor: pointer; }
+.btn-primary { flex: 1; height: 52px; border: 0; border-radius: 999px; background: var(--ink); color: var(--bg); font-size: 15px; font-weight: 600; letter-spacing: -0.01em; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: transform .2s; }
+.btn-primary:active { transform: scale(.98); }
+/* Hover: a tick slides in and draws itself in front of "Mark done". */
+.done-tick { display: inline-flex; width: 0; opacity: 0; overflow: hidden; transition: width .2s ease-out, opacity .2s; }
+.done-tick svg { stroke: currentColor; }
+.btn-primary:hover .done-tick, .btn-primary:focus-visible .done-tick { width: 22px; opacity: 1; }
+.btn-primary:hover .tick, .btn-primary:focus-visible .tick { stroke-dashoffset: 0; }
+.btn-secondary {
+  height: 52px; padding: 0 20px 0 22px; border-radius: 999px; border: 0; background: var(--well); color: var(--ink);
+  font-size: 15px; font-weight: 600; letter-spacing: -0.01em; cursor: pointer;
+  display: flex; align-items: center; justify-content: center; gap: 6px;
+  transition: background-color .2s, transform .2s;
+}
+/* Hover: the fill deepens a little and the arrow nudges toward where you're going. */
+.btn-secondary:hover { background: color-mix(in srgb, var(--ink) 7%, var(--well)); }
+.btn-secondary:active { transform: scale(.98); }
+.btn-secondary .ext { display: inline-flex; opacity: .6; transition: transform .2s cubic-bezier(.2,1.4,.4,1), opacity .2s; }
+.btn-secondary:hover .ext { transform: translate(2px, -2px); opacity: 1; }
+/* A finished task has no "Mark done", so this one takes the whole width. */
+.drawer-foot .btn-secondary:only-child { flex: 1; }
 
 /* ---------- browser demo introduction ---------- */
 .demo-intro { display: flex; align-items: flex-start; gap: 12px; padding: 16px 18px; border: 1px solid var(--line); border-radius: var(--R); background: var(--surface); }
@@ -337,5 +429,5 @@ html.grabbing, html.grabbing * { cursor: grabbing !important; }
   .page { padding: 20px 16px 40px; }
   .date-day { font-size: 64px; }
   .today-card.is-focus { grid-column: auto; }
-  .card .reveal, .cat-del, .step-del { opacity: 1; }
+  .card .reveal, .cat-del, .cat-grip, .step-del { opacity: 1; }
 }

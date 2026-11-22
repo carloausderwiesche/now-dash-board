@@ -28,6 +28,13 @@ function classes(base: string, f: CardProps["flags"], extra = "") {
     .filter(Boolean).join(" ");
 }
 
+/** Marks the title as cut off ("…") when it is, so the full-title tooltip only
+ *  shows up when there's something hidden. Measured on hover, so it's always current. */
+const markClipped = (e: { currentTarget: HTMLElement }) => {
+  const clamp = e.currentTarget.querySelector(".clamp");
+  if (clamp) e.currentTarget.toggleAttribute("data-clipped", clamp.scrollHeight > clamp.clientHeight + 1);
+};
+
 const flightVars = (f?: Flight | null) => (f ? { "--fx": `${f.x}px`, "--fy": `${f.y}px` } as CSSProperties : {});
 
 const dot = (color: string, size: number, ring?: string): CSSProperties => ({
@@ -45,9 +52,11 @@ export function TodayCard(p: CardProps & { onComplete: () => void; onToggleFocus
       data-flip={task.id}
       {...p.dnd}
     >
-      <button type="button" className="opener title" onClick={p.onOpen}>
-        <span className="ttl">{task.title}</span>
-        {task.private && <span className="lock" data-tip="Private: AI won't use it"><LockIcon /></span>}
+      <button type="button" className="opener title" onClick={p.onOpen} data-full={task.title} onMouseEnter={markClipped} onFocus={markClipped}>
+        <span className="clamp">
+          <span className="ttl">{task.title}</span>
+          {task.private && <span className="lock" data-tip="Private: AI won't use it"><LockIcon /></span>}
+        </span>
         {task.items.length > 0 && <span className="sub mono num">{done} / {task.items.length}</span>}
       </button>
       <div className="card-foot">
@@ -71,9 +80,11 @@ export function TodayCard(p: CardProps & { onComplete: () => void; onToggleFocus
 export function BacklogCard(p: CardProps & { onToToday: () => void }) {
   return (
     <div className={classes("card backlog-card themed", p.flags)} style={flightVars(p.flight)} data-flip={p.task.id} {...p.dnd}>
-      <button type="button" className="opener title" onClick={p.onOpen}>
-        <span className="ttl">{p.task.title}</span>
-        {p.task.private && <span className="lock" data-tip="Private: AI won't use it"><LockIcon size={11} /></span>}
+      <button type="button" className="opener title" onClick={p.onOpen} data-full={p.task.title} onMouseEnter={markClipped} onFocus={markClipped}>
+        <span className="clamp">
+          <span className="ttl">{p.task.title}</span>
+          {p.task.private && <span className="lock" data-tip="Private: AI won't use it"><LockIcon size={11} /></span>}
+        </span>
       </button>
       <div className="card-foot">
         <button type="button" className="dotbtn" onClick={p.onCycleColour} aria-label={`${p.catName}, click to change category`} data-tip={p.catName} style={{ width: 28, height: 28, marginLeft: -7 }}>

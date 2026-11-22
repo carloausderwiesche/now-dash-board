@@ -25,6 +25,9 @@ pub struct Settings {
     pub daily_folder: String,
     pub theme: String,
     pub categories: Vec<Category>,
+    /// Smaller cards. `#[serde(default)]` on the struct means an older settings
+    /// file without this field still loads, with `false` (Rust's default for bool).
+    pub compact: bool,
 }
 
 impl Default for Settings {
@@ -41,6 +44,7 @@ impl Default for Settings {
                 cat("work", "Work", "blue"),
                 cat("freelance", "Freelance", "amber"),
             ],
+            compact: false,
         }
     }
 }

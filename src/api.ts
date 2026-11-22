@@ -65,6 +65,11 @@ const fileName = (title: string) => {
   const stem = Array.from(title.replace(/[/\\:*?"<>|#^[\]\p{Cc}]/gu, "-").trim()).slice(0, 80).join("").replace(/^[.\s]+|[.\s]+$/g, "");
   return (stem || "Untitled") + ".md";
 };
+/** Like `title_of` in tasks.rs: the full title survives even when the file name had to be shortened. */
+const titleFor = (title: string, id: string) => {
+  const stem = id.slice(0, -3);
+  return fileName(title).slice(0, -3) === stem.replace(/ \(\d+\)$/, "") && title.trim() !== stem.replace(/ \(\d+\)$/, "") ? title.trim() : stem;
+};
 const freeName = (all: Task[], title: string, self?: string) => {
   const base = fileName(title).slice(0, -3);
   for (let n = 1; ; n++) {
@@ -142,7 +147,7 @@ const demoApi: Api = {
     let saved = { ...task, created: task.created ?? stamp() };
     if (!saved.id) {
       const id = freeName(all, saved.title);
-      saved = { ...saved, id, title: id.slice(0, -3) };
+      saved = { ...saved, id, title: titleFor(saved.title, id) };
     }
     demoTasks.set([...all.filter((x) => x.id !== saved.id), saved]);
     return saved;
@@ -150,7 +155,7 @@ const demoApi: Api = {
   async renameTask(id, title) {
     const all = demoTasks.get();
     const newId = freeName(all, title, id);
-    const renamed = { ...all.find((x) => x.id === id)!, id: newId, title: newId.slice(0, -3) };
+    const renamed = { ...all.find((x) => x.id === id)!, id: newId, title: titleFor(title, newId) };
     demoTasks.set(all.map((x) => (x.id === id ? renamed : x)));
     return renamed;
   },

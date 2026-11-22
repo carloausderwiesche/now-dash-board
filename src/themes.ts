@@ -50,6 +50,7 @@ export const PALETTE: Record<PaletteKey, { light: [string, string]; dark: [strin
   red:    { light: ["#D23B2E", "#F9DDD9"], dark: ["#FF8A7F", "#47231F"] },
   orange: { light: ["#D2621A", "#FBE3D1"], dark: ["#FFA466", "#46301C"] },
   amber:  { light: ["#C98512", "#FAEBCB"], dark: ["#FFC266", "#45361C"] },
+  lime:   { light: ["#6B8E12", "#E7F0CC"], dark: ["#C2E26A", "#2F3A17"] },
   green:  { light: ["#2E8B3E", "#D9EFDC"], dark: ["#7FD98E", "#1D3A23"] },
   teal:   { light: ["#138A7E", "#D3EFEA"], dark: ["#6FE0CF", "#17383A"] },
   cyan:   { light: ["#0E85A6", "#D2ECF3"], dark: ["#6BD3F0", "#16343E"] },

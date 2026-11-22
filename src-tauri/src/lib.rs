@@ -47,11 +47,25 @@ fn list_tasks(state: State<AppState>) -> Result<Vec<Task>, String> {
 
 #[tauri::command]
 fn save_task(state: State<AppState>, task: Task) -> Result<Task, String> {
+    let s = state.settings();
+    let dir = s.tasks_dir()?;
     let mut task = task;
     if task.created.is_none() {
         task.created = Some(now());
     }
-    tasks::save(&state.settings().tasks_dir()?, task)
+    // Was this task finished before this save? (`.ok()` turns "file not found" into None,
+    // `.filter(…)` keeps it only if it was done.)
+    let was_done = if task.id.is_empty() { None } else { tasks::load_one(&dir, &task.id).ok().filter(|t| t.status == "done") };
+    let saved = tasks::save(&dir, task)?;
+    // Reopened (Undo, or dragged back out of Done): take its `- [x]` line back out of
+    // the daily note it was logged in. Like logging, this never fails the save.
+    if let Some(old) = was_done {
+        if saved.status != "done" {
+            let day = old.done_on.as_deref().and_then(|d| d.get(..10));
+            let _ = tasks::unlog_from_daily_note(&PathBuf::from(&s.vault_path), &s.daily_folder, &old.title, day);
+        }
+    }
+    Ok(saved)
 }
 
 #[tauri::command]

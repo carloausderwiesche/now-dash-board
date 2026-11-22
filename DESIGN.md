@@ -36,21 +36,25 @@ Read this before changing how something looks or behaves. These decisions came o
 - **Filter:** click a colour dot in the header. Other cards fade to 22% opacity instead of disappearing, so you keep the overview.
 - **Quick add from anywhere** (⌥ Space): a separate see-through window with only the quick-add box, centred a little above the middle of the screen under the mouse. On macOS it's a non-activating panel, so the board window doesn't come forward. It fades in from slightly smaller (about 250ms, no bounce) and closes on Enter, Esc or a click elsewhere.
 - **Quick add** (+ button, `N` in the app, or ⌥ Space as above): a title field, then one row balanced across the width: category dots (⌘1–⌘6, first dot lined up under the title's dot) with the chosen category's name on the left, the Today/Backlog switch (Tab) on the right. The hint line is split the same way. Enter to add, Esc to close. No other fields.
-- **Detail panel:** click a card's *title*. It slides in from the right with:
+- **Long titles** stop with "…" after 3 lines on Today cards and 2 on Backlog and focus cards. The detail panel always shows the whole title, and hovering a cut-off title for half a second shows it in a tooltip under the card (only when something is actually cut off).
+- **Round checks** (cards and checklist) show a faint tick on hover, so it's clear a click finishes it.
+- **Detail panel:** click a card's *title*. It slides in from the right as a floating sheet (inset from the window edges, rounded, with a soft shadow) with:
   - a colour strip on top and colour dots to change the category
-  - an editable title
-  - one quiet line: "In Today · Move to Backlog" (an action, not two views of the card)
+  - an editable title that grows to fit (never a scrollbar, never cut off)
+  - a Today / Backlog switch, the same one as in quick add (a suggested task shows "Accept to Backlog" instead)
   - a checklist using the same round checks as the cards (hover a step for × to remove it)
   - notes
-  - the file path, which expands to show the markdown
-  - **a sticky footer** with "Mark done" (a solid button with text only, no icon) and "Open in Obsidian"
+  - the file path (wraps when long), which expands to show the markdown
+  - a bin next to ×: one click turns it into "Delete file", a second click deletes the task's .md file for good (it turns back by itself after 4 seconds, or when you click elsewhere)
+  - **a sticky footer** with "Mark done" (a solid button; on hover a tick slides in and draws itself) and "Open in Obsidian" (a soft filled button in the theme's well colour, same size and weight, with a ↗ that nudges on hover)
 
 ## Settings
 
 A popover under the settings button; clicking anywhere outside (or Esc) closes it.
 
 - **Theme** dropdown (below).
-- **Categories:** click a category's dot to open a small floating palette of 13 colours (it sits on top, nothing shifts), rename it inline, delete it with the × that appears on hover (at least one stays). Deleting doesn't touch task files; their tasks show in the first category until recategorised. Up to six.
+- **Cards:** Roomy / Compact. Compact keeps the same layout with smaller cards, text and gaps, so more fit on screen.
+- **Categories:** click a category's dot to open a small floating palette of 14 colours (two even rows of seven) (it sits on top, nothing shifts), rename it inline, reorder it by dragging the ⠿ grip that appears on hover in the left margin (or focus it and press ↑ ↓; the order is the order of the dots everywhere), delete it with the × that appears on hover (at least one stays). Deleting doesn't touch task files; their tasks show in the first category until recategorised. Up to six.
 - **Finished tasks are logged in:** the folder (inside the vault) for the daily notes that get a `- [x] Title` line per finished task. "Choose…" opens Finder in the vault; a folder outside the vault is refused. Default `Daily/`.
 - **Obsidian vault:** a dropdown of the vaults Obsidian already knows (read from Obsidian's `obsidian.json`) plus "Other folder…", which opens Finder's folder picker. No typing paths.
 
@@ -76,6 +80,7 @@ All theme values live in `src/themes.ts` as CSS variables. Components never hard
 
 - One file per task in `<vault>/Notes/Tasks/`, flat (subfolders are ignored).
 - **File name = title** + `.md`, e.g. `Fix k6 nightly token.md`. Characters macOS/Obsidian can't take (`/ \ : * ? " < > | # ^ [ ]`) become `-`; at most 80 characters; clashes get ` (2)`, ` (3)`… Editing the title in the app renames the file (when you leave the title field).
+- **`title:`** (optional): when the file name can't hold the title exactly (too long, or it had one of those characters), the full title is also stored as `title: …`. It only counts while it still matches the file name, so renaming the file in Obsidian wins. If the file name is the title, the field isn't written.
 
 ```markdown
 ---
@@ -94,7 +99,7 @@ Free text notes below the checklist are allowed.
 
 - The body is optional. Lines starting with `- [ ]` / `- [x]` are the checklist; the rest is notes.
 - **Ordering:** moving a card sets its `order` to the midpoint of its two neighbours, so only that file is rewritten. New tasks go on top (smallest order − 1024).
-- **Done:** `status: done` + `done:` timestamp. Files are never deleted. The big number counts today; the expanded list shows the last 7 days. Older ones stay on disk.
+- **Done:** `status: done` + `done:` timestamp, and a `- [x] Title` line in that day's daily note. Undo (or dragging it back out of Done) clears `done:` and takes that line back out of the note (a note left empty is removed). Done files are never deleted automatically; only the bin in the panel deletes a task. The big number counts today; the expanded list shows the last 7 days. Older ones stay on disk.
 - **Suggested:** a small strip between Today and Backlog. Accept → top of Backlog (keeps `from:`). Dismiss → the file is deleted.
 - **Other writers exist** (MEGA sync, Obsidian, AI agents): the folder is watched and reloaded; unknown frontmatter fields and the body are kept exactly as they are (the body is only rewritten if you edit the checklist or notes in the app); writes go to `.<name>.tmp` and are renamed over the original.
 - A file without frontmatter = backlog, `area: personal`, shown on top. Files starting with `.` and `README.md` are ignored.

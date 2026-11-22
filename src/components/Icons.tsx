@@ -33,6 +33,21 @@ export const LockIcon = ({ size = 12 }) => (
   </svg>
 );
 /** The tick that draws itself inside the round check (see .tick in styles.css). */
+export const TrashIcon = () => (
+  <svg width={16} height={16} viewBox="0 0 24 24" strokeWidth={1.8} {...base}>
+    <path d="M4 7h16M10 7V4.5h4V7M6.5 7l1 12.5h9l1-12.5M10 11v5M14 11v5" />
+  </svg>
+);
+/** Six dots: "grab here to reorder". */
+export const GripIcon = () => (
+  <svg width={10} height={14} viewBox="0 0 10 14" fill="currentColor" aria-hidden>
+    {[2, 7, 12].map((y) => <g key={y}><circle cx={2.5} cy={y} r={1.3} /><circle cx={7.5} cy={y} r={1.3} /></g>)}
+  </svg>
+);
+/** ↗ : opens somewhere else (another app). */
+export const ExternalIcon = ({ size = 14 }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" strokeWidth={2.2} {...base}><path d="M8 16L16 8M9 8h7v7" /></svg>
+);
 export const Tick = ({ size = 13 }) => (
   <svg width={size} height={size} viewBox="0 0 24 24" strokeWidth={3.2} {...base} stroke="var(--onaccent)">
     <path className="tick" d="M5 12.5l4.5 4.5L19 7.5" />

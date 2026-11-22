@@ -245,7 +245,10 @@ export function useBoard() {
     tasks, settings, error, completing, arrived, bump, lastDone,
     move, complete, add, patch, rename, accept, toggleFocus, cycleColour,
     updateSettings, addCategory, removeCategory,
+    /** Deletes the task's file. A pending edit is dropped first, or it would write the file back. */
     remove: async (id: string) => {
+      const timers = saveTimers.current;
+      if (timers.has(id)) { window.clearTimeout(timers.get(id)); timers.delete(id); }
       setTasks((all) => all.filter((x) => x.id !== id));
       lastLocalWrite.current = Date.now();
       try { await api.deleteTask(id); } catch (e) { setError(String(e)); }

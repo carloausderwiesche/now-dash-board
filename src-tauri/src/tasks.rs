@@ -21,7 +21,9 @@
 //! Free notes.
 //! ```
 //!
-//! The title is the file name: `Fix k6 nightly token.md`.
+//! The title is the file name: `Fix k6 nightly token.md`. When the title can't
+//! be a file name exactly (longer than 80 characters, or it has characters like
+//! `:` or `?`), the full title is also kept in the frontmatter as `title:`.
 
 use serde::{Deserialize, Serialize};
 use serde_yaml::{Mapping, Value};
@@ -44,7 +46,8 @@ pub struct Task {
     /// Empty for a task that has not been saved yet.
     #[serde(default)]
     pub id: String,
-    /// The file name without `.md`. (For a new task: the title to name the file after.)
+    /// The file name without `.md`, or the full title from `title:` when the file
+    /// name had to be shortened. (For a new task: the title to name the file after.)
     pub title: String,
     /// "today" | "backlog" | "done" | "suggested"
     pub status: String,
@@ -147,7 +150,7 @@ pub fn parse(id: &str, text: &str) -> Task {
 
     Task {
         id: id.to_string(),
-        title: id.strip_suffix(".md").unwrap_or(id).to_string(),
+        title: title_of(id, text_of(get("title"))),
         status: match text_of(get("status")).as_deref() {
             Some("today") => "today".into(),
             Some("done") => "done".into(),
@@ -204,6 +207,58 @@ pub fn load_one(dir: &Path, id: &str) -> Result<Task, String> {
 }
 
 // ---------- file names ----------
+
+/// `Fix token (2).md` → `Fix token (2)`.
+fn stem_of(id: &str) -> &str {
+    id.strip_suffix(".md").unwrap_or(id)
+}
+
+/// `Fix token (2)` → `Fix token`: the stem without the ` (n)` added on a name clash.
+fn without_counter(stem: &str) -> &str {
+    // `if let Some(x) = …` only runs the block when the value is there.
+    if let Some(open) = stem.rfind(" (") {
+        if let Some(num) = stem[open + 2..].strip_suffix(')') {
+            if !num.is_empty() && num.chars().all(|c| c.is_ascii_digit()) {
+                return &stem[..open];
+            }
+        }
+    }
+    stem
+}
+
+/// Does a frontmatter `title:` belong to this file? Only if this file name is
+/// what that title would produce. If someone renamed the file in Obsidian, the
+/// old `title:` no longer matches and the new file name wins.
+fn title_matches_file(title: &str, id: &str) -> bool {
+    let stem = file_stem_for(title);
+    stem == stem_of(id) || stem == without_counter(stem_of(id))
+}
+
+/// The title to show: the `title:` field if it belongs to this file, else the file name.
+fn title_of(id: &str, field: Option<String>) -> String {
+    // `.filter(…)` turns Some(x) into None when the check fails.
+    field
+        .filter(|t| title_matches_file(t, id))
+        .unwrap_or_else(|| stem_of(id).to_string())
+}
+
+/// Writes or removes `title:` so the full title survives. Needed only when the
+/// file name isn't exactly the title. A `title:` we didn't write (one that
+/// doesn't match the file name) is left alone, like any other unknown field.
+/// Returns true if the frontmatter changed.
+fn apply_title(fm: &mut Mapping, id: &str, title: &str) -> bool {
+    let key = Value::from("title");
+    if title != stem_of(id) && title != without_counter(stem_of(id)) {
+        let new = Value::from(title);
+        if fm.get(&key) == Some(&new) {
+            return false;
+        }
+        fm.insert(key, new);
+        return true;
+    }
+    let ours = text_of(fm.get(&key)).is_some_and(|t| title_matches_file(&t, id));
+    ours && fm.remove(&key).is_some()
+}
 
 /// "Fix k6: nightly/token?" → "Fix k6- nightly-token-". Characters that macOS
 /// or Obsidian can't have in a file name become `-`; at most 80 characters.
@@ -354,6 +409,7 @@ pub fn save(dir: &Path, mut task: Task) -> Result<Task, String> {
     if is_new && !fm.contains_key("project") {
         set(&mut fm, "project", opt(&task.project));
     }
+    apply_title(&mut fm, &task.id, &task.title);
 
     // Keep the body untouched unless the checklist or notes actually changed.
     let body = match old_body {
@@ -383,7 +439,26 @@ pub fn rename(dir: &Path, id: &str, title: &str, order: f64) -> Result<Task, Str
     if name != id {
         fs::rename(&from, &to).map_err(|e| e.to_string())?;
     }
-    let text = fs::read_to_string(&to).map_err(|e| e.to_string())?;
+    let mut text = fs::read_to_string(&to).map_err(|e| e.to_string())?;
+    // The file name may be a shortened title: keep the full one in `title:`.
+    let (yaml, body) = split_frontmatter(&text);
+    // No frontmatter yet → start an empty one (it's only written if `title:` is needed).
+    // Broken YAML → leave the file alone; the title is then just the file name.
+    if let Ok(mut fm) = yaml.map(parse_yaml).unwrap_or(Ok(Mapping::new())) {
+        // A `title:` that belonged to the *old* file name was ours: drop it first,
+        // `apply_title` writes a new one if the new name needs it.
+        let mut changed = false;
+        if text_of(fm.get("title")).is_some_and(|t| title_matches_file(&t, id)) {
+            fm.remove("title");
+            changed = true;
+        }
+        // `|` (not `||`) so `apply_title` always runs, even when `changed` is already true.
+        if apply_title(&mut fm, &name, title.trim()) | changed {
+            let new_text = format!("---\n{}---\n{}", render_yaml(&fm)?, body);
+            write_atomic(&to, &new_text)?;
+            text = new_text;
+        }
+    }
     Ok(parse_with_order(&name, &text, order))
 }
 
@@ -404,6 +479,34 @@ pub fn log_to_daily_note(vault: &Path, daily_folder: &str, title: &str) -> Resul
         .open(file)
         .map_err(|e| e.to_string())?;
     writeln!(f, "- [x] {title}").map_err(|e| e.to_string())
+}
+
+/// The opposite of `log_to_daily_note`, for Undo: takes `- [x] title` back out of
+/// the daily note of the day the task was done. `day` is `YYYY-MM-DD` (None = today).
+/// Only that one line goes (the last match, if the title was logged twice); the rest
+/// of the note is kept exactly. A note left empty by this is removed.
+pub fn unlog_from_daily_note(vault: &Path, daily_folder: &str, title: &str, day: Option<&str>) -> Result<(), String> {
+    let today = chrono::Local::now().format("%Y-%m-%d").to_string();
+    // Only accept a real date shape, so a strange `done:` value can't point at another file.
+    let day = day
+        .filter(|d| d.len() == 10 && d.chars().all(|c| c.is_ascii_digit() || c == '-'))
+        .unwrap_or(&today);
+    let file = vault.join(daily_folder).join(format!("{day}.md"));
+    let Ok(text) = fs::read_to_string(&file) else { return Ok(()) }; // no note → nothing to undo
+    let wanted = format!("- [x] {title}");
+    let lines: Vec<&str> = text.lines().collect();
+    // `rposition` = the index of the last line that matches, if any.
+    let Some(at) = lines.iter().rposition(|l| l.trim_end() == wanted) else { return Ok(()) };
+    let mut kept: Vec<&str> = lines;
+    kept.remove(at);
+    if kept.iter().all(|l| l.trim().is_empty()) {
+        return fs::remove_file(&file).map_err(|e| e.to_string());
+    }
+    let mut out = kept.join("\n");
+    if text.ends_with('\n') {
+        out.push('\n');
+    }
+    write_atomic(&file, &out)
 }
 
 #[cfg(test)]
@@ -497,7 +600,57 @@ mod tests {
         assert_eq!(b.id, "Fix- token (2).md");
         assert_eq!(a.order, -1024.0);
         let text = fs::read_to_string(dir.join(&a.id)).unwrap();
-        assert_eq!(text, "---\nstatus: today\narea: work\norder: -1024\ncreated: 2026-11-22T09:40\ndone:\nproject:\n---\n");
+        // `:` can't be in a file name, so the real title is kept in `title:`.
+        assert_eq!(text, "---\nstatus: today\narea: work\norder: -1024\ncreated: 2026-11-22T09:40\ndone:\nproject:\ntitle: 'Fix: token'\n---\n");
+        assert_eq!(a.title, "Fix: token");
+        assert_eq!(b.title, "Fix: token");
+        let c = save(&dir, t("Plain")).unwrap();
+        assert!(!fs::read_to_string(dir.join(&c.id)).unwrap().contains("title:"));
+    }
+
+    #[test]
+    fn long_titles_are_kept_whole() {
+        let dir = temp_dir("long");
+        let long = "Write the quarterly review summary for the platform team including the k6 nightly results";
+        fs::write(dir.join("Short.md"), "---\nstatus: today\n---\nbody\n").unwrap();
+        let t = rename(&dir, "Short.md", long, 1.0).unwrap();
+        assert_eq!(t.id.chars().count(), 80 + 3);
+        assert_eq!(t.title, long);
+        assert!(fs::read_to_string(dir.join(&t.id)).unwrap().ends_with("---\nbody\n"));
+        // Renaming back to a short title removes the field again.
+        let t = rename(&dir, &t.id, "Short", 1.0).unwrap();
+        assert_eq!(t.title, "Short");
+        assert!(!fs::read_to_string(dir.join("Short.md")).unwrap().contains("title:"));
+    }
+
+    #[test]
+    fn undo_takes_the_line_out_of_the_daily_note() {
+        let vault = temp_dir("unlog");
+        fs::create_dir_all(vault.join("Daily")).unwrap();
+        let note = vault.join("Daily/2026-11-22.md");
+        fs::write(&note, "# Sunday\n- [x] Buy milk\nSome notes\n- [x] Fix bike\n").unwrap();
+        unlog_from_daily_note(&vault, "Daily", "Buy milk", Some("2026-11-22")).unwrap();
+        assert_eq!(fs::read_to_string(&note).unwrap(), "# Sunday\nSome notes\n- [x] Fix bike\n");
+        // Not in the note: nothing changes.
+        unlog_from_daily_note(&vault, "Daily", "Nope", Some("2026-11-22")).unwrap();
+        assert_eq!(fs::read_to_string(&note).unwrap(), "# Sunday\nSome notes\n- [x] Fix bike\n");
+        // A note that only had our line is removed.
+        let only = vault.join("Daily/2026-11-21.md");
+        fs::write(&only, "- [x] Solo\n").unwrap();
+        unlog_from_daily_note(&vault, "Daily", "Solo", Some("2026-11-21")).unwrap();
+        assert!(!only.exists());
+        // A weird date can't reach outside the folder.
+        unlog_from_daily_note(&vault, "Daily", "x", Some("../../etc")).unwrap();
+    }
+
+    #[test]
+    fn stale_or_foreign_title_fields_are_ignored() {
+        // Renamed in Obsidian: the old `title:` no longer fits the file name.
+        let t = parse("Renamed.md", "---\ntitle: 'Old: name'\n---\n");
+        assert_eq!(t.title, "Renamed");
+        // A clash counter doesn't stop the field from counting.
+        let t = parse("Fix- token (2).md", "---\ntitle: 'Fix: token'\n---\n");
+        assert_eq!(t.title, "Fix: token");
     }
 
     #[test]
