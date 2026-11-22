@@ -33,6 +33,8 @@ export interface Api {
   onQuickOpen(cb: () => void): Promise<() => void>;
   /** Quick-add window only: hides it again. */
   hideQuick(): Promise<void>;
+  /** Browser demo only: puts the sample tasks and settings back. */
+  resetDemo(): void;
 }
 
 const tauriApi: Api = {
@@ -50,6 +52,7 @@ const tauriApi: Api = {
   onTasksChanged: (cb) => listen("tasks-changed", () => cb()),
   onQuickOpen: (cb) => listen("quick-open", () => cb()),
   hideQuick: () => invoke("hide_quick"),
+  resetDemo: () => {},
 };
 
 // ---------- browser demo store ----------
@@ -86,16 +89,16 @@ const DEMO_SETTINGS: Settings = {
 const t = (title: string, area: string, status: Task["status"], order: number, extra: Partial<Task> = {}): Task =>
   ({ id: fileName(title), title: fileName(title).slice(0, -3), area, status, order, focus: false, created: stamp(), doneOn: status === "done" ? stamp() : null, items: [], notes: "", ...extra });
 const DEMO_TASKS: Task[] = [
-  t("Review PR- alert thresholds", "work", "today", 1024, {
+  t("Review PR for alert thresholds", "work", "today", 1024, {
     focus: true,
     notes: "Check the hysteresis values against the old dashboard before approving.",
     items: [{ text: "Read the diff", done: true }, { text: "Run it locally", done: false }, { text: "Leave comments", done: false }],
   }),
   t("Homepage copy review", "freelance", "today", 2048),
   t("Piano practice", "personal", "today", 3072, { private: true }),
-  t("Prep 1-1 notes", "work", "today", 4096),
+  t("Prep notes for 1-on-1", "work", "today", 4096),
   t("Send November invoice", "freelance", "today", 5120),
-  t("Write ADR- message broker", "work", "backlog", 1024),
+  t("Write ADR on the message broker", "work", "backlog", 1024),
   t("Fix the bike brakes", "personal", "backlog", 2048),
   t("Draft portfolio essay", "freelance", "backlog", 3072),
   t("Plan Saturday", "personal", "backlog", 4096),
@@ -162,6 +165,10 @@ const demoApi: Api = {
   async onTasksChanged() { return () => {}; },
   async onQuickOpen() { return () => {}; },
   async hideQuick() {},
+  resetDemo() {
+    try { localStorage.removeItem("nowboard-demo-tasks-v1"); localStorage.removeItem("nowboard-demo-settings"); } catch { /* ignore */ }
+    location.reload();
+  },
 };
 
 export const api: Api = inTauri ? tauriApi : demoApi;

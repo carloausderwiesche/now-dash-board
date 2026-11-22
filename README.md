@@ -2,6 +2,19 @@
 
 A calm kanban board for your day. Every task is a markdown file in your Obsidian vault.
 
+**[Try the clickable demo →](https://nestoririondo.github.io/nowboard/)** (sample data, runs in your browser)
+
+## What it does
+
+Nowboard answers one question: *what am I doing today?*
+
+- **One column:** Today (big cards), Backlog (small cards), Done (a counter for today, the last 7 days on click).
+- **Throw, don't schedule:** no times or estimates. Drag cards between lists, tick them off, optionally put one card in *Focus*.
+- **Colour = category** (e.g. Work, Personal, Freelance). Click a colour in the header to highlight just that category.
+- **Your tasks are plain files.** Each task is a `.md` file in your Obsidian vault (`Notes/Tasks/`), with a little frontmatter for status, category and order. Edit them in Obsidian, sync them with anything, let scripts or AI agents read them or *suggest* new tasks. The app watches the folder and keeps unknown fields untouched.
+- **Quick add from anywhere:** ⌥ Space opens a small floating box over whatever you're doing.
+- **Themes** inspired by Dieter Rams, Jony Ive and soft pastels.
+
 - **Frontend:** React + TypeScript (`src/`). That's where the design lives.
 - **Backend:** Rust with Tauri 2 (`src-tauri/`). It reads and writes the `.md` files, watches the folder for changes, and owns the ⌥ Space shortcut.
 
@@ -54,7 +67,7 @@ Settings are saved in `~/Library/Application Support/com.nestoririondo.nowboard/
 
 ## 4. The global shortcut
 
-⌥ Space brings the window to the front and opens quick add, from any app. macOS may ask for Accessibility permission the first time (System Settings → Privacy & Security → Accessibility). If another app already uses ⌥ Space, change the shortcut in `src-tauri/src/lib.rs` (`Modifiers::ALT, Code::Space`).
+⌥ Space opens a small floating quick-add box from any app, without bringing the board forward (on macOS it's a non-activating panel, via `tauri-nspanel`). macOS may ask for Accessibility permission the first time (System Settings → Privacy & Security → Accessibility). If another app already uses ⌥ Space, change the shortcut in `src-tauri/src/lib.rs` (`Modifiers::ALT, Code::Space`).
 
 ## 5. Build a real app
 
@@ -70,7 +83,9 @@ This creates `src-tauri/target/release/bundle/macos/Nowboard.app` and a `.dmg`. 
 src/
   App.tsx              page layout: header, Today, Backlog, Done
   useBoard.ts          all state and actions (move, complete, add, edit…)
-  useDnd.ts            drag and drop
+  useDnd.ts            drag and drop (with the drop preview)
+  useFlip.ts           cards gliding to their new place
+  QuickWindow.tsx      the ⌥ Space window (quick add only)
   api.ts               the only file that talks to Rust (plus the browser demo store)
   themes.ts            the 7 themes and the colour palette
   styles.css           every style and animation
@@ -79,6 +94,7 @@ src/
     QuickAdd.tsx       the add box
     DetailPanel.tsx    the panel that slides in from the right
     SettingsPopover.tsx
+    DemoIntro.tsx      explanation shown only in the browser demo
 src-tauri/
   src/lib.rs           commands the frontend calls, file watcher, ⌥ Space
   src/tasks.rs         markdown file ⇄ Task (with tests)
@@ -98,7 +114,14 @@ src-tauri/
 
 ## Ideas for next steps
 
-1. A small floating quick-add window instead of bringing the whole board forward.
-2. A menu-bar icon (Tauri tray) that shows the focus card.
-3. A ⌘K command menu.
-4. A phone version, using the compact list layout from the design canvas.
+1. A menu-bar icon (Tauri tray) that shows the focus card.
+2. A ⌘K command menu.
+3. A phone version, using the compact list layout from the design canvas.
+
+## Web demo
+
+`.github/workflows/demo.yml` builds the frontend with its browser demo store and publishes it to GitHub Pages on every push to `main`. Locally: `npm run build -- --base=/nowboard/ && npx vite preview --base=/nowboard/`.
+
+## License
+
+MIT, see [LICENSE](LICENSE).

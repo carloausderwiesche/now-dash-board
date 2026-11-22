@@ -20,7 +20,16 @@ button, input, select, textarea { font-family: inherit; color: inherit; }
    for the window buttons and give the window an invisible strip to drag by. */
 .titlebar { position: fixed; top: 0; left: 0; right: 0; height: 32px; z-index: 20; }
 .desktop .page { padding-top: 48px; }
-.desktop .error-bar { padding-left: 88px; }
+.desktop /* ---------- browser demo introduction ---------- */
+.demo-intro { display: flex; align-items: flex-start; gap: 12px; padding: 16px 18px; border: 1px solid var(--line); border-radius: var(--R); background: var(--surface); }
+.demo-text { display: flex; flex-direction: column; gap: 6px; flex: 1; min-width: 0; font-size: 13px; line-height: 1.5; color: var(--muted); }
+.demo-text strong { font-size: 15px; color: var(--ink); }
+.demo-try { font-size: 12px; }
+.demo-links { display: flex; align-items: center; gap: 8px; }
+.demo-links a { color: var(--ink); font-size: 13px; font-weight: 500; text-underline-offset: 3px; text-decoration-color: var(--line); }
+.demo-close { width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; flex: none; margin: -6px -8px 0 0; }
+
+.error-bar { padding-left: 88px; }
 .page { max-width: 1400px; margin: 0 auto; padding: 32px 48px 48px; display: flex; flex-direction: column; gap: 28px; }
 .column { display: flex; flex-direction: column; gap: 48px; }
 .num { font-variant-numeric: tabular-nums; }
@@ -286,6 +295,15 @@ button, input, select, textarea { font-family: inherit; color: inherit; }
 .drawer-foot { flex: none; display: flex; gap: 10px; padding: 16px 28px 22px; border-top: 1px solid var(--line); background: var(--surface); }
 .btn-primary { flex: 1; height: 52px; border: 0; border-radius: 999px; background: var(--ink); color: var(--bg); font-size: 15px; font-weight: 600; letter-spacing: -0.01em; cursor: pointer; }
 .btn-secondary { height: 52px; padding: 0 20px; border-radius: 999px; border: 1px solid var(--line); background: transparent; font-size: 14px; cursor: pointer; }
+
+/* ---------- browser demo introduction ---------- */
+.demo-intro { display: flex; align-items: flex-start; gap: 12px; padding: 16px 18px; border: 1px solid var(--line); border-radius: var(--R); background: var(--surface); }
+.demo-text { display: flex; flex-direction: column; gap: 6px; flex: 1; min-width: 0; font-size: 13px; line-height: 1.5; color: var(--muted); }
+.demo-text strong { font-size: 15px; color: var(--ink); }
+.demo-try { font-size: 12px; }
+.demo-links { display: flex; align-items: center; gap: 8px; }
+.demo-links a { color: var(--ink); font-size: 13px; font-weight: 500; text-underline-offset: 3px; text-decoration-color: var(--line); }
+.demo-close { width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; flex: none; margin: -6px -8px 0 0; }
 
 .error-bar { background: var(--accent); color: var(--onaccent); padding: 10px 48px; font-size: 13px; }
 

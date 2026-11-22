@@ -9,6 +9,7 @@ import { DetailPanel } from "./components/DetailPanel";
 import { ChevronIcon, PlusIcon, SlidersIcon } from "./components/Icons";
 import { QuickAdd } from "./components/QuickAdd";
 import { SettingsPopover } from "./components/SettingsPopover";
+import { DemoIntro } from "./components/DemoIntro";
 import type { Status, Task, ThemeKey } from "./types";
 
 export default function App() {
@@ -130,6 +131,7 @@ export default function App() {
       {inTauri && <div className="titlebar" data-tauri-drag-region />}
       {board.error && <div className="error-bar">{board.error}</div>}
       <div className="page">
+        {!inTauri && <DemoIntro />}
         <header className="header" data-tauri-drag-region>
           <div className="date">
             <span className="date-day num">{now.getDate()}</span>
