@@ -108,6 +108,10 @@ button, input, select, textarea { font-family: inherit; color: inherit; }
   transition: opacity .3s, transform .25s cubic-bezier(.2,.8,.3,1), box-shadow .25s, background-color .45s;
 }
 .card:hover { transform: translateY(-3px); box-shadow: 0 14px 30px -16px rgba(0,0,0,.35); }
+/* The card whose detail panel is open stays lifted. The panel's scrim covers the board,
+   so without this the card would lose its hover and drop back as you click its title. */
+.card.open { transform: translateY(-3px); box-shadow: 0 14px 30px -16px rgba(0,0,0,.35); z-index: 3; }
+.today-card.is-focus.open { box-shadow: 0 14px 34px -16px rgba(0,0,0,.55); }
 /* The lift moves the card 3px up. Without this, pointing near its bottom edge would
    lift it off the pointer, drop it back, lift it again… This invisible strip covers
    the spot the card lifted away from, so it stays hovered until you really leave. */

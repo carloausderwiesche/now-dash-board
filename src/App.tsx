@@ -131,6 +131,7 @@ export default function App() {
     completing: board.completing === t.id,
     arrived: board.arrived === t.id,
     landed: dnd.landed === t.id,
+    open: openId === t.id,
   });
   const flightOf = (t: Task) => (flight?.id === t.id ? flight : null);
   const now = new Date();

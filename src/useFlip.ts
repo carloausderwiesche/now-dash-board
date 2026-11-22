@@ -16,24 +16,28 @@ export function useFlip<T extends HTMLElement>() {
   useLayoutEffect(() => {
     const box = ref.current;
     if (!box) return;
-    const origin = box.getBoundingClientRect(); // relative to the grid, so scrolling doesn't count as movement
-    const at = (el: HTMLElement): Pos => {
-      const r = el.getBoundingClientRect();
-      return { x: r.left - origin.left, y: r.top - origin.top };
-    };
+    // Where the card sits in the grid's layout. offsetLeft/offsetTop ignore CSS
+    // transforms, so the hover lift (and the lift of the card whose panel is open)
+    // doesn't count as "moving". Measuring on-screen boxes instead made a card dip
+    // and bounce back whenever it gained or lost that 3px lift. (The grid is
+    // position: relative, so offsets are measured from it and scrolling doesn't count.)
+    const at = (el: HTMLElement): Pos => ({ x: el.offsetLeft, y: el.offsetTop });
     const next = new Map<string, Pos>();
     box.querySelectorAll<HTMLElement>("[data-flip]").forEach((el) => {
       if (el.offsetParent === null) return; // hidden (the card you're dragging)
       const key = el.dataset.flip!;
-      // If the card is still sliding from a previous change, start the new slide
-      // from where it is *on screen* right now, so it never snaps.
-      const sliding = running.get(el);
-      let prev = last.current.get(key);
-      if (sliding && sliding.playState === "running") {
-        prev = at(el);
-        sliding.cancel();
-      }
       const pos = at(el); // its real place in the layout
+      let prev = last.current.get(key);
+      // If the card is still sliding from a previous change, start the new slide
+      // from where it is *on screen* right now, so it never snaps. The slide's
+      // current offset = the box with the slide minus the box without it.
+      const sliding = running.get(el);
+      if (sliding && sliding.playState === "running") {
+        const a = el.getBoundingClientRect();
+        sliding.cancel();
+        const b = el.getBoundingClientRect();
+        prev = { x: pos.x + a.left - b.left, y: pos.y + a.top - b.top };
+      }
       next.set(key, pos);
       // The drop preview stands in for the dragged card: after the drop, the
       // real card starts where the preview was, so it doesn't fly across.

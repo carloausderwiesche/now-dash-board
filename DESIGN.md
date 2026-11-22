@@ -38,7 +38,7 @@ Read this before changing how something looks or behaves. These decisions came o
 - **Quick add** (+ button, `N` in the app, or ⌥ Space as above): a title field, then one row balanced across the width: category dots (⌘1–⌘6, first dot lined up under the title's dot) with the chosen category's name on the left, the Today/Backlog switch (Tab) on the right. The hint line is split the same way. Enter to add, Esc to close. No other fields.
 - **Long titles** stop with "…" after 3 lines on Today cards and 2 on Backlog and focus cards. The detail panel always shows the whole title, and hovering a cut-off title for half a second shows it in a tooltip under the card (only when something is actually cut off).
 - **Round checks** (cards and checklist) show a faint tick on hover, so it's clear a click finishes it.
-- **Detail panel:** click a card's *title*. It slides in from the right as a floating sheet (inset from the window edges, rounded, with a soft shadow) with:
+- **Detail panel:** click a card's *title*. It slides in from the right as a floating sheet (inset from the window edges, rounded, with a soft shadow). The card stays lifted, as if hovered, while its panel is open. The panel has:
   - a colour strip on top and colour dots to change the category
   - an editable title that grows to fit (never a scrollbar, never cut off)
   - a Today / Backlog switch, the same one as in quick add (a suggested task shows "Accept to Backlog" instead)

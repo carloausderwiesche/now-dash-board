@@ -16,7 +16,7 @@ interface CardProps {
   tint: string;
   /** Name of the card's category, shown when hovering its dot. */
   catName: string;
-  flags: { dim: boolean; dragging: boolean; collapsed: boolean; completing: boolean; arrived: boolean; landed: boolean };
+  flags: { dim: boolean; dragging: boolean; collapsed: boolean; completing: boolean; arrived: boolean; landed: boolean; open: boolean };
   dnd: DndProps;
   flight?: Flight | null;
   onOpen: () => void;
@@ -24,7 +24,7 @@ interface CardProps {
 }
 
 function classes(base: string, f: CardProps["flags"], extra = "") {
-  return [base, extra, f.dim && "dim", f.dragging && "dragging", f.collapsed && "collapsed", f.completing && "completing", f.arrived && "arrive", f.landed && "landed"]
+  return [base, extra, f.dim && "dim", f.dragging && "dragging", f.collapsed && "collapsed", f.completing && "completing", f.arrived && "arrive", f.landed && "landed", f.open && "open"]
     .filter(Boolean).join(" ");
 }
 
