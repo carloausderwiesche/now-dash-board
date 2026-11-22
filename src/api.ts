@@ -170,7 +170,12 @@ const demoApi: Api = {
   async openInObsidian(id) { console.info("In the desktop app this opens Tasks/" + id + " in Obsidian."); },
   async pickFolder() { console.info("In the desktop app this opens Finder to choose a folder."); return null; },
   async knownVaults() { return []; },
-  async onTasksChanged() { return () => {}; },
+  // Another tab changing the demo tasks stands in for "a file changed on disk".
+  async onTasksChanged(cb) {
+    const on = (e: StorageEvent) => { if (e.key === "nowboard-demo-tasks-v1") cb(); };
+    window.addEventListener("storage", on);
+    return () => window.removeEventListener("storage", on);
+  },
   async onQuickOpen() { return () => {}; },
   async onQuickClosed() { return () => {}; },
   async hideQuick() {},

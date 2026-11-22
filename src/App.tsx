@@ -41,6 +41,13 @@ export default function App() {
     board.complete(id);
   };
 
+  // Finished in Obsidian or by an agent → same animation, one card at a time.
+  const nextIncoming = board.incoming[0];
+  useEffect(() => {
+    if (nextIncoming && !board.completing) finish(nextIncoming);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [nextIncoming, board.completing]);
+
   const dnd = useDnd((id, target) => {
     if (target.status === "done") finish(id);
     else board.move(id, target.status, target.beforeId, { quiet: true });

@@ -186,7 +186,15 @@ pub fn load_all(dir: &Path) -> Result<Vec<Task>, String> {
             continue;
         }
         if let Ok(text) = fs::read_to_string(entry.path()) {
-            tasks.push(parse(&name, &text));
+            let mut task = parse(&name, &text);
+            if task.status == "done" {
+                // `.ok()` turns the Result into an Option, so a file system that can't
+                // tell us the modified time simply gives None (and nothing changes).
+                let modified = entry.metadata().and_then(|m| m.modified()).ok()
+                    .map(|t| chrono::DateTime::<chrono::Local>::from(t).format("%Y-%m-%dT%H:%M").to_string());
+                task.done_on = done_time(task.done_on, modified);
+            }
+            tasks.push(task);
         }
     }
     // Files without an `order` go on top of their list (smallest order - 1024).
@@ -207,6 +215,21 @@ pub fn load_one(dir: &Path, id: &str) -> Result<Task, String> {
 }
 
 // ---------- file names ----------
+
+/// When someone else (Obsidian, an agent) marks a task done, they often write
+/// `done: 2026-11-22` without a time, or no `done:` at all. Without a time the
+/// task would sort below everything finished today; without a date it wouldn't
+/// count as done today at all. So we borrow the time the file was last saved
+/// (`modified`, same "YYYY-MM-DDTHH:MM" shape). Like a missing `order`, this is
+/// only how it's shown: the file isn't rewritten.
+fn done_time(done_on: Option<String>, modified: Option<String>) -> Option<String> {
+    match (done_on, modified) {
+        (None, m) => m,
+        // A bare date that matches the day the file was saved → add that time.
+        (Some(d), Some(m)) if d.len() == 10 && m.starts_with(&d) => Some(m),
+        (d, _) => d,
+    }
+}
 
 /// `Fix token (2).md` → `Fix token (2)`.
 fn stem_of(id: &str) -> &str {
@@ -621,6 +644,17 @@ mod tests {
         let t = rename(&dir, &t.id, "Short", 1.0).unwrap();
         assert_eq!(t.title, "Short");
         assert!(!fs::read_to_string(dir.join("Short.md")).unwrap().contains("title:"));
+    }
+
+    #[test]
+    fn done_without_a_time_borrows_the_file_time() {
+        let m = || Some("2026-11-22T15:07".to_string());
+        assert_eq!(done_time(None, m()), m());
+        assert_eq!(done_time(Some("2026-11-22".into()), m()), m());
+        // A real time is kept, and a bare date from another day isn't touched.
+        assert_eq!(done_time(Some("2026-11-22T09:40".into()), m()).as_deref(), Some("2026-11-22T09:40"));
+        assert_eq!(done_time(Some("2026-11-20".into()), m()).as_deref(), Some("2026-11-20"));
+        assert_eq!(done_time(None, None), None);
     }
 
     #[test]

@@ -29,12 +29,28 @@ export function useBoard() {
   tasksRef.current = tasks;
   const lastLocalWrite = useRef(0);
   const saveTimers = useRef(new Map<string, number>());
+  /** Cards finished outside the app, waiting for their animation (see reload). */
+  const fromDisk = useRef(new Map<string, Task>());
+  const [incoming, setIncoming] = useState<string[]>([]);
 
   // ---------- loading ----------
   const reload = useCallback(async () => {
     try {
-      setTasks(await api.listTasks());
-      setError(null);
+      const fresh = await api.listTasks();
+      // Someone else (Obsidian, an agent) marked a visible card done? Keep it where
+      // it was for a moment and queue it, so App plays the same ring → fly → bump
+      // as when you finish it yourself. The file is already done: nothing is written.
+      const before = new Map(tasksRef.current.map((x) => [x.id, x]));
+      const arriving: string[] = [];
+      const shown = fresh.map((x) => {
+        const old = before.get(x.id);
+        if (x.status !== "done" || !old || old.status === "done") return x;
+        fromDisk.current.set(x.id, x);
+        arriving.push(x.id);
+        return old;
+      });
+      setTasks(shown);
+      if (arriving.length) setIncoming((q) => [...q.filter((id) => !arriving.includes(id)), ...arriving]);
     } catch (e) {
       setError(String(e));
       setTasks([]);
@@ -133,11 +149,28 @@ export function useBoard() {
   /** Ring fills → title strikes → card flies into Done → counter bumps. */
   const complete = useCallback((id: string) => {
     if (completing) return;
+    if (tasksRef.current.find((x) => x.id === id)?.status === "done") {
+      // Already done (a second file event while it was animating): nothing to play.
+      fromDisk.current.delete(id);
+      setIncoming((q) => q.filter((x) => x !== id));
+      return;
+    }
     setCompleting(id);
+    setIncoming((q) => q.filter((x) => x !== id));
     window.setTimeout(async () => {
       const t = tasksRef.current.find((x) => x.id === id);
       setCompleting(null);
       if (!t) return;
+      const done = fromDisk.current.get(id);
+      if (done) {
+        // Finished on disk: just show the file's version, no write, no daily-note line.
+        fromDisk.current.delete(id);
+        setTasks((all) => all.map((x) => (x.id === id ? done : x)));
+        setLastDone(done.title);
+        setBump(true);
+        window.setTimeout(() => setBump(false), 650);
+        return;
+      }
       setTasks((all) => all.map((x) => (x.id === id ? { ...x, status: "done", focus: false, doneOn: nowStamp() } : x)));
       setLastDone(t.title);
       setBump(true);
@@ -243,6 +276,8 @@ export function useBoard() {
 
   return {
     tasks, settings, error, completing, arrived, bump, lastDone,
+    /** Ids finished outside the app, oldest first, waiting to be animated. */
+    incoming,
     move, complete, add, patch, rename, accept, toggleFocus, cycleColour,
     updateSettings, addCategory, removeCategory,
     /** Deletes the task's file. A pending edit is dropped first, or it would write the file back. */
