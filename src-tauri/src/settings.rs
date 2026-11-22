@@ -10,7 +10,7 @@ pub struct Category {
     /// Written into each task's frontmatter as `colour: <id>`.
     pub id: String,
     pub name: String,
-    /// One of the palette keys in the frontend: rose, blue, amber, teal, violet, slate.
+    /// One of the palette keys in `PALETTE` in src/themes.ts, e.g. "rose" or "indigo".
     pub color: String,
 }
 

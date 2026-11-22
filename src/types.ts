@@ -31,7 +31,9 @@ export interface Task {
   notes: string;
 }
 
-export type PaletteKey = "rose" | "blue" | "amber" | "teal" | "violet" | "slate";
+export type PaletteKey =
+  | "rose" | "red" | "orange" | "amber" | "green" | "teal" | "cyan"
+  | "blue" | "indigo" | "violet" | "pink" | "brown" | "slate";
 
 export interface Category {
   id: string;

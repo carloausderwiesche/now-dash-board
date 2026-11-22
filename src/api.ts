@@ -5,9 +5,12 @@
 
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
+import { getCurrentWindow } from "@tauri-apps/api/window";
 import type { Settings, Task } from "./types";
 
 export const inTauri = typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
+/** True inside the small quick-add window that ⌥ Space opens from anywhere. */
+export const isQuickWindow = inTauri && getCurrentWindow().label === "quick";
 
 export interface Api {
   getSettings(): Promise<Settings>;
@@ -26,8 +29,10 @@ export interface Api {
   knownVaults(): Promise<string[]>;
   /** Called when files change on disk (e.g. you edited a task in Obsidian). */
   onTasksChanged(cb: () => void): Promise<() => void>;
-  /** Called when the global ⌥ Space shortcut fires. */
-  onQuickAdd(cb: () => void): Promise<() => void>;
+  /** Quick-add window only: called each time ⌥ Space shows it. */
+  onQuickOpen(cb: () => void): Promise<() => void>;
+  /** Quick-add window only: hides it again. */
+  hideQuick(): Promise<void>;
 }
 
 const tauriApi: Api = {
@@ -43,7 +48,8 @@ const tauriApi: Api = {
   pickFolder: () => invoke("pick_folder"),
   knownVaults: () => invoke("known_vaults"),
   onTasksChanged: (cb) => listen("tasks-changed", () => cb()),
-  onQuickAdd: (cb) => listen("quick-add", () => cb()),
+  onQuickOpen: (cb) => listen("quick-open", () => cb()),
+  hideQuick: () => invoke("hide_quick"),
 };
 
 // ---------- browser demo store ----------
@@ -154,7 +160,8 @@ const demoApi: Api = {
   async pickFolder() { console.info("In the desktop app this opens Finder to choose your vault."); return null; },
   async knownVaults() { return []; },
   async onTasksChanged() { return () => {}; },
-  async onQuickAdd() { return () => {}; },
+  async onQuickOpen() { return () => {}; },
+  async hideQuick() {},
 };
 
 export const api: Api = inTauri ? tauriApi : demoApi;

@@ -159,13 +159,117 @@ fn restart_watcher(app: &AppHandle, state: &AppState) {
     }
 }
 
+// ---------- quick add from anywhere (⌥ Space) ----------
+//
+// ⌥ Space opens a small, separate window with only the "new task" box, centred
+// a little above the middle of the screen you're on. The board window stays
+// where it is. On macOS that window is turned into an NSPanel (the kind of
+// window Spotlight/Raycast use): it takes your typing *without* activating the
+// whole app, which is what would otherwise pull the board window to the front.
+
+// Describes our panel type for the `tauri-nspanel` plugin. `tauri_panel!` is a
+// macro: it writes the Objective-C glue for us at compile time.
+#[cfg(target_os = "macos")]
+tauri_nspanel::tauri_panel! {
+    panel!(QuickPanel {
+        config: {
+            can_become_key_window: true,
+            is_floating_panel: true
+        }
+    })
+}
+
+/// Turns the hidden "quick" window into a floating, non-activating panel (macOS only).
+fn setup_quick_window(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
+    #[cfg(target_os = "macos")]
+    {
+        use tauri_nspanel::{CollectionBehavior, PanelLevel, StyleMask, WebviewWindowExt};
+        let Some(window) = app.get_webview_window("quick") else { return Ok(()) };
+        let panel = window.to_panel::<QuickPanel>()?;
+        // Borderless + "nonactivating": no title bar, and focusing it doesn't activate the app.
+        panel
+            .set_style_mask(StyleMask::empty().borderless().nonactivating_panel().into())
+            .map_err(|e| e.to_string())?;
+        panel.set_level(PanelLevel::ModalPanel.value()); // above normal windows
+        // Show on whichever desktop (Space) you're on, even over full-screen apps.
+        panel.set_collection_behavior(CollectionBehavior::new().can_join_all_spaces().full_screen_auxiliary().into());
+        panel.set_transparent(true); // the rounded box draws itself; the rest of the window is see-through
+        panel.set_has_shadow(false); // the box has its own CSS shadow
+    }
+    #[cfg(not(target_os = "macos"))]
+    let _ = app; // nothing to set up elsewhere
+    Ok(())
+}
+
+/// Puts the quick window centred on the screen under the mouse, a bit above the middle.
+fn place_quick_window(app: &AppHandle, window: &tauri::WebviewWindow) {
+    // Which screen? The one the mouse is on; if that fails, the main screen.
+    let monitor = app
+        .cursor_position()
+        .ok()
+        .and_then(|p| app.monitor_from_point(p.x, p.y).ok().flatten())
+        .or_else(|| app.primary_monitor().ok().flatten());
+    let (Some(m), Ok(size)) = (monitor, window.outer_size()) else { return };
+    // Physical pixels (not points), so it works the same on Retina screens.
+    let x = m.position().x + (m.size().width as i32 - size.width as i32) / 2;
+    let y = m.position().y + ((m.size().height as i32 - size.height as i32) as f64 * 0.32) as i32;
+    let _ = window.set_position(tauri::PhysicalPosition::new(x, y));
+}
+
+/// ⌥ Space: show the quick window, or hide it if it's already open.
+fn toggle_quick(app: &AppHandle) {
+    let Some(window) = app.get_webview_window("quick") else { return };
+    if window.is_visible().unwrap_or(false) {
+        hide_quick_window(app);
+        return;
+    }
+    place_quick_window(app, &window);
+    // Tell the page to reset and play its pop-in animation.
+    let _ = app.emit_to("quick", "quick-open", ());
+    #[cfg(target_os = "macos")]
+    {
+        use tauri_nspanel::ManagerExt;
+        if let Ok(panel) = app.get_webview_panel("quick") {
+            panel.show_and_make_key();
+            return;
+        }
+    }
+    let _ = window.show();
+    let _ = window.set_focus();
+}
+
+fn hide_quick_window(app: &AppHandle) {
+    #[cfg(target_os = "macos")]
+    {
+        use tauri_nspanel::ManagerExt;
+        if let Ok(panel) = app.get_webview_panel("quick") {
+            panel.hide();
+            return;
+        }
+    }
+    if let Some(w) = app.get_webview_window("quick") {
+        let _ = w.hide();
+    }
+}
+
+/// The quick window calls this when you add a task, press Esc or click elsewhere.
+/// Not `async`, so Tauri runs it on the main thread, where macOS wants window changes.
+#[tauri::command]
+fn hide_quick(app: AppHandle) {
+    hide_quick_window(&app);
+}
+
 // ---------- app start ----------
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    tauri::Builder::default()
+    let builder = tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
-        .plugin(tauri_plugin_dialog::init()) // native folder picker
+        .plugin(tauri_plugin_dialog::init()); // native folder picker
+    // `let builder = builder.plugin(...)` inside `#[cfg]`: add the panel plugin on macOS only.
+    #[cfg(target_os = "macos")]
+    let builder = builder.plugin(tauri_nspanel::init());
+    builder
         .setup(|app| {
             let config_dir = app.path().app_config_dir()?;
             let state = AppState {
@@ -175,8 +279,9 @@ pub fn run() {
             };
             app.manage(state);
             restart_watcher(app.handle(), &app.state::<AppState>());
+            setup_quick_window(app)?;
 
-            // ⌥ Space from anywhere: bring the window forward and open quick add.
+            // ⌥ Space from anywhere: open the separate quick-add window.
             #[cfg(desktop)]
             {
                 use tauri_plugin_global_shortcut::{Code, GlobalShortcutExt, Modifiers, Shortcut, ShortcutState};
@@ -185,12 +290,7 @@ pub fn run() {
                     tauri_plugin_global_shortcut::Builder::new()
                         .with_handler(move |app, shortcut, event| {
                             if shortcut == &quick_add && event.state() == ShortcutState::Pressed {
-                                if let Some(w) = app.get_webview_window("main") {
-                                    let _ = w.unminimize();
-                                    let _ = w.show();
-                                    let _ = w.set_focus();
-                                }
-                                let _ = app.emit("quick-add", ());
+                                toggle_quick(app);
                             }
                         })
                         .build(),
@@ -213,7 +313,8 @@ pub fn run() {
             task_path,
             open_in_obsidian,
             pick_folder,
-            known_vaults
+            known_vaults,
+            hide_quick
         ])
         .run(tauri::generate_context!())
         .expect("error while running Nowboard");

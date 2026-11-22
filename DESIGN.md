@@ -18,19 +18,20 @@ Read this before changing how something looks or behaves. These decisions came o
 |---|---|
 | Window | Desktop app has no title bar: the content runs to the top edge, the window buttons float over it, and the top strip / empty header space drags the window. |
 | Header | Big day number (96px), weekday and month stacked beside it. Right side: category dots (filter), settings button, round black + button. Nothing else. |
-| Today | Big cards tinted with their category colour, in a grid (min 200px). The count sits next to the heading. Empty state: dashed box saying "Throw cards here". |
+| Today | Big cards tinted with their category colour, in a grid (min 200px). The count sits next to the heading. Empty state: a dashed box saying what's missing and how to fill it ("Nothing planned for today / Drag a card up from Backlog, or press N"). Backlog and Done have the same kind of empty state. While a category is highlighted and a list has none of it, a quiet note at the right of its heading says so. |
 | Focus | Optional, at most one card. Hover a Today card → "Focus". The card turns black, doubles in width and shows NOW. "Pause" turns it back. Not a separate column and not a hard limit. |
 | Backlog | Smaller plain cards (surface colour, thin border, only a colour dot). Hover → "Today ↑". Kept visually quieter than Today on purpose. |
 | Done | At the bottom: a huge number (56px) + "Done today" + "Last: …". Click to expand the list (with Undo). Only today's done tasks are counted. Older ones stay in the vault. |
 
 ## Interactions
 
-- **Complete** (round check on a card, or "Mark done" in the panel): the ring fills with the accent, the tick draws itself, the title strikes through, then the card lifts slightly and glides straight into the Done number (the path is measured, not a fixed "fall"), shrinking and fading as it arrives. The Done number bumps in the accent colour and the remaining cards slide into the gap. About 900ms in total.
+- **Complete** (round check on a card, or "Mark done" in the panel): the ring fills with the accent (no swelling), the tick draws itself, the title strikes through, then the card glides in one smooth move straight into the Done number (the path is measured), only ever shrinking and fading, no lift or bounce. The Done number gives a small accent-coloured nudge and the remaining cards slide into the gap. About 900ms in total.
 - **Drag and drop everywhere.** Onto Today, Backlog or Done (dropping on Done completes the task). Onto another card to place it *before* that card. No borders while dragging: the target section gets a soft background tint, and a faded copy of the card (a "ghost") appears exactly where it will land. Keep it calm: the dragged card's own slot *is* the preview until you point somewhere else, so a small nudge moves nothing; then only the cards in between shift by one place, slowly (~400ms, no overshoot). The left half of a card means "before it", the right half "after it", so both sides of a gap point at the same spot and the preview never flickers.
 - **Change category:** click a card's colour dot. It cycles through the categories. Hovering any category dot (header, cards, panel, quick add) shows its name right away; quick add also shows the chosen category's name under its dot.
 - **Card buttons** ("Focus ◎", "Pause ‖", "Today ↑") are text plus a small icon, keep the card's text colour on hover (underline only), and hide while you point at the done circle.
 - **Filter:** click a colour dot in the header. Other cards fade to 22% opacity instead of disappearing, so you keep the overview.
-- **Quick add** (+ button, `N` in the app, ⌥ Space from anywhere): a title field, then one row balanced across the width: category dots (⌘1–⌘6, first dot lined up under the title's dot) with the chosen category's name on the left, the Today/Backlog switch (Tab) on the right. The hint line is split the same way. Enter to add, Esc to close. No other fields.
+- **Quick add from anywhere** (⌥ Space): a separate see-through window with only the quick-add box, centred a little above the middle of the screen under the mouse. On macOS it's a non-activating panel, so the board window doesn't come forward. It fades in from slightly smaller (about 250ms, no bounce) and closes on Enter, Esc or a click elsewhere.
+- **Quick add** (+ button, `N` in the app, or ⌥ Space as above): a title field, then one row balanced across the width: category dots (⌘1–⌘6, first dot lined up under the title's dot) with the chosen category's name on the left, the Today/Backlog switch (Tab) on the right. The hint line is split the same way. Enter to add, Esc to close. No other fields.
 - **Detail panel:** click a card's *title*. It slides in from the right with:
   - a colour strip on top and colour dots to change the category
   - an editable title
@@ -45,7 +46,7 @@ Read this before changing how something looks or behaves. These decisions came o
 A popover under the settings button; clicking anywhere outside (or Esc) closes it.
 
 - **Theme** dropdown (below).
-- **Categories:** click a category's dot to open its colour swatches, rename it inline, delete it with the × that appears on hover (at least one stays). Deleting doesn't touch task files; their tasks show in the first category until recategorised. Up to six.
+- **Categories:** click a category's dot to open a small floating palette of 13 colours (it sits on top, nothing shifts), rename it inline, delete it with the × that appears on hover (at least one stays). Deleting doesn't touch task files; their tasks show in the first category until recategorised. Up to six.
 - **Obsidian vault:** a dropdown of the vaults Obsidian already knows (read from Obsidian's `obsidian.json`) plus "Other folder…", which opens Finder's folder picker. No typing paths.
 
 ## Themes

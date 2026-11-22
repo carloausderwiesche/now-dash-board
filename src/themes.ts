@@ -38,12 +38,20 @@ const STYLE = {
 };
 
 /** [strong colour for dots, soft tint for Today cards], per light/dark mode. */
+/** In hue order: this is also the order of the swatches in the colour picker. */
 export const PALETTE: Record<PaletteKey, { light: [string, string]; dark: [string, string] }> = {
   rose:   { light: ["#D6456C", "#F9DCE4"], dark: ["#FF8FB0", "#46262F"] },
-  blue:   { light: ["#2F6BDB", "#DCE7FB"], dark: ["#7FAAFF", "#1F3050"] },
+  red:    { light: ["#D23B2E", "#F9DDD9"], dark: ["#FF8A7F", "#47231F"] },
+  orange: { light: ["#D2621A", "#FBE3D1"], dark: ["#FFA466", "#46301C"] },
   amber:  { light: ["#C98512", "#FAEBCB"], dark: ["#FFC266", "#45361C"] },
+  green:  { light: ["#2E8B3E", "#D9EFDC"], dark: ["#7FD98E", "#1D3A23"] },
   teal:   { light: ["#138A7E", "#D3EFEA"], dark: ["#6FE0CF", "#17383A"] },
+  cyan:   { light: ["#0E85A6", "#D2ECF3"], dark: ["#6BD3F0", "#16343E"] },
+  blue:   { light: ["#2F6BDB", "#DCE7FB"], dark: ["#7FAAFF", "#1F3050"] },
+  indigo: { light: ["#4B4FC9", "#E0E1F8"], dark: ["#9EA1FF", "#262850"] },
   violet: { light: ["#7A55D6", "#E6DDFA"], dark: ["#B9A2FF", "#30284A"] },
+  pink:   { light: ["#C2408F", "#F7DCEC"], dark: ["#FF8DD0", "#44253A"] },
+  brown:  { light: ["#8A5A3B", "#EEE2D8"], dark: ["#D2A685", "#3A2C22"] },
   slate:  { light: ["#5D6470", "#E3E5E9"], dark: ["#B4BAC6", "#2C3038"] },
 };
 export const PALETTE_KEYS = Object.keys(PALETTE) as PaletteKey[];

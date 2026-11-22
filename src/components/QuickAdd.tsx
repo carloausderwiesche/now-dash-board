@@ -10,11 +10,13 @@ interface Props {
   initialColour: string;
   onAdd: (title: string, colour: string, status: Status) => void;
   onClose: () => void;
+  /** In its own window (⌥ Space): no dimmed backdrop, the box is all there is. */
+  floating?: boolean;
 }
 
 const WHERE: { key: Status; name: string }[] = [{ key: "today", name: "Today" }, { key: "backlog", name: "Backlog" }];
 
-export function QuickAdd({ categories, colourOf, initialColour, onAdd, onClose }: Props) {
+export function QuickAdd({ categories, colourOf, initialColour, onAdd, onClose, floating }: Props) {
   const [text, setText] = useState("");
   const [colour, setColour] = useState(initialColour);
   const [where, setWhere] = useState<Status>("today");
@@ -42,8 +44,8 @@ export function QuickAdd({ categories, colourOf, initialColour, onAdd, onClose }
   });
 
   return (
-    <div className="quick-wrap">
-      <div className="scrim" onClick={onClose} />
+    <div className={floating ? "quick-wrap floating" : "quick-wrap"}>
+      {!floating && <div className="scrim" onClick={onClose} />}
       <div className="quick themed" role="dialog" aria-label="New task">
         <div className="quick-top">
           <span className="dot" style={{ width: 12, height: 12, flex: "none", background: colourOf(colour) }} />

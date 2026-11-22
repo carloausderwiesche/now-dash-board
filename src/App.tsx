@@ -44,17 +44,16 @@ export default function App() {
     else board.move(id, target.status, target.beforeId, { quiet: true });
   });
 
-  // ⌥ Space (global, from Rust) and N (inside the app) open quick add; Esc closes things.
+  // N (inside the app) opens quick add; Esc closes things.
+  // (⌥ Space from anywhere opens the separate quick window, see QuickWindow.tsx.)
   useEffect(() => {
-    let unlisten: (() => void) | undefined;
-    api.onQuickAdd(() => setQuick(true)).then((u) => (unlisten = u));
     const onKey = (e: KeyboardEvent) => {
       const typing = e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement || e.target instanceof HTMLSelectElement;
       if (e.key === "Escape") { setOpenId(null); setShowSettings(false); setQuick(false); }
       else if (!typing && (e.key === "n" || (e.altKey && e.code === "Space"))) { e.preventDefault(); setQuick(true); }
     };
     window.addEventListener("keydown", onKey);
-    return () => { unlisten?.(); window.removeEventListener("keydown", onKey); };
+    return () => window.removeEventListener("keydown", onKey);
   }, []);
 
   // No vault configured yet → open settings so the first step is obvious.
@@ -76,7 +75,11 @@ export default function App() {
     .filter((t) => t.status === "done" && t.doneOn && t.doneOn.slice(0, 10) >= weekAgo)
     .sort((a, b) => (b.doneOn ?? "").localeCompare(a.doneOn ?? "") || byOrder(a, b));
   const doneToday = doneWeek.filter((t) => t.doneOn!.startsWith(todayStr()));
-  const lastDone = board.lastDone ?? doneToday[0]?.title ?? "—";
+  const lastDone = board.lastDone ?? doneToday[0]?.title ?? null;
+  // While a category is highlighted: a quiet note when a list has none of it.
+  const filterName = filter ? catOf(filter)?.name : null;
+  const noneOf = (list: Task[]) => !!filter && list.length > 0 && !list.some((t) => t.area === filter);
+  const dropping = (s: Status) => !!dragged && dnd.over?.status === s;
   const dayLabel = (stamp: string) => new Date(stamp.slice(0, 10) + "T12:00").toLocaleDateString("en-GB", { weekday: "short" });
   const openTask = tasks.find((t) => t.id === openId);
 
@@ -164,6 +167,7 @@ export default function App() {
             <div className="section-head themed">
               <h2>Today</h2>
               <span className="count num">{today.length}</span>
+              {noneOf(today) && <span className="head-note">No {filterName} tasks today</span>}
             </div>
             <div className="grid-today" ref={todayGrid} {...dnd.grid("today")}>
               {withGhost("today", today.map((t, i) => (
@@ -172,7 +176,12 @@ export default function App() {
                   onOpen={() => setOpenId(t.id)} onCycleColour={() => board.cycleColour(t.id)}
                   onComplete={() => finish(t.id)} onToggleFocus={() => board.toggleFocus(t.id)} />
               )))}
-              {today.length === 0 && !(dragged && dnd.over?.status === "today") && <div className="empty themed">Throw cards here</div>}
+              {today.length === 0 && !dropping("today") && (
+                <div className="empty themed">
+                  <strong>Nothing planned for today</strong>
+                  <span>Drag a card up from Backlog, or press N to add one</span>
+                </div>
+              )}
             </div>
           </section>
 
@@ -195,6 +204,7 @@ export default function App() {
             <div className="section-head themed">
               <h2>Backlog</h2>
               <span className="count num">{backlog.length}</span>
+              {noneOf(backlog) && <span className="head-note">No {filterName} tasks in Backlog</span>}
             </div>
             <div className="grid-backlog" ref={backlogGrid} {...dnd.grid("backlog")}>
               {withGhost("backlog", backlog.map((t, i) => (
@@ -203,6 +213,12 @@ export default function App() {
                   onOpen={() => setOpenId(t.id)} onCycleColour={() => board.cycleColour(t.id)}
                   onToToday={() => board.move(t.id, "today")} />
               )))}
+              {backlog.length === 0 && !dropping("backlog") && (
+                <div className="empty small themed">
+                  <strong>Backlog is empty</strong>
+                  <span>Things for later wait here until you pull them into Today</span>
+                </div>
+              )}
             </div>
           </section>
 
@@ -211,10 +227,11 @@ export default function App() {
               <span ref={doneNum} className={board.bump ? "done-num num bump" : "done-num num"}>{doneToday.length}</span>
               <span className="done-label">
                 <strong>Done today</strong>
-                <span className="last">Last: {lastDone}</span>
+                <span className="last">{lastDone ? `Last: ${lastDone}` : "Nothing finished yet today"}</span>
               </span>
               <span style={{ marginBottom: 6 }}><ChevronIcon open={doneOpen} /></span>
             </button>
+            {doneOpen && doneWeek.length === 0 && <div className="done-row themed"><span className="done-empty">Nothing finished in the last 7 days</span></div>}
             {doneOpen && doneWeek.map((t) => (
               <div key={t.id} className="done-row themed">
                 <span style={{ width: 32, display: "flex", justifyContent: "center" }}>

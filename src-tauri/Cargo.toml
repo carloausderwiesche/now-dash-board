@@ -13,7 +13,7 @@ crate-type = ["staticlib", "cdylib", "rlib"]
 tauri-build = { version = "2", features = [] }
 
 [dependencies]
-tauri = { version = "2", features = [] }
+tauri = { version = "2", features = ["macos-private-api"] }  # private API: lets the quick-add window be see-through
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 serde_yaml = "0.9"   # reads the --- frontmatter --- block
@@ -25,3 +25,8 @@ tauri-plugin-dialog = "2"  # the "choose a folder" window for picking your vault
 
 [target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
 tauri-plugin-global-shortcut = "2"
+
+# macOS only: turns the quick-add window into a "panel" that can take typing
+# without bringing the whole app (and the board window) to the front.
+[target.'cfg(target_os = "macos")'.dependencies]
+tauri-nspanel = "2.1"

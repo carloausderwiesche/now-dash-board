@@ -26,6 +26,18 @@ export function SettingsPopover({ settings, board, colourOf, paletteColour, onCl
 
   useEffect(() => { api.knownVaults().then(setVaults).catch(() => setVaults([])); }, []);
 
+  // The colour palette floats over the settings; a click anywhere outside it closes it.
+  const pickerRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!picking) return;
+    const onDown = (e: MouseEvent) => {
+      const t = e.target as HTMLElement;
+      if (!pickerRef.current?.contains(t) && !t.closest("[data-picker-toggle]")) setPicking(null);
+    };
+    document.addEventListener("mousedown", onDown);
+    return () => document.removeEventListener("mousedown", onDown);
+  }, [picking]);
+
   // A new category arrives as "New category": put the cursor in its name, text selected, so you just type.
   const catList = useRef<HTMLDivElement>(null);
   const count = useRef(cats.length);
@@ -69,15 +81,14 @@ export function SettingsPopover({ settings, board, colourOf, paletteColour, onCl
 
         <div className="field-group" ref={catList}>
           <span className="cap">Categories</span>
-          {cats.map((c, i) => (
+          {cats.map((c) => (
             <div key={c.id} className="cat-block">
               <div className="cat-row">
                 <button type="button" className="dotbtn" style={{ width: 36, height: 36 }} aria-label={`Choose colour for ${c.name}`}
-                  aria-expanded={picking === c.id} onClick={() => setPicking(picking === c.id ? null : c.id)}>
+                  aria-expanded={picking === c.id} data-picker-toggle onClick={() => setPicking(picking === c.id ? null : c.id)}>
                   <span className="dot" style={{ width: 14, height: 14, background: colourOf(c.id) }} />
                 </button>
                 <input aria-label="Category name" value={c.name} onChange={(e) => setCat(c.id, { name: e.target.value })} />
-                <span className="key mono">⌘{i + 1}</span>
                 {cats.length > 1 && (
                   <button type="button" className="iconbtn cat-del" onClick={() => { board.removeCategory(c.id); setPicking(null); }}
                     aria-label={`Delete ${c.name}`} title={`Delete ${c.name}`}>
@@ -86,13 +97,13 @@ export function SettingsPopover({ settings, board, colourOf, paletteColour, onCl
                 )}
               </div>
               {picking === c.id && (
-                <div className="swatches" role="radiogroup" aria-label={`Colour for ${c.name}`}>
+                <div className="swatches" ref={pickerRef} role="radiogroup" aria-label={`Colour for ${c.name}`}>
                   {PALETTE_KEYS.map((k) => {
                     const on = c.color === k;
                     const col = paletteColour(k);
                     return (
-                      <button key={k} type="button" role="radio" aria-checked={on} aria-label={k} title={k} className="dotbtn"
-                        style={{ width: 32, height: 32 }} onClick={() => { setCat(c.id, { color: k }); setPicking(null); }}>
+                      <button key={k} type="button" role="radio" aria-checked={on} aria-label={k} className="dotbtn"
+                        style={{ width: 30, height: 30 }} onClick={() => { setCat(c.id, { color: k }); setPicking(null); }}>
                         <span className="dot" style={{ width: 16, height: 16, background: col, boxShadow: on ? `0 0 0 3px var(--surface), 0 0 0 4.5px ${col}` : "none" }} />
                       </button>
                     );
