@@ -1,0 +1,27 @@
+[package]
+name = "nowboard"
+version = "0.1.0"
+description = "A calm kanban board that stores every task as a markdown file in your Obsidian vault"
+edition = "2021"
+
+[lib]
+# The `_lib` suffix avoids a name clash with the binary on Windows.
+name = "nowboard_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+serde_yaml = "0.9"   # reads the --- frontmatter --- block
+walkdir = "2"        # walks the Tasks folder
+notify = "6"         # watches the folder so edits in Obsidian show up live
+chrono = { version = "0.4", default-features = false, features = ["clock"] }
+tauri-plugin-opener = "2"  # opens obsidian:// links
+tauri-plugin-dialog = "2"  # the "choose a folder" window for picking your vault
+
+[target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
+tauri-plugin-global-shortcut = "2"
