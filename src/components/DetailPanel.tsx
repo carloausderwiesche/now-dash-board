@@ -59,7 +59,7 @@ export function DetailPanel({ task, categories, colourOf, tasksFolder, onPatch, 
           <div className="drawer-top">
             <div style={{ display: "flex", alignItems: "center" }}>
               {categories.map((c) => (
-                <button key={c.id} type="button" className="dotbtn" onClick={() => onPatch({ area: c.id })} aria-label={c.name} aria-pressed={c.id === task.area} title={c.name} style={{ width: 32, height: 36 }}>
+                <button key={c.id} type="button" className="dotbtn" onClick={() => onPatch({ area: c.id })} aria-label={c.name} aria-pressed={c.id === task.area} data-tip={c.name} style={{ width: 32, height: 36 }}>
                   <span className="dot" style={ringed(c.id)} />
                 </button>
               ))}

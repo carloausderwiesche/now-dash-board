@@ -41,7 +41,7 @@ export default function App() {
 
   const dnd = useDnd((id, target) => {
     if (target.status === "done") finish(id);
-    else board.move(id, target.status, target.beforeId);
+    else board.move(id, target.status, target.beforeId, { quiet: true });
   });
 
   // ⌥ Space (global, from Rust) and N (inside the app) open quick add; Esc closes things.
@@ -106,6 +106,7 @@ export default function App() {
     collapsed: collapsedId === t.id,
     completing: board.completing === t.id,
     arrived: board.arrived === t.id,
+    landed: dnd.landed === t.id,
   });
   const flightOf = (t: Task) => (flight?.id === t.id ? flight : null);
   const now = new Date();
@@ -116,7 +117,7 @@ export default function App() {
   /** Inserts the drag preview into a list. */
   const withGhost = (status: "today" | "backlog", cards: ReactNode[]) => {
     if (!dragged || ghostAt?.status !== status) return cards;
-    const ghost = <GhostCard key="__ghost__" id={dragged.id} kind={status} title={dragged.title} tint={colourOf(dragged.area).tint} onDragOver={dnd.ghost.onDragOver} />;
+    const ghost = <GhostCard key="__ghost__" id={dragged.id} kind={status} title={dragged.title} tint={colourOf(dragged.area).tint} focus={dragged.focus} onDragOver={dnd.ghost.onDragOver} />;
     return [...cards.slice(0, ghostAt.index), ghost, ...cards.slice(ghostAt.index)];
   };
 
@@ -139,7 +140,7 @@ export default function App() {
               const on = filter === c.id;
               const col = colourOf(c.id).strong;
               return (
-                <button key={c.id} type="button" className="dotbtn" onClick={() => setFilter(on ? null : c.id)} aria-label={`Highlight ${c.name}`} aria-pressed={on} title={c.name} style={{ width: 32, height: 44 }}>
+                <button key={c.id} type="button" className="dotbtn" onClick={() => setFilter(on ? null : c.id)} aria-label={`Highlight ${c.name}`} aria-pressed={on} data-tip={c.name} style={{ width: 32, height: 44 }}>
                   <span className="dot" style={{ width: 12, height: 12, background: col, opacity: filter && !on ? 0.35 : 1, boxShadow: on ? `0 0 0 3px var(--bg), 0 0 0 4.5px ${col}` : "none" }} />
                 </button>
               );
@@ -166,7 +167,7 @@ export default function App() {
             </div>
             <div className="grid-today" ref={todayGrid} {...dnd.grid("today")}>
               {withGhost("today", today.map((t, i) => (
-                <TodayCard key={t.id} task={t} strong={colourOf(t.area).strong} tint={colourOf(t.area).tint} flags={flags(t)}
+                <TodayCard key={t.id} task={t} strong={colourOf(t.area).strong} tint={colourOf(t.area).tint} catName={catOf(t.area)?.name ?? ""} flags={flags(t)}
                   dnd={dnd.card(t.id, "today", today[i + 1]?.id)} flight={flightOf(t)}
                   onOpen={() => setOpenId(t.id)} onCycleColour={() => board.cycleColour(t.id)}
                   onComplete={() => finish(t.id)} onToggleFocus={() => board.toggleFocus(t.id)} />
@@ -197,7 +198,7 @@ export default function App() {
             </div>
             <div className="grid-backlog" ref={backlogGrid} {...dnd.grid("backlog")}>
               {withGhost("backlog", backlog.map((t, i) => (
-                <BacklogCard key={t.id} task={t} strong={colourOf(t.area).strong} tint={colourOf(t.area).tint} flags={flags(t)}
+                <BacklogCard key={t.id} task={t} strong={colourOf(t.area).strong} tint={colourOf(t.area).tint} catName={catOf(t.area)?.name ?? ""} flags={flags(t)}
                   dnd={dnd.card(t.id, "backlog", backlog[i + 1]?.id)} flight={flightOf(t)}
                   onOpen={() => setOpenId(t.id)} onCycleColour={() => board.cycleColour(t.id)}
                   onToToday={() => board.move(t.id, "today")} />

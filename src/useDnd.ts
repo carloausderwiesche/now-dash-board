@@ -15,6 +15,9 @@ export function useDnd(onDrop: (id: string, target: DropTarget) => void) {
   const dragId = useRef<string | null>(null);
   const [dragging, setDragging] = useState<string | null>(null);
   const [over, setOverState] = useState<DropTarget | null>(null);
+  // The card you just dropped. It stays still (no hover lift) until the mouse
+  // leaves it, so a drop ends calmly instead of with an extra bounce.
+  const [landed, setLanded] = useState<string | null>(null);
   const overRef = useRef<DropTarget | null>(null);
 
   const setOver = (t: DropTarget | null) => {
@@ -43,6 +46,7 @@ export function useDnd(onDrop: (id: string, target: DropTarget) => void) {
       setTimeout(() => setDragging(id), 0); // after the browser takes its drag snapshot
     },
     onDragEnd: finish,
+    onMouseLeave: () => setLanded((l) => (l === id ? null : l)),
     onDragOver: (e: DragEvent) => {
       allow(e);
       const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
@@ -69,12 +73,12 @@ export function useDnd(onDrop: (id: string, target: DropTarget) => void) {
       const dropped = readId(e);
       const target = overRef.current ?? { status };
       finish();
-      if (dropped && dropped !== target.beforeId) onDrop(dropped, target);
+      if (dropped && dropped !== target.beforeId) { setLanded(dropped); onDrop(dropped, target); }
     },
   });
 
   /** Put on the page: dragging over anything that isn't a section clears the preview. */
   const outside = { onDragOver: () => setOver(null) };
 
-  return { card, grid, ghost, zone, outside, dragging, over };
+  return { card, grid, ghost, zone, outside, dragging, over, landed };
 }

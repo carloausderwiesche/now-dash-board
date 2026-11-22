@@ -57,6 +57,17 @@ button, input, select, textarea { font-family: inherit; color: inherit; }
 .chev.open { transform: rotate(90deg); }
 .textlink { height: 32px; padding: 0; font-size: 13px; font-weight: 500; color: var(--ink); text-decoration: underline; text-underline-offset: 3px; text-decoration-color: var(--line); }
 
+/* Instant name label under category dots (the browser's own tooltip is slow). */
+[data-tip] { position: relative; }
+[data-tip]::after {
+  content: attr(data-tip); position: absolute; top: calc(100% + 2px); left: 50%; z-index: 50;
+  transform: translate(-50%, -3px); padding: 3px 8px; border-radius: var(--r);
+  background: var(--ink); color: var(--bg); font-size: 11px; font-weight: 500; line-height: 16px; white-space: nowrap;
+  opacity: 0; pointer-events: none; transition: opacity .12s, transform .12s;
+}
+[data-tip]:hover::after, [data-tip]:focus-visible::after { opacity: 1; transform: translate(-50%, 0); }
+.is-focus [data-tip]::after { background: var(--bg); color: var(--ink); }
+
 /* ---------- sections ---------- */
 .section { display: flex; flex-direction: column; gap: 16px; }
 .section-head { display: flex; align-items: baseline; gap: 14px; border-bottom: 2px solid var(--ink); padding-bottom: 10px; }
@@ -76,11 +87,14 @@ button, input, select, textarea { font-family: inherit; color: inherit; }
 /* ---------- cards ---------- */
 .card {
   position: relative; border-radius: var(--card); display: flex; flex-direction: column; cursor: grab;
-  transition: opacity .3s, transform .25s cubic-bezier(.2,1.4,.4,1), box-shadow .25s, background-color .45s;
+  transition: opacity .3s, transform .25s cubic-bezier(.2,.8,.3,1), box-shadow .25s, background-color .45s;
 }
 .card:hover { transform: translateY(-3px); box-shadow: 0 14px 30px -16px rgba(0,0,0,.35); }
 .card:active { cursor: grabbing; }
 .card.dim { opacity: .22; }
+/* Just dropped: no lift until the mouse leaves (the focus card keeps its own shadow). */
+.card.landed:hover { transform: none; }
+.card.landed:not(.is-focus):hover { box-shadow: none; }
 .card.dragging { opacity: .45; transform: none; box-shadow: none; } /* looks like the preview: "it's still here" */
 .card.collapsed { display: none; }
 /* The drag preview: a faded copy of the card, sitting where it will land. */
@@ -90,6 +104,10 @@ button, input, select, textarea { font-family: inherit; color: inherit; }
 @keyframes ghost-in { from { opacity: 0; } }
 .card .reveal { opacity: 0; transition: opacity .15s; }
 .card:hover .reveal, .card:focus-within .reveal { opacity: 1; }
+/* Pointing at the done circle is about finishing, so hide Focus / Today. */
+.card:has(.ringbtn:hover) .reveal { opacity: 0; }
+/* Card buttons keep the card's text colour on hover (the focus card is ink-coloured). */
+.card .iconbtn.reveal:hover { color: inherit; text-decoration: underline; text-underline-offset: 3px; }
 .card-foot { display: flex; align-items: center; gap: 2px; margin-top: auto; }
 .card-foot .spacer { flex: 1; }
 
@@ -99,7 +117,8 @@ button, input, select, textarea { font-family: inherit; color: inherit; }
 .today-card .sub { display: block; margin-top: 6px; font-size: 11px; line-height: 16px; opacity: .7; }
 .today-card.is-focus { grid-column: span 2; background: var(--ink) !important; color: var(--bg); box-shadow: 0 14px 34px -16px rgba(0,0,0,.55); }
 .today-card.is-focus .title { font-size: 24px; font-weight: 600; }
-.small-btn { height: 32px; padding: 0 8px; font-size: 12px; font-weight: 500; color: inherit; }
+.today-card.is-focus.ghost { box-shadow: none; }
+.small-btn { height: 32px; padding: 0 8px; font-size: 12px; font-weight: 500; color: inherit; display: inline-flex; align-items: center; gap: 5px; }
 
 .backlog-card { min-height: 88px; gap: 10px; padding: 12px 12px 4px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); }
 .backlog-card .title { font-size: 14px; line-height: 1.3; font-weight: 500; }
@@ -201,8 +220,11 @@ button, input, select, textarea { font-family: inherit; color: inherit; }
 .quick-input { flex: 1; border: 0; background: transparent; color: var(--ink); font-size: 22px; font-weight: 500; letter-spacing: -0.01em; height: 34px; }
 .quick-input:focus { outline: none; }
 .quick-input::placeholder, .field::placeholder { color: var(--muted); }
-.quick-opts { display: flex; flex-wrap: wrap; align-items: center; gap: 14px; padding: 0 22px 18px; }
-.quick-hint { padding: 10px 22px; border-top: 1px solid var(--line); font-size: 11px; color: var(--muted); }
+.quick-opts { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 14px; padding: 4px 22px 20px; }
+/* -11px: puts the first dot's centre exactly under the input's dot. */
+.quick-cats { display: flex; align-items: center; gap: 2px; margin-left: -11px; min-width: 0; }
+.quick-cat-name { margin-left: 10px; font-size: 13px; font-weight: 500; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; animation: fade .15s ease-out; }
+.quick-hint { display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; padding: 10px 22px; border-top: 1px solid var(--line); font-size: 11px; color: var(--muted); }
 .segmented { display: flex; background: var(--well); border-radius: 999px; padding: 3px; }
 .seg { height: 30px; padding: 0 12px; border-radius: 999px; font-size: 12px; font-weight: 500; background: transparent; border: 0; cursor: pointer; color: var(--muted); transition: color .2s, background-color .2s; }
 .seg.on { color: var(--ink); background: var(--surface); box-shadow: 0 1px 3px rgba(0,0,0,.12); }

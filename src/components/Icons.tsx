@@ -19,6 +19,13 @@ export const DownIcon = () => (
 export const CloseIcon = () => (
   <svg width={16} height={16} viewBox="0 0 24 24" strokeWidth={1.8} {...base}><path d="M6 6l12 12M18 6L6 18" /></svg>
 );
+/** "Focus on this now": a small target. */
+export const FocusIcon = () => (
+  <svg width={12} height={12} viewBox="0 0 24 24" strokeWidth={2.2} {...base}><circle cx="12" cy="12" r="8" /><circle cx="12" cy="12" r="2.5" /></svg>
+);
+export const PauseIcon = () => (
+  <svg width={12} height={12} viewBox="0 0 24 24" strokeWidth={2.6} {...base}><path d="M9 6v12M15 6v12" /></svg>
+);
 /** Marks a `#private` task (the AI won't use it). */
 export const LockIcon = ({ size = 12 }) => (
   <svg width={size} height={size} viewBox="0 0 24 24" strokeWidth={2} {...base}>

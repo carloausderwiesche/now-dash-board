@@ -51,20 +51,27 @@ export function QuickAdd({ categories, colourOf, initialColour, onAdd, onClose }
           <input id="quick-input" ref={input} className="quick-input" value={text} onChange={(e) => setText(e.target.value)} onKeyDown={onKey} placeholder="What needs doing?" />
         </div>
         <div className="quick-opts">
-          <div style={{ display: "flex", alignItems: "center", gap: 2 }}>
+          {/* Left: the dots, lined up under the input's dot, then the chosen category's name. */}
+          <div className="quick-cats">
             {categories.map((c, i) => (
-              <button key={c.id} type="button" className="dotbtn" onClick={() => setColour(c.id)} aria-label={c.name} aria-pressed={c.id === colour} title={`${c.name}  ⌘${i + 1}`} style={{ width: 34, height: 34 }}>
+              <button key={c.id} type="button" className="dotbtn" onClick={() => setColour(c.id)} aria-label={c.name} aria-pressed={c.id === colour}
+                data-tip={c.id === colour ? undefined : `${c.name}  ⌘${i + 1}`} style={{ width: 34, height: 34 }}>
                 <span className="dot" style={ringed(c.id)} />
               </button>
             ))}
+            <span className="quick-cat-name" key={colour}>{categories.find((c) => c.id === colour)?.name}</span>
           </div>
+          {/* Right: where it goes. */}
           <div className="segmented themed">
             {WHERE.map((w) => (
               <button key={w.key} type="button" className={w.key === where ? "seg on" : "seg"} aria-pressed={w.key === where} onClick={() => setWhere(w.key)}>{w.name}</button>
             ))}
           </div>
         </div>
-        <div className="quick-hint mono themed">⏎ add · ⌘1–{categories.length} category · tab where · esc</div>
+        <div className="quick-hint mono themed">
+          <span>⏎ add · esc close</span>
+          <span>⌘1–{categories.length} category · tab today/backlog</span>
+        </div>
       </div>
     </div>
   );

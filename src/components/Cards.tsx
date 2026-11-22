@@ -1,12 +1,13 @@
 import type { CSSProperties, DragEvent } from "react";
 import type { Task } from "../types";
-import { LockIcon, Tick } from "./Icons";
+import { FocusIcon, LockIcon, PauseIcon, Tick } from "./Icons";
 
 type DndProps = {
   draggable: boolean;
   onDragStart: (e: DragEvent) => void;
   onDragEnd: () => void;
   onDragOver: (e: DragEvent) => void;
+  onMouseLeave: () => void;
 };
 
 /** Where a completing card flies to (the Done number), relative to the card's centre. */
@@ -16,7 +17,9 @@ interface CardProps {
   task: Task;
   strong: string;
   tint: string;
-  flags: { dim: boolean; dragging: boolean; collapsed: boolean; completing: boolean; arrived: boolean };
+  /** Name of the card's category, shown when hovering its dot. */
+  catName: string;
+  flags: { dim: boolean; dragging: boolean; collapsed: boolean; completing: boolean; arrived: boolean; landed: boolean };
   dnd: DndProps;
   flight?: Flight | null;
   onOpen: () => void;
@@ -24,7 +27,7 @@ interface CardProps {
 }
 
 function classes(base: string, f: CardProps["flags"], extra = "") {
-  return [base, extra, f.dim && "dim", f.dragging && "dragging", f.collapsed && "collapsed", f.completing && "completing", f.arrived && "arrive"]
+  return [base, extra, f.dim && "dim", f.dragging && "dragging", f.collapsed && "collapsed", f.completing && "completing", f.arrived && "arrive", f.landed && "landed"]
     .filter(Boolean).join(" ");
 }
 
@@ -47,17 +50,17 @@ export function TodayCard(p: CardProps & { onComplete: () => void; onToggleFocus
     >
       <button type="button" className="opener title" onClick={p.onOpen}>
         <span className="ttl">{task.title}</span>
-        {task.private && <span className="lock" title="Private: the AI won't use this"><LockIcon /></span>}
+        {task.private && <span className="lock" data-tip="Private: AI won't use it"><LockIcon /></span>}
         {task.items.length > 0 && <span className="sub mono num">{done} / {task.items.length}</span>}
       </button>
       <div className="card-foot">
-        <button type="button" className="dotbtn" onClick={p.onCycleColour} aria-label="Change category" title="Change category" style={{ width: 32, height: 32, marginLeft: -8 }}>
+        <button type="button" className="dotbtn" onClick={p.onCycleColour} aria-label={`${p.catName}, click to change category`} data-tip={p.catName} style={{ width: 32, height: 32, marginLeft: -8 }}>
           <span className="dot" style={dot(p.strong, 10, task.focus ? "var(--ink)" : undefined)} />
         </button>
         {task.focus && <span className="cap" style={{ opacity: 0.8 }}>Now</span>}
         <span className="spacer" />
         <button type="button" className="iconbtn reveal small-btn" onClick={p.onToggleFocus} title={task.focus ? "Stop focusing on this" : "Focus on this now"}>
-          {task.focus ? "Pause" : "Focus"}
+          {task.focus ? <>Pause <PauseIcon /></> : <>Focus <FocusIcon /></>}
         </button>
         <button type="button" className="ringbtn" onClick={p.onComplete} aria-label="Mark done">
           <span className="ring"><Tick /></span>
@@ -73,10 +76,10 @@ export function BacklogCard(p: CardProps & { onToToday: () => void }) {
     <div className={classes("card backlog-card themed", p.flags)} style={flightVars(p.flight)} data-flip={p.task.id} {...p.dnd}>
       <button type="button" className="opener title" onClick={p.onOpen}>
         <span className="ttl">{p.task.title}</span>
-        {p.task.private && <span className="lock" title="Private: the AI won't use this"><LockIcon size={11} /></span>}
+        {p.task.private && <span className="lock" data-tip="Private: AI won't use it"><LockIcon size={11} /></span>}
       </button>
       <div className="card-foot">
-        <button type="button" className="dotbtn" onClick={p.onCycleColour} aria-label="Change category" title="Change category" style={{ width: 28, height: 28, marginLeft: -7 }}>
+        <button type="button" className="dotbtn" onClick={p.onCycleColour} aria-label={`${p.catName}, click to change category`} data-tip={p.catName} style={{ width: 28, height: 28, marginLeft: -7 }}>
           <span className="dot" style={dot(p.strong, 10)} />
         </button>
         <span className="spacer" />
@@ -89,9 +92,11 @@ export function BacklogCard(p: CardProps & { onToToday: () => void }) {
 }
 
 /** The faded preview of the card you're dragging, shown where it will land. */
-export function GhostCard({ id, kind, title, tint, onDragOver }: { id: string; kind: "today" | "backlog"; title: string; tint: string; onDragOver: (e: DragEvent) => void }) {
+export function GhostCard({ id, kind, title, tint, focus, onDragOver }: { id: string; kind: "today" | "backlog"; title: string; tint: string; focus: boolean; onDragOver: (e: DragEvent) => void }) {
+  // A focus card keeps its look (double width, ink) in Today; moving it to Backlog ends focus.
+  const isFocus = focus && kind === "today";
   return (
-    <div className={`card ${kind}-card ghost`} style={kind === "today" ? { backgroundColor: tint } : undefined} data-flip="__ghost__" data-ghost-for={id} onDragOver={onDragOver} aria-hidden>
+    <div className={`card ${kind}-card ghost${isFocus ? " is-focus" : ""}`} style={kind === "today" ? { backgroundColor: tint } : undefined} data-flip="__ghost__" data-ghost-for={id} onDragOver={onDragOver} aria-hidden>
       <span className="title"><span className="ttl">{title}</span></span>
     </div>
   );

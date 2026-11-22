@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { api } from "../api";
 import { THEMES, PALETTE_KEYS } from "../themes";
 import type { Board } from "../useBoard";
@@ -25,6 +25,17 @@ export function SettingsPopover({ settings, board, colourOf, paletteColour, onCl
   const [vaults, setVaults] = useState<string[]>([]);
 
   useEffect(() => { api.knownVaults().then(setVaults).catch(() => setVaults([])); }, []);
+
+  // A new category arrives as "New category": put the cursor in its name, text selected, so you just type.
+  const catList = useRef<HTMLDivElement>(null);
+  const count = useRef(cats.length);
+  useEffect(() => {
+    if (cats.length > count.current) {
+      const inputs = catList.current?.querySelectorAll<HTMLInputElement>(".cat-row input");
+      inputs?.[inputs.length - 1]?.select();
+    }
+    count.current = cats.length;
+  }, [cats.length]);
 
   const setVault = (path: string) => board.updateSettings({ vaultPath: path }, { reloadAfter: true });
   const chooseFolder = async () => {
@@ -56,7 +67,7 @@ export function SettingsPopover({ settings, board, colourOf, paletteColour, onCl
           </div>
         </div>
 
-        <div className="field-group">
+        <div className="field-group" ref={catList}>
           <span className="cap">Categories</span>
           {cats.map((c, i) => (
             <div key={c.id} className="cat-block">

@@ -94,7 +94,8 @@ export function useBoard() {
   /** Moves a card into `status`, before `beforeId` or at the end.
    *  Fractional ordering: the card gets the midpoint of its two neighbours'
    *  orders, so only this one file is rewritten. */
-  const move = useCallback((id: string, status: Status, beforeId?: string) => {
+  /** `quiet`: no pop-in animation (a drag-and-drop already showed where it lands). */
+  const move = useCallback((id: string, status: Status, beforeId?: string, opts: { quiet?: boolean } = {}) => {
     if (id === beforeId) return;
     const all = tasksRef.current;
     const moving = all.find((x) => x.id === id);
@@ -118,7 +119,7 @@ export function useBoard() {
     }
     const map = new Map(changed.map((x) => [x.id, x]));
     setTasks(all.map((x) => map.get(x.id) ?? x));
-    setArrived(id);
+    setArrived(opts.quiet ? null : id);
     changed.forEach(persist);
   }, [persist]);
 
