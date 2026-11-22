@@ -13,7 +13,7 @@ Nowboard answers one question: *what am I doing today?*
 - **Colour = category** (e.g. Work, Personal, Freelance). Click a colour in the header to highlight just that category.
 - **Your tasks are plain files.** Each task is a `.md` file in your Obsidian vault (`Notes/Tasks/`), with a little frontmatter for status, category and order. Edit them in Obsidian, sync them with anything, let scripts or AI agents read them or *suggest* new tasks. The app watches the folder and keeps unknown fields untouched.
 - **Quick add from anywhere:** ⌥ Space opens a small floating box over whatever you're doing.
-- **Themes** inspired by Dieter Rams, Jony Ive and soft pastels.
+- **Themes** inspired by Dieter Rams, Jony Ive, Charles & Ray Eames and soft pastels.
 
 - **Frontend:** React + TypeScript (`src/`). That's where the design lives.
 - **Backend:** Rust with Tauri 2 (`src-tauri/`). It reads and writes the `.md` files, watches the folder for changes, and owns the ⌥ Space shortcut.
@@ -58,7 +58,7 @@ already knows), or choose "Other folder…" to select it in Finder.
 The app then:
 
 - reads and writes tasks in `<vault>/Notes/Tasks/`, one file per task (format in DESIGN.md)
-- logs each finished task as `- [x] Title` in `<vault>/Daily/YYYY-MM-DD.md`
+- logs each finished task as `- [x] Title` in a daily note, `<vault>/Daily/YYYY-MM-DD.md` by default (change the folder in Settings → "Finished tasks are logged in")
 - reloads automatically when you edit a task file in Obsidian
 
 Settings are saved in `~/Library/Application Support/com.nestoririondo.nowboard/settings.json`.
@@ -89,7 +89,7 @@ src/
   useFlip.ts           cards gliding to their new place
   QuickWindow.tsx      the ⌥ Space window (quick add only)
   api.ts               the only file that talks to Rust (plus the browser demo store)
-  themes.ts            the 7 themes and the colour palette
+  themes.ts            the 9 themes and the colour palette
   styles.css           every style and animation
   components/
     Cards.tsx          TodayCard and BacklogCard

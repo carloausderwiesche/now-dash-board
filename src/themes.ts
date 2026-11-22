@@ -6,7 +6,7 @@ import type { PaletteKey, ThemeKey } from "./types";
 
 interface Theme {
   name: string;
-  group: "Rams" | "Ive" | "Pastel";
+  group: "Rams" | "Ive" | "Pastel" | "Eames";
   bg: string;
   surface: string;
   well: string;
@@ -17,7 +17,7 @@ interface Theme {
   accent: string;
   onaccent: string;
   scrim: string;
-  style: "rams" | "ive" | "pastel";
+  style: "rams" | "ive" | "pastel" | "eames";
   dark: boolean;
 }
 
@@ -27,14 +27,20 @@ export const THEMES: Record<ThemeKey, Theme> = {
   aluminium: { name: "Aluminium",  group: "Ive",    bg: "#F5F5F7", surface: "#FFFFFF", well: "#E8E8ED", hover: "rgba(0,0,0,.035)",       ink: "#1D1D1F", muted: "#5E5E63", line: "rgba(0,0,0,.09)",    accent: "#0071E3", onaccent: "#FFFFFF", scrim: "rgba(245,245,247,.6)",  style: "ive",    dark: false },
   spacegrey: { name: "Space Grey", group: "Ive",    bg: "#161617", surface: "#2C2C2E", well: "#2C2C2E", hover: "rgba(255,255,255,.05)",  ink: "#F5F5F7", muted: "#A1A1A6", line: "rgba(255,255,255,.1)", accent: "#2997FF", onaccent: "#FFFFFF", scrim: "rgba(0,0,0,.45)",       style: "ive",    dark: true },
   peach:     { name: "Peach",      group: "Pastel", bg: "#FBF1EA", surface: "#FFFAF6", well: "#F3E3D8", hover: "rgba(0,0,0,.03)",        ink: "#3B2A22", muted: "#5E4A3D", line: "#EEDDD1",            accent: "#EE8E62", onaccent: "#3B2A22", scrim: "rgba(59,42,34,.18)",    style: "pastel", dark: false },
-  mint:      { name: "Mint",       group: "Pastel", bg: "#EAF5EF", surface: "#F7FCF9", well: "#D9ECE1", hover: "rgba(0,0,0,.03)",        ink: "#1F3A2E", muted: "#43594D", line: "#D3E8DC",            accent: "#3FAE82", onaccent: "#FFFFFF", scrim: "rgba(31,58,46,.18)",    style: "pastel", dark: false },
   lavender:  { name: "Lavender",   group: "Pastel", bg: "#F1EEFA", surface: "#FBFAFF", well: "#E4DFF4", hover: "rgba(0,0,0,.03)",        ink: "#2B2640", muted: "#524C6B", line: "#E2DCF3",            accent: "#8B74E8", onaccent: "#FFFFFF", scrim: "rgba(43,38,64,.2)",     style: "pastel", dark: false },
+  // Eames: moulded plywood and walnut, the red-orange of the fibreglass chairs,
+  // and the Case Study House's white panels with Eames blue.
+  plywood:   { name: "Plywood",    group: "Eames",  bg: "#EFE6D6", surface: "#F8F2E7", well: "#E4D8C2", hover: "rgba(60,40,20,.04)",     ink: "#2A2119", muted: "#5C4F42", line: "#DCCDB4",            accent: "#C8431F", onaccent: "#FFFFFF", scrim: "rgba(42,33,25,.24)",    style: "eames",  dark: false },
+  walnut:    { name: "Walnut",     group: "Eames",  bg: "#271F19", surface: "#33291F", well: "#3B3026", hover: "rgba(255,240,220,.04)",  ink: "#F2E7D5", muted: "#C2B19A", line: "#46392D",            accent: "#F07A43", onaccent: "#271F19", scrim: "rgba(0,0,0,.5)",        style: "eames",  dark: true },
+  casestudy: { name: "Case Study", group: "Eames",  bg: "#F3F1EC", surface: "#FFFFFF", well: "#E6E3DC", hover: "rgba(0,0,0,.035)",       ink: "#151413", muted: "#55524C", line: "#D9D5CC",            accent: "#2352A3", onaccent: "#FFFFFF", scrim: "rgba(21,20,19,.26)",    style: "eames",  dark: false },
 };
 
 const STYLE = {
   rams:   { r: "4px",  R: "8px",  card: "4px",  font: "Inter, 'Helvetica Neue', Helvetica, Arial, sans-serif" },
   ive:    { r: "10px", R: "20px", card: "12px", font: "-apple-system, BlinkMacSystemFont, 'SF Pro Display', Inter, 'Helvetica Neue', Arial, sans-serif" },
   pastel: { r: "10px", R: "18px", card: "12px", font: "Inter, 'Helvetica Neue', Arial, sans-serif" },
+  // Softly rounded like moulded plywood; Avenir Next is a friendly geometric sans that ships with macOS.
+  eames:  { r: "8px",  R: "16px", card: "10px", font: "'Avenir Next', Avenir, Inter, 'Helvetica Neue', Arial, sans-serif" },
 };
 
 /** [strong colour for dots, soft tint for Today cards], per light/dark mode. */

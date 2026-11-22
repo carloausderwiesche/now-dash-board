@@ -2,6 +2,9 @@
 
 * { box-sizing: border-box; }
 html, body, #root { margin: 0; min-height: 100%; }
+/* The board window sets the theme variables on <html> (see App.tsx), so no white
+   shows past the edges. The quick-add window doesn't, so it stays see-through. */
+html { background: var(--bg, transparent); }
 body { -webkit-font-smoothing: antialiased; }
 button, input, select, textarea { font-family: inherit; color: inherit; }
 :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
@@ -86,8 +89,8 @@ button, input, select, textarea { font-family: inherit; color: inherit; }
 .zone { transition: background-color .2s, box-shadow .2s; border-radius: var(--R); }
 .zone.over { background-color: var(--hover); box-shadow: 0 0 0 14px var(--hover); }
 .done-zone.over .done-num { color: var(--accent); }
-.grid-today { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px; }
-.grid-backlog { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 10px; }
+.grid-today { position: relative; display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px; }
+.grid-backlog { position: relative; display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 10px; }
 /* Empty list: says what the list is for and how to fill it. Also a drop target. */
 .empty {
   grid-column: 1 / -1; border: 1.5px dashed var(--line); border-radius: var(--R); min-height: 128px;
@@ -105,7 +108,26 @@ button, input, select, textarea { font-family: inherit; color: inherit; }
   transition: opacity .3s, transform .25s cubic-bezier(.2,.8,.3,1), box-shadow .25s, background-color .45s;
 }
 .card:hover { transform: translateY(-3px); box-shadow: 0 14px 30px -16px rgba(0,0,0,.35); }
+/* The lift moves the card 3px up. Without this, pointing near its bottom edge would
+   lift it off the pointer, drop it back, lift it again… This invisible strip covers
+   the spot the card lifted away from, so it stays hovered until you really leave. */
+.card:hover::after { content: ""; position: absolute; left: 0; right: 0; bottom: -4px; height: 4px; }
+/* A hovered card sits above its neighbours, so its category tooltip isn't hidden under them. */
+.card:hover, .card:focus-within { z-index: 3; }
+/* While dragging, cards sliding under the pointer must not look hovered (lift, shadow, buttons). */
+.is-dragging .card:hover { transform: none; }
+.is-dragging .card:not(.is-focus):hover { box-shadow: none; }
+.is-dragging .card .reveal, .is-dragging [data-tip]::after { opacity: 0 !important; }
 .card:active { cursor: grabbing; }
+.card { -webkit-user-select: none; user-select: none; }
+/* The copy of the card that follows the pointer while dragging. */
+.drag-clone {
+  position: fixed; margin: 0; z-index: 1000; pointer-events: none; transition: none !important;
+  font-family: var(--font); color: var(--ink); /* it lives outside .app, so set these again */
+  box-shadow: 0 18px 40px -14px rgba(0,0,0,.4); opacity: .96;
+}
+.drag-clone .reveal, .drag-clone::after { display: none; }
+html.grabbing, html.grabbing * { cursor: grabbing !important; }
 .card.dim { opacity: .22; }
 /* Just dropped: no lift until the mouse leaves (the focus card keeps its own shadow). */
 .card.landed:hover { transform: none; }
@@ -243,6 +265,8 @@ button, input, select, textarea { font-family: inherit; color: inherit; }
 /* The ⌥ Space window: transparent, the box near the top, room below for its shadow. */
 .quick-window { min-height: 100vh; font-family: var(--font); color: var(--ink); }
 .quick-wrap.floating { position: static; padding: 24px 0 0; }
+/* In its own window the shadow must fit inside the window, or its edges get cut off. */
+.quick-wrap.floating .quick { box-shadow: 0 18px 44px -14px rgba(0,0,0,.4), 0 0 0 1px var(--line); }
 .quick-error { width: min(600px, calc(100% - 32px)); margin: 8px auto 0; padding: 8px 14px; border-radius: var(--r); background: var(--accent); color: var(--onaccent); font-size: 12px; }
 .quick-top { display: flex; align-items: center; gap: 14px; padding: 22px 22px 14px; }
 .quick-input { flex: 1; border: 0; background: transparent; color: var(--ink); font-size: 22px; font-weight: 500; letter-spacing: -0.01em; height: 34px; }
@@ -279,6 +303,8 @@ button, input, select, textarea { font-family: inherit; color: inherit; }
 .block-head .count { color: var(--muted); }
 .check-row { display: flex; align-items: center; gap: 12px; min-height: 44px; border-bottom: 1px solid var(--line); cursor: pointer; font-size: 15px; }
 .check-row .done-text { color: var(--muted); text-decoration: line-through; }
+.step-del { width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; flex: none; opacity: 0; transition: opacity .15s, color .2s; }
+.check-row:hover .step-del, .step-del:focus-visible { opacity: 1; }
 .ck {
   appearance: none; -webkit-appearance: none; width: 20px; height: 20px; border-radius: 50%; border: 1.5px solid var(--ink);
   margin: 0; cursor: pointer; display: grid; place-content: center; flex: none;
@@ -311,5 +337,5 @@ button, input, select, textarea { font-family: inherit; color: inherit; }
   .page { padding: 20px 16px 40px; }
   .date-day { font-size: 64px; }
   .today-card.is-focus { grid-column: auto; }
-  .card .reveal, .cat-del { opacity: 1; }
+  .card .reveal, .cat-del, .step-del { opacity: 1; }
 }

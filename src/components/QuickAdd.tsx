@@ -3,6 +3,7 @@
 
 import { useEffect, useRef, useState, type KeyboardEvent } from "react";
 import type { Category, Status } from "../types";
+import { ring } from "./ring";
 
 interface Props {
   categories: Category[];
@@ -40,7 +41,7 @@ export function QuickAdd({ categories, colourOf, initialColour, onAdd, onClose, 
 
   const ringed = (id: string) => ({
     width: 14, height: 14, background: colourOf(id),
-    boxShadow: id === colour ? `0 0 0 3px var(--surface), 0 0 0 4.5px ${colourOf(id)}` : "none",
+    ...ring(id === colour, colourOf(id)),
   });
 
   return (

@@ -41,7 +41,11 @@ export interface Category {
   color: PaletteKey;
 }
 
-export type ThemeKey = "braun" | "graphite" | "aluminium" | "spacegrey" | "peach" | "mint" | "lavender";
+export type ThemeKey =
+  | "braun" | "graphite"          // Rams
+  | "aluminium" | "spacegrey"     // Ive
+  | "peach" | "lavender"          // Pastel
+  | "plywood" | "walnut" | "casestudy"; // Eames
 
 export interface Settings {
   vaultPath: string;

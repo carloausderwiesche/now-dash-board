@@ -3,7 +3,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { api } from "./api";
-import { PALETTE_KEYS } from "./themes";
+import { PALETTE_KEYS, THEMES } from "./themes";
 import type { Category, Settings, Status, Task } from "./types";
 
 export const todayStr = () => new Date().toLocaleDateString("sv-SE"); // YYYY-MM-DD, local time
@@ -42,7 +42,8 @@ export function useBoard() {
   }, []);
 
   useEffect(() => {
-    api.getSettings().then(setSettings);
+    // A theme that no longer exists (e.g. the removed "mint") falls back to Braun.
+    api.getSettings().then((s) => setSettings(s.theme in THEMES ? s : { ...s, theme: "braun" }));
     reload();
     let unlisten: (() => void) | undefined;
     let t: number | undefined;

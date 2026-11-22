@@ -42,8 +42,14 @@ export function useFlip<T extends HTMLElement>() {
       const dx = prev.x - pos.x, dy = prev.y - pos.y;
       if (Math.abs(dx) < 1 && Math.abs(dy) < 1) return;
       running.set(el, el.animate(
-        [{ transform: `translate(${dx}px, ${dy}px)` }, { transform: "none" }],
-        { duration: 420, easing: "cubic-bezier(.25, .8, .25, 1)" }, // calm ease-out, no overshoot
+        [{ transform: `translate(${dx}px, ${dy}px)` }, { transform: "translate(0, 0)" }],
+        {
+          duration: 420, easing: "cubic-bezier(.25, .8, .25, 1)", // calm ease-out, no overshoot
+          // "add": the slide goes on top of the card's own transform (e.g. the hover
+          // lift), so a hovered card stays lifted while it moves instead of dipping
+          // down and popping back up at the end.
+          composite: "add",
+        },
       ));
     });
     last.current = next;

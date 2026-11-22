@@ -10,6 +10,7 @@ import { ChevronIcon, PlusIcon, SlidersIcon } from "./components/Icons";
 import { QuickAdd } from "./components/QuickAdd";
 import { SettingsPopover } from "./components/SettingsPopover";
 import { DemoIntro } from "./components/DemoIntro";
+import { ring } from "./components/ring";
 import type { Status, Task, ThemeKey } from "./types";
 
 export default function App() {
@@ -59,6 +60,15 @@ export default function App() {
 
   // No vault configured yet → open settings so the first step is obvious.
   useEffect(() => { if (board.error && settings && !settings.vaultPath) setShowSettings(true); }, [board.error, settings]);
+
+  // Put the theme's variables on <html> too, so the page background fills the
+  // whole window (also when you scroll or drag past the top or bottom edge).
+  const themeKey = settings?.theme as ThemeKey | undefined;
+  useEffect(() => {
+    if (!themeKey) return;
+    const root = document.documentElement.style;
+    Object.entries(themeVars(themeKey)).forEach(([k, v]) => root.setProperty(k, String(v)));
+  }, [themeKey]);
 
   if (!settings) return null;
   const theme = settings.theme as ThemeKey;
@@ -114,19 +124,17 @@ export default function App() {
   });
   const flightOf = (t: Task) => (flight?.id === t.id ? flight : null);
   const now = new Date();
-  const todayZone = dnd.zone("today");
-  const backlogZone = dnd.zone("backlog");
-  const doneZone = dnd.zone("done");
+
 
   /** Inserts the drag preview into a list. */
   const withGhost = (status: "today" | "backlog", cards: ReactNode[]) => {
     if (!dragged || ghostAt?.status !== status) return cards;
-    const ghost = <GhostCard key="__ghost__" id={dragged.id} kind={status} title={dragged.title} tint={colourOf(dragged.area).tint} focus={dragged.focus} onDragOver={dnd.ghost.onDragOver} />;
+    const ghost = <GhostCard key="__ghost__" id={dragged.id} kind={status} title={dragged.title} tint={colourOf(dragged.area).tint} focus={dragged.focus} />;
     return [...cards.slice(0, ghostAt.index), ghost, ...cards.slice(ghostAt.index)];
   };
 
   return (
-    <div className={inTauri ? "app desktop themed" : "app themed"} style={themeVars(theme)} onDragOver={dnd.outside.onDragOver}>
+    <div className={["app", "themed", inTauri && "desktop", dnd.dragging && "is-dragging"].filter(Boolean).join(" ")} style={themeVars(theme)}>
       {/* The window has no title bar; this invisible strip at the top lets you drag it around. */}
       {inTauri && <div className="titlebar" data-tauri-drag-region />}
       {board.error && <div className="error-bar">{board.error}</div>}
@@ -146,7 +154,7 @@ export default function App() {
               const col = colourOf(c.id).strong;
               return (
                 <button key={c.id} type="button" className="dotbtn" onClick={() => setFilter(on ? null : c.id)} aria-label={`Highlight ${c.name}`} aria-pressed={on} data-tip={c.name} style={{ width: 32, height: 44 }}>
-                  <span className="dot" style={{ width: 12, height: 12, background: col, opacity: filter && !on ? 0.35 : 1, boxShadow: on ? `0 0 0 3px var(--bg), 0 0 0 4.5px ${col}` : "none" }} />
+                  <span className="dot" style={{ width: 12, height: 12, background: col, opacity: filter && !on ? 0.35 : 1, ...ring(on, col) }} />
                 </button>
               );
             })}
@@ -165,16 +173,16 @@ export default function App() {
         </header>
 
         <div className="column">
-          <section aria-label="Today" className={"section " + todayZone.className} onDragOver={todayZone.onDragOver} onDrop={todayZone.onDrop}>
+          <section aria-label="Today" data-section="today" className={"section " + dnd.zoneClass("today")}>
             <div className="section-head themed">
               <h2>Today</h2>
               <span className="count num">{today.length}</span>
               {noneOf(today) && <span className="head-note">No {filterName} tasks today</span>}
             </div>
-            <div className="grid-today" ref={todayGrid} {...dnd.grid("today")}>
-              {withGhost("today", today.map((t, i) => (
+            <div className="grid-today" ref={todayGrid} data-grid>
+              {withGhost("today", today.map((t) => (
                 <TodayCard key={t.id} task={t} strong={colourOf(t.area).strong} tint={colourOf(t.area).tint} catName={catOf(t.area)?.name ?? ""} flags={flags(t)}
-                  dnd={dnd.card(t.id, "today", today[i + 1]?.id)} flight={flightOf(t)}
+                  dnd={dnd.card(t.id, "today")} flight={flightOf(t)}
                   onOpen={() => setOpenId(t.id)} onCycleColour={() => board.cycleColour(t.id)}
                   onComplete={() => finish(t.id)} onToggleFocus={() => board.toggleFocus(t.id)} />
               )))}
@@ -202,16 +210,16 @@ export default function App() {
             </section>
           )}
 
-          <section aria-label="Backlog" className={"section " + backlogZone.className} onDragOver={backlogZone.onDragOver} onDrop={backlogZone.onDrop}>
+          <section aria-label="Backlog" data-section="backlog" className={"section " + dnd.zoneClass("backlog")}>
             <div className="section-head themed">
               <h2>Backlog</h2>
               <span className="count num">{backlog.length}</span>
               {noneOf(backlog) && <span className="head-note">No {filterName} tasks in Backlog</span>}
             </div>
-            <div className="grid-backlog" ref={backlogGrid} {...dnd.grid("backlog")}>
-              {withGhost("backlog", backlog.map((t, i) => (
+            <div className="grid-backlog" ref={backlogGrid} data-grid>
+              {withGhost("backlog", backlog.map((t) => (
                 <BacklogCard key={t.id} task={t} strong={colourOf(t.area).strong} tint={colourOf(t.area).tint} catName={catOf(t.area)?.name ?? ""} flags={flags(t)}
-                  dnd={dnd.card(t.id, "backlog", backlog[i + 1]?.id)} flight={flightOf(t)}
+                  dnd={dnd.card(t.id, "backlog")} flight={flightOf(t)}
                   onOpen={() => setOpenId(t.id)} onCycleColour={() => board.cycleColour(t.id)}
                   onToToday={() => board.move(t.id, "today")} />
               )))}
@@ -224,7 +232,7 @@ export default function App() {
             </div>
           </section>
 
-          <section aria-label="Done" className={"done-zone " + doneZone.className} onDragOver={doneZone.onDragOver} onDrop={doneZone.onDrop} style={{ display: "flex", flexDirection: "column" }}>
+          <section aria-label="Done" data-section="done" className={"done-zone " + dnd.zoneClass("done")} style={{ display: "flex", flexDirection: "column" }}>
             <button type="button" className="done-head themed" onClick={() => setDoneOpen((v) => !v)} aria-expanded={doneOpen}>
               <span ref={doneNum} className={board.bump ? "done-num num bump" : "done-num num"}>{doneToday.length}</span>
               <span className="done-label">

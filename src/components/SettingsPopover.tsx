@@ -4,8 +4,9 @@ import { THEMES, PALETTE_KEYS } from "../themes";
 import type { Board } from "../useBoard";
 import type { PaletteKey, Settings, ThemeKey } from "../types";
 import { CloseIcon, DownIcon } from "./Icons";
+import { ring } from "./ring";
 
-const GROUPS = ["Rams", "Ive", "Pastel"] as const;
+const GROUPS = ["Rams", "Ive", "Pastel", "Eames"] as const;
 const CHOOSE = "__choose__";
 const baseName = (p: string) => p.replace(/[/\\]+$/, "").split(/[/\\]/).pop() || p;
 
@@ -53,6 +54,17 @@ export function SettingsPopover({ settings, board, colourOf, paletteColour, onCl
   const chooseFolder = async () => {
     const path = await api.pickFolder();
     if (path) setVault(path);
+  };
+  // Where finished tasks are logged: a folder inside the vault, stored relative to it.
+  const [dailyError, setDailyError] = useState<string | null>(null);
+  const chooseDailyFolder = async () => {
+    const vault = settings.vaultPath.replace(/[/\\]+$/, "");
+    const path = await api.pickFolder({ title: "Where should finished tasks be logged?", start: `${vault}/${settings.dailyFolder}` });
+    if (!path) return;
+    const inside = path === vault || path.startsWith(vault + "/") || path.startsWith(vault + "\\");
+    if (!inside) { setDailyError("Choose a folder inside your vault."); return; }
+    setDailyError(null);
+    board.updateSettings({ dailyFolder: path.slice(vault.length).replace(/^[/\\]+/, "") });
   };
   const vaultOptions = settings.vaultPath && !vaults.includes(settings.vaultPath) ? [settings.vaultPath, ...vaults] : vaults;
   const setCat = (id: string, p: Partial<(typeof cats)[number]>) =>
@@ -104,7 +116,7 @@ export function SettingsPopover({ settings, board, colourOf, paletteColour, onCl
                     return (
                       <button key={k} type="button" role="radio" aria-checked={on} aria-label={k} className="dotbtn"
                         style={{ width: 30, height: 30 }} onClick={() => { setCat(c.id, { color: k }); setPicking(null); }}>
-                        <span className="dot" style={{ width: 16, height: 16, background: col, boxShadow: on ? `0 0 0 3px var(--surface), 0 0 0 4.5px ${col}` : "none" }} />
+                        <span className="dot" style={{ width: 16, height: 16, background: col, ...ring(on, col) }} />
                       </button>
                     );
                   })}
@@ -138,7 +150,16 @@ export function SettingsPopover({ settings, board, colourOf, paletteColour, onCl
             )}
           </div>
           {settings.vaultPath && vaultOptions.length > 0 && <span className="vault-path mono" title={settings.vaultPath}>{settings.vaultPath}</span>}
-          <span style={{ fontSize: 12, color: "var(--muted)" }}>Tasks live in <span className="mono">{settings.tasksFolder}/</span>, finished ones are logged in <span className="mono">{settings.dailyFolder}/</span>.</span>
+          <span style={{ fontSize: 12, color: "var(--muted)" }}>Tasks live in <span className="mono">{settings.tasksFolder}/</span>.</span>
+        </div>
+
+        <div className="field-group">
+          <span className="cap">Finished tasks are logged in</span>
+          <div className="vault-row">
+            <span className="vault-path mono" title="One daily note per day, e.g. 2026-11-22.md">{settings.dailyFolder ? `${settings.dailyFolder}/` : "the vault's top folder"}</span>
+            <button type="button" className="btn-small themed" onClick={chooseDailyFolder} disabled={!settings.vaultPath}>Choose…</button>
+          </div>
+          {dailyError && <span style={{ fontSize: 12, color: "var(--accent)" }}>{dailyError}</span>}
         </div>
       </div>
     </>

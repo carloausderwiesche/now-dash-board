@@ -24,7 +24,7 @@ export interface Api {
   taskPath(id: string): Promise<string>;
   openInObsidian(id: string): Promise<void>;
   /** Opens Finder's "choose a folder" window. Null if cancelled (or in the browser demo). */
-  pickFolder(): Promise<string | null>;
+  pickFolder(opts?: { title?: string; start?: string }): Promise<string | null>;
   /** Vault folders Obsidian already knows about, most recent first. */
   knownVaults(): Promise<string[]>;
   /** Called when files change on disk (e.g. you edited a task in Obsidian). */
@@ -49,7 +49,7 @@ const tauriApi: Api = {
   deleteTask: (id) => invoke("delete_task", { id }),
   taskPath: (id) => invoke("task_path", { id }),
   openInObsidian: (id) => invoke("open_in_obsidian", { id }),
-  pickFolder: () => invoke("pick_folder"),
+  pickFolder: (opts) => invoke("pick_folder", { title: opts?.title ?? null, start: opts?.start ?? null }),
   knownVaults: () => invoke("known_vaults"),
   onTasksChanged: (cb) => listen("tasks-changed", () => cb()),
   onQuickOpen: (cb) => listen("quick-open", () => cb()),
@@ -163,7 +163,7 @@ const demoApi: Api = {
   async deleteTask(id) { demoTasks.set(demoTasks.get().filter((x) => x.id !== id)); },
   async taskPath(id) { return "Tasks/" + id; },
   async openInObsidian(id) { console.info("In the desktop app this opens Tasks/" + id + " in Obsidian."); },
-  async pickFolder() { console.info("In the desktop app this opens Finder to choose your vault."); return null; },
+  async pickFolder() { console.info("In the desktop app this opens Finder to choose a folder."); return null; },
   async knownVaults() { return []; },
   async onTasksChanged() { return () => {}; },
   async onQuickOpen() { return () => {}; },

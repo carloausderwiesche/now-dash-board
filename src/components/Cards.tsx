@@ -1,12 +1,9 @@
-import type { CSSProperties, DragEvent } from "react";
+import type { CSSProperties, PointerEvent } from "react";
 import type { Task } from "../types";
 import { FocusIcon, LockIcon, PauseIcon, Tick } from "./Icons";
 
 type DndProps = {
-  draggable: boolean;
-  onDragStart: (e: DragEvent) => void;
-  onDragEnd: () => void;
-  onDragOver: (e: DragEvent) => void;
+  onPointerDown: (e: PointerEvent) => void;
   onMouseLeave: () => void;
 };
 
@@ -34,7 +31,7 @@ function classes(base: string, f: CardProps["flags"], extra = "") {
 const flightVars = (f?: Flight | null) => (f ? { "--fx": `${f.x}px`, "--fy": `${f.y}px` } as CSSProperties : {});
 
 const dot = (color: string, size: number, ring?: string): CSSProperties => ({
-  width: size, height: size, background: color, boxShadow: ring ? `0 0 0 2px ${ring}` : undefined,
+  width: size, height: size, background: color, outline: ring ? `2px solid ${ring}` : undefined,
 });
 
 /** A big tinted card in Today. Optional "focus" turns it black and double width. */
@@ -92,11 +89,11 @@ export function BacklogCard(p: CardProps & { onToToday: () => void }) {
 }
 
 /** The faded preview of the card you're dragging, shown where it will land. */
-export function GhostCard({ id, kind, title, tint, focus, onDragOver }: { id: string; kind: "today" | "backlog"; title: string; tint: string; focus: boolean; onDragOver: (e: DragEvent) => void }) {
+export function GhostCard({ id, kind, title, tint, focus }: { id: string; kind: "today" | "backlog"; title: string; tint: string; focus: boolean }) {
   // A focus card keeps its look (double width, ink) in Today; moving it to Backlog ends focus.
   const isFocus = focus && kind === "today";
   return (
-    <div className={`card ${kind}-card ghost${isFocus ? " is-focus" : ""}`} style={kind === "today" ? { backgroundColor: tint } : undefined} data-flip="__ghost__" data-ghost-for={id} onDragOver={onDragOver} aria-hidden>
+    <div className={`card ${kind}-card ghost${isFocus ? " is-focus" : ""}`} style={kind === "today" ? { backgroundColor: tint } : undefined} data-flip="__ghost__" data-ghost-for={id} aria-hidden>
       <span className="title"><span className="ttl">{title}</span></span>
     </div>
   );

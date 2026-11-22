@@ -4,6 +4,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { Category, Task } from "../types";
 import { CloseIcon, ChevronIcon } from "./Icons";
+import { ring } from "./ring";
 
 interface Props {
   task: Task;
@@ -47,7 +48,7 @@ export function DetailPanel({ task, categories, colourOf, tasksFolder, onPatch, 
 
   const ringed = (id: string) => ({
     width: 14, height: 14, background: colourOf(id),
-    boxShadow: id === task.area ? `0 0 0 3px var(--surface), 0 0 0 4.5px ${colourOf(id)}` : "none",
+    ...ring(id === task.area, colourOf(id)),
   });
 
   return (
@@ -98,6 +99,10 @@ export function DetailPanel({ task, categories, colourOf, tasksFolder, onPatch, 
                 <input type="checkbox" className="ck" checked={it.done}
                   onChange={() => onPatch({ items: task.items.map((x, j) => (j === i ? { ...x, done: !x.done } : x)) })} />
                 <span className={it.done ? "done-text" : ""} style={{ flex: 1 }}>{it.text}</span>
+                <button type="button" className="iconbtn step-del" aria-label={`Remove step: ${it.text}`} data-tip="Remove"
+                  onClick={(e) => { e.preventDefault(); onPatch({ items: task.items.filter((_, j) => j !== i) }); }}>
+                  <CloseIcon />
+                </button>
               </label>
             ))}
             <div className="add-row themed">

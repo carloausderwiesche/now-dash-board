@@ -26,7 +26,11 @@ Read this before changing how something looks or behaves. These decisions came o
 ## Interactions
 
 - **Complete** (round check on a card, or "Mark done" in the panel): the ring fills with the accent (no swelling), the tick draws itself, the title strikes through, then the card glides in one smooth move straight into the Done number (the path is measured), only ever shrinking and fading, no lift or bounce. The Done number gives a small accent-coloured nudge and the remaining cards slide into the gap. About 900ms in total.
-- **Drag and drop everywhere** (desktop: `dragDropEnabled` is off in `tauri.conf.json`, otherwise Tauri captures drags for file drops and the cards can't be moved). Onto Today, Backlog or Done (dropping on Done completes the task). Onto another card to place it *before* that card. No borders while dragging: the target section gets a soft background tint, and a faded copy of the card (a "ghost") appears exactly where it will land. Keep it calm: the dragged card's own slot *is* the preview until you point somewhere else, so a small nudge moves nothing; then only the cards in between shift by one place, slowly (~400ms, no overshoot). The left half of a card means "before it", the right half "after it", so both sides of a gap point at the same spot and the preview never flickers.
+- **Drag and drop everywhere**, built on pointer events (not HTML5 drag and drop: in the macOS app that flashes a "+ copy" cursor and leaves stale hover states). A press becomes a drag after 5px of movement, a copy of the card follows the pointer, the cursor stays a closed hand, the page scrolls near the window edges, Esc cancels. (`dragDropEnabled` is also off in `tauri.conf.json`.) Onto Today, Backlog or Done (dropping on Done completes the task). Keep it calm:
+  - Picking a card up changes nothing; its own slot is the preview (the card fades).
+  - The drop areas follow each other with no gaps: each list's area runs from its cards down to where the next list's cards start, so the space under Today, the Suggested strip and the Backlog heading all count as Today (a short drag up from Backlog is enough). Above the board, the preview stays where it was and dropping there uses that spot.
+  - The spot is the grid cell under the pointer: the preview goes exactly into that cell (so it never flips back and forth at row ends), and anything past the last card means "at the end". The double-width focus card is taken into account. The preview only moves after the pointer rests ~70ms on a new spot, but a drop always goes where you let go, even on a quick flick. Other cards slide aside slowly (~400ms, no overshoot).
+  - No border: the target section gets a soft tint and a faded "ghost" of the card shows where it lands. While dragging, other cards show no hover styling,.
 - **Change category:** click a card's colour dot. It cycles through the categories. Hovering any category dot (header, cards, panel, quick add) shows its name right away; quick add also shows the chosen category's name under its dot.
 - **Card buttons** ("Focus ◎", "Pause ‖", "Today ↑") are text plus a small icon, keep the card's text colour on hover (underline only), and hide while you point at the done circle.
 - **Filter:** click a colour dot in the header. Other cards fade to 22% opacity instead of disappearing, so you keep the overview.
@@ -36,7 +40,7 @@ Read this before changing how something looks or behaves. These decisions came o
   - a colour strip on top and colour dots to change the category
   - an editable title
   - one quiet line: "In Today · Move to Backlog" (an action, not two views of the card)
-  - a checklist using the same round checks as the cards
+  - a checklist using the same round checks as the cards (hover a step for × to remove it)
   - notes
   - the file path, which expands to show the markdown
   - **a sticky footer** with "Mark done" (a solid button with text only, no icon) and "Open in Obsidian"
@@ -47,6 +51,7 @@ A popover under the settings button; clicking anywhere outside (or Esc) closes i
 
 - **Theme** dropdown (below).
 - **Categories:** click a category's dot to open a small floating palette of 13 colours (it sits on top, nothing shifts), rename it inline, delete it with the × that appears on hover (at least one stays). Deleting doesn't touch task files; their tasks show in the first category until recategorised. Up to six.
+- **Finished tasks are logged in:** the folder (inside the vault) for the daily notes that get a `- [x] Title` line per finished task. "Choose…" opens Finder in the vault; a folder outside the vault is refused. Default `Daily/`.
 - **Obsidian vault:** a dropdown of the vaults Obsidian already knows (read from Obsidian's `obsidian.json`) plus "Other folder…", which opens Finder's folder picker. No typing paths.
 
 ## Themes
@@ -55,7 +60,8 @@ Picked from one dropdown in settings, grouped as:
 
 - **Rams:** Braun (warm off-white, black, Braun orange) and Graphite (its dark version). Small radii (4–8px), hairline borders, Inter.
 - **Ive:** Aluminium and Space Grey. Rounder (12–20px), soft shadows, no borders, system font.
-- **Pastel:** Peach, Mint and Lavender. Soft backgrounds, rounded corners, a pastel accent.
+- **Pastel:** Peach and Lavender. Soft backgrounds, rounded corners, a pastel accent.
+- **Eames:** Plywood (warm ash plywood, walnut-brown text, Eames red-orange), Walnut (its dark version) and Case Study (white panels, near-black text, Eames blue, after the Eames House). Softly rounded (8–16px), Avenir Next.
 
 All theme values live in `src/themes.ts` as CSS variables. Components never hard-code colours. Category colours have a strong value (dots) and a tint (Today cards) for light and dark modes.
 

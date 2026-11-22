@@ -106,15 +106,21 @@ fn percent_encode(s: &str) -> String {
 }
 
 /// Opens the native "choose a folder" window (Finder on macOS) and returns
-/// the folder you picked, or `None` if you pressed Cancel.
+/// the folder you picked, or `None` if you pressed Cancel. `title` is shown in
+/// the window; `start` is the folder it opens in (e.g. the vault).
 ///
 /// `async` matters here: Tauri runs async commands on a background thread.
 /// `blocking_pick_folder` waits until you close the window, and waiting on the
 /// main thread would freeze the whole app.
 #[tauri::command]
-async fn pick_folder(app: AppHandle) -> Option<String> {
+async fn pick_folder(app: AppHandle, title: Option<String>, start: Option<String>) -> Option<String> {
     use tauri_plugin_dialog::DialogExt;
-    let picked = app.dialog().file().set_title("Choose your Obsidian vault").blocking_pick_folder()?;
+    let mut dialog = app.dialog().file().set_title(title.unwrap_or_else(|| "Choose your Obsidian vault".into()));
+    // `if let Some(dir) = …`: only set a start folder if one was given and it exists.
+    if let Some(dir) = start.filter(|d| std::path::Path::new(d).is_dir()) {
+        dialog = dialog.set_directory(dir);
+    }
+    let picked = dialog.blocking_pick_folder()?;
     // `?` on an Option: if it's None (cancelled), return None right away.
     let path = picked.into_path().ok()?;
     Some(path.to_string_lossy().to_string())
