@@ -133,7 +133,7 @@ Fix these when you touch the file anyway. They're not urgent:
 - `SettingsPopover` gets the whole `board` and calls `api.pickFolder` / `api.knownVaults` itself. It should get `settings` plus callbacks (`onChange`, `onPickFolder`), with the API calls moved into `useSettings`.
 - `DemoIntro` calls `api.resetDemo` directly. That's acceptable for a demo-only button, but it would be cleaner as an `onReset` prop.
 - `App.finish` measures the card with `document.querySelector` to aim the fly animation. DOM measuring belongs in a small hook, next to `useFlip`.
-- **Reduce motion isn't supported yet.** `styles.css` has no `prefers-reduced-motion` rules.
+- **Reduce motion is only supported by the card menu so far.** The rest of `styles.css` has no `prefers-reduced-motion` rules.
 - **Dialogs don't return focus** to the button that opened them, and the detail panel doesn't move focus in when it opens.
 - **`useBoard.reload` doesn't ignore stale responses.** A file-change reload and a settings reload can overlap.
 - A few `!` and `as` remain, for example `catOf(filter!)` and `settings.theme as ThemeKey` in `App.tsx`.

@@ -21,7 +21,7 @@ interface CardProps {
   flight?: Flight | null;
   onOpen: () => void;
   onCycleColour: () => void;
-  onContextMenu?: (e: MouseEvent) => void;
+  onContextMenu?: (e: MouseEvent<HTMLElement>) => void;
 }
 
 function classes(base: string, f: CardProps["flags"], extra = "") {

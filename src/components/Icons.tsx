@@ -54,9 +54,8 @@ export const LockIcon = ({ size = 12 }) => (
     <path d="M8 11V7a4 4 0 0 1 8 0v4" />
   </svg>
 );
-/** The tick that draws itself inside the round check (see .tick in styles.css). */
-export const TrashIcon = () => (
-  <svg width={16} height={16} viewBox="0 0 24 24" strokeWidth={1.8} {...base}>
+export const TrashIcon = ({ size = 16 }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" strokeWidth={1.8} {...base}>
     <path d="M4 7h16M10 7V4.5h4V7M6.5 7l1 12.5h9l1-12.5M10 11v5M14 11v5" />
   </svg>
 );
@@ -77,6 +76,18 @@ export const ExternalIcon = ({ size = 14 }) => (
     <path d="M8 16L16 8M9 8h7v7" />
   </svg>
 );
+export const ArrowIcon = ({ up }: { up: boolean }) => (
+  <svg width={14} height={14} viewBox="0 0 24 24" strokeWidth={2.2} {...base}>
+    <path d={up ? "M12 19V5M6 11l6-6 6 6" : "M12 5v14M6 13l6 6 6-6"} />
+  </svg>
+);
+/** A plain tick in the text colour (menus). */
+export const CheckIcon = () => (
+  <svg width={14} height={14} viewBox="0 0 24 24" strokeWidth={2.6} {...base}>
+    <path d="M5 12.5l4.5 4.5L19 7.5" />
+  </svg>
+);
+/** The tick that draws itself inside the round check (see .tick in styles.css). */
 export const Tick = ({ size = 13 }) => (
   <svg width={size} height={size} viewBox="0 0 24 24" strokeWidth={3.2} {...base} stroke="var(--onaccent)">
     <path className="tick" d="M5 12.5l4.5 4.5L19 7.5" />

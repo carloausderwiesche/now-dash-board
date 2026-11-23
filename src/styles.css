@@ -1716,6 +1716,137 @@ html.grabbing * {
   overflow-wrap: anywhere;
 }
 
+/* ---------- card menu (CardMenu.tsx): right-click on a card ---------- */
+.card-menu {
+  position: fixed;
+  z-index: 50;
+  width: 232px;
+  padding: 6px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--R);
+  box-shadow: 0 18px 40px -18px rgba(0, 0, 0, 0.35);
+  color: var(--ink);
+  animation: menu-in 0.14s ease-out;
+}
+.card-menu:focus {
+  outline: none;
+}
+@keyframes menu-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px) scale(0.98);
+  }
+}
+.menu-cats {
+  display: flex;
+  align-items: center;
+  padding: 2px 4px;
+}
+.menu-cats .dotbtn {
+  width: 26px;
+  height: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--r);
+}
+.menu-cats .dotbtn:hover .dot,
+.menu-cats .dotbtn:focus-visible .dot {
+  transform: scale(1.18);
+}
+/* Keyboard focus looks like a hovered row, never a second ring around the selected dot. */
+.menu-cats .dotbtn:focus-visible {
+  outline: none;
+  background: var(--well);
+}
+.menu-catname {
+  margin-left: auto;
+  padding-right: 6px;
+  font-size: 12px;
+  color: var(--muted);
+}
+.menu-sep {
+  height: 1px;
+  margin: 4px 6px;
+  background: var(--line);
+}
+.menu-row {
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  height: 30px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: var(--r);
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+}
+.menu-row:hover,
+.menu-row:focus-visible {
+  background: var(--well);
+  outline: none;
+}
+.menu-icon {
+  display: flex;
+  width: 16px;
+  justify-content: center;
+  color: var(--muted);
+}
+.menu-row:hover .menu-icon,
+.menu-row:focus-visible .menu-icon {
+  color: var(--ink);
+}
+.menu-row.danger {
+  color: var(--muted);
+}
+.menu-row.danger:hover,
+.menu-row.danger:focus-visible,
+.menu-row.danger:hover .menu-icon,
+.menu-row.danger:focus-visible .menu-icon {
+  color: var(--accent);
+}
+.menu-row.armed,
+.menu-row.armed:hover,
+.menu-row.armed:focus-visible,
+.menu-row.armed .menu-icon {
+  background: var(--accent);
+  color: var(--onaccent);
+  font-weight: 600;
+}
+/* Empties over the 4 seconds you have to confirm; then the row turns back. */
+.menu-drain {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  width: 100%;
+  height: 2px;
+  background: var(--onaccent);
+  opacity: 0.55;
+  transform-origin: left;
+  animation: drain 4s linear forwards;
+}
+@keyframes drain {
+  to {
+    transform: scaleX(0);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .card-menu {
+    animation: none;
+  }
+  .menu-drain {
+    display: none;
+  }
+}
+
 /* ---------- crash screen (ErrorBoundary.tsx) ---------- */
 .crash {
   max-width: 520px;

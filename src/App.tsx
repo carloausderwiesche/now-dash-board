@@ -7,6 +7,7 @@ import { useBoard } from "./useBoard";
 import { useDnd } from "./useDnd";
 import { useFlip } from "./useFlip";
 import { BacklogCard, GhostCard, TodayCard, type Flight } from "./components/Cards";
+import { CardMenu } from "./components/CardMenu";
 import { DetailPanel } from "./components/DetailPanel";
 import { Header } from "./components/Header";
 import { QuickAdd } from "./components/QuickAdd";
@@ -25,6 +26,7 @@ export default function App() {
   const [openId, setOpenId] = useState<string | null>(null);
   const [showSettings, setShowSettings] = useState(false);
   const [flight, setFlight] = useState<(Flight & { id: string }) | null>(null);
+  const [menu, setMenu] = useState<{ id: string; at: { x: number; y: number } } | null>(null);
   const doneNum = useRef<HTMLSpanElement>(null);
   const todayGrid = useFlip<HTMLDivElement>();
   const backlogGrid = useFlip<HTMLDivElement>();
@@ -65,6 +67,7 @@ export default function App() {
       const typing =
         e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement || e.target instanceof HTMLSelectElement;
       if (e.key === "Escape") {
+        setMenu(null);
         setOpenId(null);
         setShowSettings(false);
         setQuick(false);
@@ -115,6 +118,7 @@ export default function App() {
     .sort((a, b) => (b.doneOn ?? "").localeCompare(a.doneOn ?? "") || byOrder(a, b));
   const doneToday = doneWeek.filter((t) => t.doneOn?.startsWith(todayStr()));
   const openTask = tasks.find((t) => t.id === openId);
+  const menuTask = tasks.find((t) => t.id === menu?.id);
   const dragged = tasks.find((t) => t.id === dnd.dragging);
 
   /** Everything a Today or Backlog section needs: cards, drag preview, heading note, empty state. */
@@ -136,28 +140,18 @@ export default function App() {
           completing: board.completing === t.id,
           arrived: board.arrived === t.id,
           landed: dnd.landed === t.id,
-          open: openId === t.id,
+          open: openId === t.id || menu?.id === t.id,
         },
         dnd: dnd.card(t.id, status),
         flight: flight?.id === t.id ? flight : null,
         onOpen: () => setOpenId(t.id),
         onCycleColour: () => board.cycleColour(t.id),
-        // The browser demo keeps the browser's own menu.
-        onContextMenu: inTauri
-          ? (e: MouseEvent) => {
-              e.preventDefault();
-              api.contextMenu(
-                cardMenu(t, cats, {
-                  open: () => setOpenId(t.id),
-                  move: (s) => board.move(t.id, s),
-                  finish: () => finish(t.id),
-                  toggleFocus: () => board.toggleFocus(t.id),
-                  setCategory: (area) => board.patch(t.id, { area }),
-                  openInObsidian: () => api.openInObsidian(t.id),
-                }),
-              );
-            }
-          : undefined,
+        onContextMenu: (e: MouseEvent<HTMLElement>) => {
+          e.preventDefault();
+          // The context-menu key / Ctrl-click from the keyboard has no pointer position: open at the card.
+          const r = e.currentTarget.getBoundingClientRect();
+          setMenu({ id: t.id, at: e.clientX || e.clientY ? { x: e.clientX, y: e.clientY } : { x: r.left + 16, y: r.top + 16 } });
+        },
       };
       return status === "today" ? (
         <TodayCard key={t.id} {...props} onComplete={() => finish(t.id)} onToggleFocus={() => board.toggleFocus(t.id)} />
@@ -279,6 +273,26 @@ export default function App() {
             board.remove(id);
           }}
           onClose={() => setOpenId(null)}
+        />
+      )}
+
+      {menu && menuTask && (
+        <CardMenu
+          at={menu.at}
+          colourOf={strongOf}
+          onClose={() => setMenu(null)}
+          model={cardMenu(menuTask, cats, {
+            open: () => setOpenId(menuTask.id),
+            move: (s) => board.move(menuTask.id, s),
+            finish: () => finish(menuTask.id),
+            toggleFocus: () => board.toggleFocus(menuTask.id),
+            setCategory: (area) => board.patch(menuTask.id, { area }),
+            openInObsidian: () => api.openInObsidian(menuTask.id),
+            remove: () => {
+              setOpenId((cur) => (cur === menuTask.id ? null : cur));
+              board.remove(menuTask.id);
+            },
+          })}
         />
       )}
 
