@@ -495,45 +495,20 @@ pub fn rename(dir: &Path, id: &str, title: &str, order: f64) -> Result<Task, Str
     Ok(parse_with_order(&name, &text, order))
 }
 
+/// Marks a task done at `now` and ends its focus. Only the task's own file is
+/// written, never a daily note (you may be typing in it): daily notes list
+/// finished tasks with a query instead, see docs/adr/0003.
+pub fn complete(dir: &Path, id: &str, now: &str) -> Result<Task, String> {
+    let mut task = load_one(dir, id)?;
+    task.status = Status::Done;
+    task.focus = false;
+    task.done_on = Some(now.to_string());
+    save(dir, task)
+}
+
 pub fn delete(dir: &Path, id: &str) -> Result<(), String> {
     let path = safe_path(dir, id)?;
     fs::remove_file(path).map_err(|e| e.to_string())
-}
-
-/// Adds `- [x] title` to today's daily note, e.g. `Daily/2026-11-22.md`.
-pub fn log_to_daily_note(vault: &Path, daily_folder: &str, title: &str) -> Result<(), String> {
-    use std::io::Write;
-    let folder = vault.join(daily_folder);
-    fs::create_dir_all(&folder).map_err(|e| e.to_string())?;
-    let file = folder.join(format!("{}.md", chrono::Local::now().format("%Y-%m-%d")));
-    let mut f = fs::OpenOptions::new().create(true).append(true).open(file).map_err(|e| e.to_string())?;
-    writeln!(f, "- [x] {title}").map_err(|e| e.to_string())
-}
-
-/// The opposite of `log_to_daily_note`, for Undo: takes `- [x] title` back out of
-/// the daily note of the day the task was done. `day` is `YYYY-MM-DD` (None = today).
-/// Only that one line goes (the last match, if the title was logged twice); the rest
-/// of the note is kept exactly. A note left empty by this is removed.
-pub fn unlog_from_daily_note(vault: &Path, daily_folder: &str, title: &str, day: Option<&str>) -> Result<(), String> {
-    let today = chrono::Local::now().format("%Y-%m-%d").to_string();
-    // Only accept a real date shape, so a strange `done:` value can't point at another file.
-    let day = day.filter(|d| d.len() == 10 && d.chars().all(|c| c.is_ascii_digit() || c == '-')).unwrap_or(&today);
-    let file = vault.join(daily_folder).join(format!("{day}.md"));
-    let Ok(text) = fs::read_to_string(&file) else { return Ok(()) }; // no note → nothing to undo
-    let wanted = format!("- [x] {title}");
-    let lines: Vec<&str> = text.lines().collect();
-    // `rposition` = the index of the last line that matches, if any.
-    let Some(at) = lines.iter().rposition(|l| l.trim_end() == wanted) else { return Ok(()) };
-    let mut kept: Vec<&str> = lines;
-    kept.remove(at);
-    if kept.iter().all(|l| l.trim().is_empty()) {
-        return fs::remove_file(&file).map_err(|e| e.to_string());
-    }
-    let mut out = kept.join("\n");
-    if text.ends_with('\n') {
-        out.push('\n');
-    }
-    write_atomic(&file, &out)
 }
 
 #[cfg(test)]
@@ -679,23 +654,21 @@ mod tests {
     }
 
     #[test]
-    fn undo_takes_the_line_out_of_the_daily_note() {
-        let vault = temp_dir("unlog");
+    fn completing_a_task_writes_only_its_own_file() {
+        let vault = temp_dir("complete");
+        let dir = vault.join("Notes/Tasks");
+        fs::create_dir_all(&dir).unwrap();
         fs::create_dir_all(vault.join("Daily")).unwrap();
+        fs::write(dir.join("Buy milk.md"), "---\nstatus: today\nfocus: true\n---\n").unwrap();
+        // A daily note you're in the middle of typing (no line break at the end yet).
         let note = vault.join("Daily/2026-11-22.md");
-        fs::write(&note, "# Sunday\n- [x] Buy milk\nSome notes\n- [x] Fix bike\n").unwrap();
-        unlog_from_daily_note(&vault, "Daily", "Buy milk", Some("2026-11-22")).unwrap();
-        assert_eq!(fs::read_to_string(&note).unwrap(), "# Sunday\nSome notes\n- [x] Fix bike\n");
-        // Not in the note: nothing changes.
-        unlog_from_daily_note(&vault, "Daily", "Nope", Some("2026-11-22")).unwrap();
-        assert_eq!(fs::read_to_string(&note).unwrap(), "# Sunday\nSome notes\n- [x] Fix bike\n");
-        // A note that only had our line is removed.
-        let only = vault.join("Daily/2026-11-21.md");
-        fs::write(&only, "- [x] Solo\n").unwrap();
-        unlog_from_daily_note(&vault, "Daily", "Solo", Some("2026-11-21")).unwrap();
-        assert!(!only.exists());
-        // A weird date can't reach outside the folder.
-        unlog_from_daily_note(&vault, "Daily", "x", Some("../../etc")).unwrap();
+        fs::write(&note, "# Sunday\nhalf a thought").unwrap();
+
+        let t = complete(&dir, "Buy milk.md", "2026-11-22T10:40").unwrap();
+        assert_eq!((t.status, t.focus, t.done_on.as_deref()), (Status::Done, false, Some("2026-11-22T10:40")));
+        assert_eq!(fs::read_to_string(&note).unwrap(), "# Sunday\nhalf a thought");
+        assert_eq!(fs::read_dir(vault.join("Daily")).unwrap().count(), 1);
+        assert_eq!(fs::read_dir(&vault).unwrap().count(), 2); // still only Notes/ and Daily/
     }
 
     #[test]

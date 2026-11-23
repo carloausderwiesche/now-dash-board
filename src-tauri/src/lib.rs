@@ -11,7 +11,7 @@ mod tasks;
 use settings::Settings;
 use std::path::PathBuf;
 use std::sync::Mutex;
-use tasks::{Status, Task};
+use tasks::Task;
 use tauri::{AppHandle, Emitter, Manager, State};
 
 /// Shared state. `Mutex` because Tauri may run commands on several threads.
@@ -50,43 +50,16 @@ fn list_tasks(state: State<AppState>) -> Result<Vec<Task>, String> {
 
 #[tauri::command]
 fn save_task(state: State<AppState>, task: Task) -> Result<Task, String> {
-    let s = state.settings();
-    let dir = s.tasks_dir()?;
     let mut task = task;
     if task.created.is_none() {
         task.created = Some(now());
     }
-    // Was this task finished before this save? (`.ok()` turns "file not found" into None,
-    // `.filter(…)` keeps it only if it was done.)
-    let was_done = if task.id.is_empty() {
-        None
-    } else {
-        tasks::load_one(&dir, &task.id).ok().filter(|t| t.status == Status::Done)
-    };
-    let saved = tasks::save(&dir, task)?;
-    // Reopened (Undo, or dragged back out of Done): take its `- [x]` line back out of
-    // the daily note it was logged in. Like logging, this never fails the save.
-    if let Some(old) = was_done {
-        if saved.status != Status::Done {
-            let day = old.done_on.as_deref().and_then(|d| d.get(..10));
-            let _ = tasks::unlog_from_daily_note(&PathBuf::from(&s.vault_path), &s.daily_folder, &old.title, day);
-        }
-    }
-    Ok(saved)
+    tasks::save(&state.settings().tasks_dir()?, task)
 }
 
 #[tauri::command]
 fn complete_task(state: State<AppState>, id: String) -> Result<Task, String> {
-    let s = state.settings();
-    let dir = s.tasks_dir()?;
-    let mut task = tasks::load_one(&dir, &id)?;
-    task.status = Status::Done;
-    task.focus = false;
-    task.done_on = Some(now());
-    let task = tasks::save(&dir, task)?;
-    // Logging is a bonus: never fail the "done" because the daily note failed.
-    let _ = tasks::log_to_daily_note(&PathBuf::from(&s.vault_path), &s.daily_folder, &task.title);
-    Ok(task)
+    tasks::complete(&state.settings().tasks_dir()?, &id, &now())
 }
 
 /// Renames a task's file to match its new title (the title *is* the file name).

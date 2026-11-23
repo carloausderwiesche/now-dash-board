@@ -134,7 +134,7 @@ export function useBoard() {
         const t = tasksRef.current.find((x) => x.id === id);
         if (!t) return null;
         if (onDisk) {
-          // Finished on disk: just show the file's version, no write, no daily-note line.
+          // Finished on disk: just show the file's version, no write.
           setTasks((all) => all.map((x) => (x.id === id ? onDisk : x)));
           return onDisk.title;
         }

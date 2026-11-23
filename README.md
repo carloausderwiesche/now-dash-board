@@ -58,7 +58,7 @@ already knows), or choose "Other folder…" to select it in Finder.
 The app then:
 
 - reads and writes tasks in `<vault>/Notes/Tasks/`, one file per task (format in DESIGN.md)
-- logs each finished task as `- [x] Title` in a daily note, `<vault>/Daily/YYYY-MM-DD.md` by default (change the folder in Settings → "Finished tasks are logged in")
+- never writes into your other notes. To see a day's finished tasks in its daily note, add the Dataview query from Settings → "Finished tasks in your daily note" to your daily-note template (needs the [Dataview](https://github.com/blacksmithgu/obsidian-dataview) plugin)
 - reloads automatically when you edit a task file in Obsidian
 
 Settings are saved in `~/Library/Application Support/com.nestoririondo.nowboard/settings.json`.

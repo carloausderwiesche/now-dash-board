@@ -30,3 +30,5 @@ ADRs aren't edited after they're accepted, except for their status. To change a 
 |---|---|---|
 | [0001](0001-node-test-runner.md) | Node's built-in test runner for frontend tests, not Vitest | Accepted |
 | [0002](0002-prettier.md) | Prettier formats the frontend, checked in CI | Accepted |
+| [0003](0003-daily-note-query.md) | Daily notes list finished tasks with a query; the app doesn't write them | Accepted |
+| [0004](0004-native-context-menu.md) | Right-click on a card opens a native macOS menu | Accepted |

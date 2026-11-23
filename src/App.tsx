@@ -1,6 +1,7 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type MouseEvent } from "react";
 import { api, inTauri } from "./api";
 import { byOrder, todayStr } from "./board";
+import { cardMenu } from "./cardMenu";
 import { colours, themeVars } from "./themes";
 import { useBoard } from "./useBoard";
 import { useDnd } from "./useDnd";
@@ -141,6 +142,22 @@ export default function App() {
         flight: flight?.id === t.id ? flight : null,
         onOpen: () => setOpenId(t.id),
         onCycleColour: () => board.cycleColour(t.id),
+        // The browser demo keeps the browser's own menu.
+        onContextMenu: inTauri
+          ? (e: MouseEvent) => {
+              e.preventDefault();
+              api.contextMenu(
+                cardMenu(t, cats, {
+                  open: () => setOpenId(t.id),
+                  move: (s) => board.move(t.id, s),
+                  finish: () => finish(t.id),
+                  toggleFocus: () => board.toggleFocus(t.id),
+                  setCategory: (area) => board.patch(t.id, { area }),
+                  openInObsidian: () => api.openInObsidian(t.id),
+                }),
+              );
+            }
+          : undefined,
       };
       return status === "today" ? (
         <TodayCard key={t.id} {...props} onComplete={() => finish(t.id)} onToggleFocus={() => board.toggleFocus(t.id)} />

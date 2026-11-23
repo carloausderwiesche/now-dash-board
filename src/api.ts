@@ -5,7 +5,9 @@
 
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
+import { Menu } from "@tauri-apps/api/menu";
 import { getCurrentWindow } from "@tauri-apps/api/window";
+import type { MenuEntry } from "./cardMenu";
 import type { Settings, Task } from "./types";
 
 export const inTauri = typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
@@ -27,6 +29,8 @@ export interface Api {
   pickFolder(opts?: { title?: string; start?: string }): Promise<string | null>;
   /** Vault folders Obsidian already knows about, most recent first. */
   knownVaults(): Promise<string[]>;
+  /** Shows a native right-click menu at the mouse. The browser demo has none: callers keep the browser's own menu there. */
+  contextMenu(entries: MenuEntry[]): Promise<void>;
   /** Called when files change on disk (e.g. you edited a task in Obsidian). */
   onTasksChanged(cb: () => void): Promise<() => void>;
   /** Quick-add window only: called each time ⌥ Space shows it. */
@@ -51,12 +55,21 @@ const tauriApi: Api = {
   openInObsidian: (id) => invoke("open_in_obsidian", { id }),
   pickFolder: (opts) => invoke("pick_folder", { title: opts?.title ?? null, start: opts?.start ?? null }),
   knownVaults: () => invoke("known_vaults"),
+  contextMenu: async (entries) => (await Menu.new({ items: entries.map(nativeItem) })).popup(),
   onTasksChanged: (cb) => listen("tasks-changed", () => cb()),
   onQuickOpen: (cb) => listen("quick-open", () => cb()),
   onQuickClosed: (cb) => listen("quick-closed", () => cb()),
   hideQuick: (reason) => invoke("hide_quick", { reason }),
   resetDemo: () => {},
 };
+
+type NativeItem = { item: "Separator" } | { text: string; items: NativeItem[] } | { text: string; checked?: boolean; action?: () => void };
+const nativeItem = (e: MenuEntry): NativeItem =>
+  e === "separator"
+    ? { item: "Separator" }
+    : e.items
+      ? { text: e.text, items: e.items.map(nativeItem) }
+      : { text: e.text, checked: e.checked, action: e.action };
 
 /** For effects: `return cleanupFor(api.onTasksChanged(…), …)`. Subscribing is
  *  async, so the cleanup can run before a subscription is ready (React Strict
@@ -106,7 +119,6 @@ const stamp = (daysAgo = 0) => {
 const DEMO_SETTINGS: Settings = {
   vaultPath: "(browser demo — run `npm run app` for the real thing)",
   tasksFolder: "Notes/Tasks",
-  dailyFolder: "Daily",
   theme: "braun",
   categories: [
     { id: "personal", name: "Personal", color: "rose" },
@@ -226,6 +238,7 @@ const demoApi: Api = {
   async knownVaults() {
     return [];
   },
+  async contextMenu() {},
   // Another tab changing the demo tasks stands in for "a file changed on disk".
   async onTasksChanged(cb) {
     const on = (e: StorageEvent) => {

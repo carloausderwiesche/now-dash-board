@@ -54,7 +54,6 @@ export type ThemeKey =
 export interface Settings {
   vaultPath: string;
   tasksFolder: string;
-  dailyFolder: string;
   theme: ThemeKey;
   categories: Category[];
   /** Smaller cards, so more fit on screen. */

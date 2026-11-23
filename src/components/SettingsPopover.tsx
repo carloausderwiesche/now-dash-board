@@ -7,6 +7,15 @@ import { CloseIcon, DownIcon, GripIcon } from "./Icons";
 import { ring } from "./ring";
 
 const GROUPS = ["Rams", "Ive", "Pastel", "Eames"] as const;
+/** A Dataview query for a daily note named YYYY-MM-DD: the tasks finished that day. */
+const doneQuery = (tasksFolder: string) =>
+  [
+    "```dataview",
+    `LIST FROM "${tasksFolder}"`,
+    `WHERE status = "done" AND dateformat(done, "yyyy-MM-dd") = this.file.name`,
+    "SORT done ASC",
+    "```",
+  ].join("\n");
 const CHOOSE = "__choose__";
 const baseName = (p: string) =>
   p
@@ -64,20 +73,13 @@ export function SettingsPopover({ settings, board, colourOf, paletteColour, onCl
     const path = await api.pickFolder();
     if (path) setVault(path);
   };
-  // Where finished tasks are logged: a folder inside the vault, stored relative to it.
-  const [dailyError, setDailyError] = useState<string | null>(null);
-  const chooseDailyFolder = async () => {
-    const vault = settings.vaultPath.replace(/[/\\]+$/, "");
-    const path = await api.pickFolder({ title: "Where should finished tasks be logged?", start: `${vault}/${settings.dailyFolder}` });
-    if (!path) return;
-    const inside = path === vault || path.startsWith(vault + "/") || path.startsWith(vault + "\\");
-    if (!inside) {
-      setDailyError("Choose a folder inside your vault.");
-      return;
-    }
-    setDailyError(null);
-    board.updateSettings({ dailyFolder: path.slice(vault.length).replace(/^[/\\]+/, "") });
-  };
+  const query = doneQuery(settings.tasksFolder);
+  const [copied, setCopied] = useState<"yes" | "failed" | null>(null);
+  const copyQuery = () =>
+    navigator.clipboard.writeText(query).then(
+      () => setCopied("yes"),
+      () => setCopied("failed"),
+    );
   const vaultOptions = settings.vaultPath && !vaults.includes(settings.vaultPath) ? [settings.vaultPath, ...vaults] : vaults;
   const setCat = (id: string, p: Partial<(typeof cats)[number]>) =>
     board.updateSettings({ categories: cats.map((x) => (x.id === id ? { ...x, ...p } : x)) });
@@ -377,16 +379,18 @@ export function SettingsPopover({ settings, board, colourOf, paletteColour, onCl
         </div>
 
         <div className="field-group">
-          <span className="cap">Finished tasks are logged in</span>
+          <span className="cap">Finished tasks in your daily note</span>
+          <span className="field-hint">
+            Nowboard never writes into your notes. To list a day&apos;s finished tasks, add this to your daily-note template (needs the
+            Dataview plugin):
+          </span>
+          <pre className="snippet mono">{query}</pre>
           <div className="vault-row">
-            <span className="vault-path mono" title="One daily note per day, e.g. 2026-11-22.md">
-              {settings.dailyFolder ? `${settings.dailyFolder}/` : "the vault's top folder"}
-            </span>
-            <button type="button" className="btn-small themed" onClick={chooseDailyFolder} disabled={!settings.vaultPath}>
-              Choose…
+            <button type="button" className="btn-small themed" onClick={copyQuery}>
+              {copied === "yes" ? "Copied" : "Copy"}
             </button>
+            {copied === "failed" && <span className="field-hint">Couldn&apos;t copy. Select the text above instead.</span>}
           </div>
-          {dailyError && <span style={{ fontSize: 12, color: "var(--accent)" }}>{dailyError}</span>}
         </div>
       </div>
     </>

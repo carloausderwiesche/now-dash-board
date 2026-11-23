@@ -1,4 +1,4 @@
-import type { CSSProperties, PointerEvent } from "react";
+import type { CSSProperties, MouseEvent, PointerEvent } from "react";
 import type { Task } from "../types";
 import { FocusIcon, LockIcon, PauseIcon, Tick } from "./Icons";
 
@@ -21,6 +21,7 @@ interface CardProps {
   flight?: Flight | null;
   onOpen: () => void;
   onCycleColour: () => void;
+  onContextMenu?: (e: MouseEvent) => void;
 }
 
 function classes(base: string, f: CardProps["flags"], extra = "") {
@@ -64,6 +65,7 @@ export function TodayCard(p: CardProps & { onComplete: () => void; onToggleFocus
       className={classes("card today-card themed", p.flags, task.focus ? "is-focus" : "")}
       style={{ backgroundColor: p.tint, ...flightVars(p.flight) }}
       data-flip={task.id}
+      onContextMenu={p.onContextMenu}
       {...p.dnd}
     >
       <button
@@ -134,7 +136,13 @@ export function TodayCard(p: CardProps & { onComplete: () => void; onToggleFocus
 /** A small plain card in the Backlog. */
 export function BacklogCard(p: CardProps & { onToToday: () => void }) {
   return (
-    <div className={classes("card backlog-card themed", p.flags)} style={flightVars(p.flight)} data-flip={p.task.id} {...p.dnd}>
+    <div
+      className={classes("card backlog-card themed", p.flags)}
+      style={flightVars(p.flight)}
+      data-flip={p.task.id}
+      onContextMenu={p.onContextMenu}
+      {...p.dnd}
+    >
       <button
         type="button"
         className="opener title"

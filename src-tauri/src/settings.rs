@@ -21,8 +21,6 @@ pub struct Settings {
     pub vault_path: String,
     /// Folder inside the vault that holds one .md file per task.
     pub tasks_folder: String,
-    /// Folder inside the vault for daily notes (finished tasks get logged there).
-    pub daily_folder: String,
     pub theme: String,
     pub categories: Vec<Category>,
     /// Smaller cards. `#[serde(default)]` on the struct means an older settings
@@ -38,7 +36,6 @@ impl Default for Settings {
             // Handy during development: NOWBOARD_VAULT=/path/to/vault npm run app
             vault_path: std::env::var("NOWBOARD_VAULT").unwrap_or_default(),
             tasks_folder: "Notes/Tasks".into(),
-            daily_folder: "Daily".into(),
             theme: "braun".into(),
             categories: vec![
                 cat("personal", "Personal", "rose"),
@@ -121,6 +118,14 @@ mod tests {
             "c":{"ts":300}
         }}"#;
         assert_eq!(parse_obsidian_vaults(json), vec!["/Users/me/New", "/Users/me/Old"]);
+    }
+
+    #[test]
+    fn settings_from_an_older_version_still_load() {
+        let old = r#"{"vaultPath":"/v","tasksFolder":"Notes/Tasks","dailyFolder":"Daily","theme":"walnut"}"#;
+        let s: Settings = serde_json::from_str(old).unwrap();
+        assert_eq!((s.vault_path.as_str(), s.theme.as_str()), ("/v", "walnut"));
+        assert_eq!(s.categories.len(), 3); // missing fields get their defaults
     }
 
     #[test]
