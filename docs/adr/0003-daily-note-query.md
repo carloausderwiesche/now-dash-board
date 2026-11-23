@@ -19,10 +19,12 @@ The app only writes task files. Each task already stores when it was finished (`
 ````markdown
 ```dataview
 LIST FROM "Notes/Tasks"
-WHERE status = "done" AND dateformat(done, "yyyy-MM-dd") = this.file.name
-SORT done ASC
+WHERE status = "done" AND dateformat(default(done, file.mtime), "yyyy-MM-dd") = this.file.name
+SORT default(done, file.mtime) ASC
 ```
 ````
+
+A done task without a `done:` date (set by hand in Obsidian) counts on the day its file was last saved: `default(done, file.mtime)` mirrors the app's own fallback (`done_time` in `src-tauri/src/tasks.rs`), so the daily note and the board show the same tasks.
 
 The `dailyFolder` setting, `log_to_daily_note` and `unlog_from_daily_note` are gone.
 

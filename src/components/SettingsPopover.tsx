@@ -7,13 +7,18 @@ import { CloseIcon, DownIcon, GripIcon } from "./Icons";
 import { ring } from "./ring";
 
 const GROUPS = ["Rams", "Ive", "Pastel", "Eames"] as const;
-/** A Dataview query for a daily note named YYYY-MM-DD: the tasks finished that day. */
+/**
+ * A Dataview query for a daily note named YYYY-MM-DD: the tasks finished that day.
+ * A done task without a `done:` date counts on the day its file was last saved,
+ * the same fallback the app uses (`done_time` in src-tauri/src/tasks.rs), so the
+ * daily note and the board agree.
+ */
 const doneQuery = (tasksFolder: string) =>
   [
     "```dataview",
     `LIST FROM "${tasksFolder}"`,
-    `WHERE status = "done" AND dateformat(done, "yyyy-MM-dd") = this.file.name`,
-    "SORT done ASC",
+    `WHERE status = "done" AND dateformat(default(done, file.mtime), "yyyy-MM-dd") = this.file.name`,
+    "SORT default(done, file.mtime) ASC",
     "```",
   ].join("\n");
 const CHOOSE = "__choose__";
