@@ -8,7 +8,11 @@ import { ring } from "./ring";
 
 const GROUPS = ["Rams", "Ive", "Pastel", "Eames"] as const;
 const CHOOSE = "__choose__";
-const baseName = (p: string) => p.replace(/[/\\]+$/, "").split(/[/\\]/).pop() || p;
+const baseName = (p: string) =>
+  p
+    .replace(/[/\\]+$/, "")
+    .split(/[/\\]/)
+    .pop() || p;
 
 interface Props {
   settings: Settings;
@@ -25,7 +29,12 @@ export function SettingsPopover({ settings, board, colourOf, paletteColour, onCl
   const [picking, setPicking] = useState<string | null>(null); // category whose colour picker is open
   const [vaults, setVaults] = useState<string[]>([]);
 
-  useEffect(() => { api.knownVaults().then(setVaults).catch(() => setVaults([])); }, []);
+  useEffect(() => {
+    api
+      .knownVaults()
+      .then(setVaults)
+      .catch(() => setVaults([]));
+  }, []);
 
   // The colour palette floats over the settings; a click anywhere outside it closes it.
   const pickerRef = useRef<HTMLDivElement>(null);
@@ -62,7 +71,10 @@ export function SettingsPopover({ settings, board, colourOf, paletteColour, onCl
     const path = await api.pickFolder({ title: "Where should finished tasks be logged?", start: `${vault}/${settings.dailyFolder}` });
     if (!path) return;
     const inside = path === vault || path.startsWith(vault + "/") || path.startsWith(vault + "\\");
-    if (!inside) { setDailyError("Choose a folder inside your vault."); return; }
+    if (!inside) {
+      setDailyError("Choose a folder inside your vault.");
+      return;
+    }
     setDailyError(null);
     board.updateSettings({ dailyFolder: path.slice(vault.length).replace(/^[/\\]+/, "") });
   };
@@ -104,7 +116,10 @@ export function SettingsPopover({ settings, board, colourOf, paletteColour, onCl
     const finish = () => {
       const d = dragRef.current;
       if (!d) return;
-      if (d.to === d.from) { setDrag(null); return; }
+      if (d.to === d.from) {
+        setDrag(null);
+        return;
+      }
       // Glide into the slot first, then reorder for real (with animations off for that one frame).
       setDrag({ ...d, dy: (d.to - d.from) * d.rowH, dropping: true });
       setTimeout(() => {
@@ -117,7 +132,10 @@ export function SettingsPopover({ settings, board, colourOf, paletteColour, onCl
     const onMove = (e: PointerEvent) => {
       const d = dragRef.current;
       if (!d) return;
-      if (e.buttons === 0) { finish(); return; } // the button came up somewhere we didn't hear about
+      if (e.buttons === 0) {
+        finish();
+        return;
+      } // the button came up somewhere we didn't hear about
       // Keep the row inside the list: from the first slot to the last, never past them.
       const dy = Math.max(-d.from * d.rowH, Math.min((cats.length - 1 - d.from) * d.rowH, e.clientY - d.startY));
       setDrag({ ...d, dy, to: d.from + Math.round(dy / d.rowH) });
@@ -125,7 +143,12 @@ export function SettingsPopover({ settings, board, colourOf, paletteColour, onCl
     const cancel = () => setDrag(null);
     // Esc cancels the drag only: caught on the document (before the window, where
     // Esc would close the whole popover) and stopped there.
-    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") { e.stopPropagation(); cancel(); } };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        e.stopPropagation();
+        cancel();
+      }
+    };
     window.addEventListener("pointermove", onMove);
     window.addEventListener("pointerup", finish);
     window.addEventListener("pointercancel", cancel);
@@ -161,14 +184,25 @@ export function SettingsPopover({ settings, board, colourOf, paletteColour, onCl
       <div className="popover-catch" onMouseDown={onClose} />
       <div className="popover themed" role="dialog" aria-label="Settings">
         <div className="field-group">
-          <label htmlFor="theme" className="cap">Theme</label>
+          <label htmlFor="theme" className="cap">
+            Theme
+          </label>
           <div className="select-wrap">
-            <select id="theme" className="sel themed" value={settings.theme} onChange={(e) => board.updateSettings({ theme: e.target.value as ThemeKey })}>
+            <select
+              id="theme"
+              className="sel themed"
+              value={settings.theme}
+              onChange={(e) => board.updateSettings({ theme: e.target.value as ThemeKey })}
+            >
               {GROUPS.map((g) => (
                 <optgroup key={g} label={g}>
-                  {(Object.keys(THEMES) as ThemeKey[]).filter((k) => THEMES[k].group === g).map((k) => (
-                    <option key={k} value={k}>{THEMES[k].name}</option>
-                  ))}
+                  {(Object.keys(THEMES) as ThemeKey[])
+                    .filter((k) => THEMES[k].group === g)
+                    .map((k) => (
+                      <option key={k} value={k}>
+                        {THEMES[k].name}
+                      </option>
+                    ))}
                 </optgroup>
               ))}
             </select>
@@ -180,8 +214,13 @@ export function SettingsPopover({ settings, board, colourOf, paletteColour, onCl
           <span className="cap">Cards</span>
           <div className="segmented themed" role="group" aria-label="Card size" style={{ alignSelf: "flex-start" }}>
             {([false, true] as const).map((c) => (
-              <button key={String(c)} type="button" className={!!settings.compact === c ? "seg on" : "seg"} aria-pressed={!!settings.compact === c}
-                onClick={() => board.updateSettings({ compact: c })}>
+              <button
+                key={String(c)}
+                type="button"
+                className={!!settings.compact === c ? "seg on" : "seg"}
+                aria-pressed={!!settings.compact === c}
+                onClick={() => board.updateSettings({ compact: c })}
+              >
                 {c ? "Compact" : "Roomy"}
               </button>
             ))}
@@ -191,27 +230,60 @@ export function SettingsPopover({ settings, board, colourOf, paletteColour, onCl
         <div className="field-group" ref={catList}>
           <span className="cap">Categories</span>
           {cats.map((c, i) => (
-            <div key={c.id}
-              className={["cat-block", drag?.id === c.id && "lifted", drag?.id === c.id && !drag.dropping && "following", drag && "sorting", settling && "settling"].filter(Boolean).join(" ")}
-              style={drag ? { transform: `translateY(${offsetOf(i, c.id)}px)` } : undefined}>
+            <div
+              key={c.id}
+              className={[
+                "cat-block",
+                drag?.id === c.id && "lifted",
+                drag?.id === c.id && !drag.dropping && "following",
+                drag && "sorting",
+                settling && "settling",
+              ]
+                .filter(Boolean)
+                .join(" ")}
+              style={drag ? { transform: `translateY(${offsetOf(i, c.id)}px)` } : undefined}
+            >
               <div className="cat-row">
                 {cats.length > 1 && (
-                  <button type="button" className="iconbtn cat-grip" aria-label={`Reorder ${c.name}`} title="Drag to reorder"
+                  <button
+                    type="button"
+                    className="iconbtn cat-grip"
+                    aria-label={`Reorder ${c.name}`}
+                    title="Drag to reorder"
                     onPointerDown={(e) => startDrag(e, c.id)}
                     onKeyDown={(e) => {
-                      if (e.key === "ArrowUp" || e.key === "ArrowDown") { e.preventDefault(); nudge(c.id, e.key === "ArrowUp" ? -1 : 1); }
-                    }}>
+                      if (e.key === "ArrowUp" || e.key === "ArrowDown") {
+                        e.preventDefault();
+                        nudge(c.id, e.key === "ArrowUp" ? -1 : 1);
+                      }
+                    }}
+                  >
                     <GripIcon />
                   </button>
                 )}
-                <button type="button" className="dotbtn" style={{ width: 36, height: 36 }} aria-label={`Choose colour for ${c.name}`}
-                  aria-expanded={picking === c.id} data-picker-toggle onClick={() => setPicking(picking === c.id ? null : c.id)}>
+                <button
+                  type="button"
+                  className="dotbtn"
+                  style={{ width: 36, height: 36 }}
+                  aria-label={`Choose colour for ${c.name}`}
+                  aria-expanded={picking === c.id}
+                  data-picker-toggle
+                  onClick={() => setPicking(picking === c.id ? null : c.id)}
+                >
                   <span className="dot" style={{ width: 14, height: 14, background: colourOf(c.id) }} />
                 </button>
                 <input aria-label="Category name" value={c.name} onChange={(e) => setCat(c.id, { name: e.target.value })} />
                 {cats.length > 1 && (
-                  <button type="button" className="iconbtn cat-del" onClick={() => { board.removeCategory(c.id); setPicking(null); }}
-                    aria-label={`Delete ${c.name}`} title={`Delete ${c.name}`}>
+                  <button
+                    type="button"
+                    className="iconbtn cat-del"
+                    onClick={() => {
+                      board.removeCategory(c.id);
+                      setPicking(null);
+                    }}
+                    aria-label={`Delete ${c.name}`}
+                    title={`Delete ${c.name}`}
+                  >
                     <CloseIcon />
                   </button>
                 )}
@@ -222,8 +294,19 @@ export function SettingsPopover({ settings, board, colourOf, paletteColour, onCl
                     const on = c.color === k;
                     const col = paletteColour(k);
                     return (
-                      <button key={k} type="button" role="radio" aria-checked={on} aria-label={k} className="dotbtn"
-                        style={{ width: 30, height: 30 }} onClick={() => { setCat(c.id, { color: k }); setPicking(null); }}>
+                      <button
+                        key={k}
+                        type="button"
+                        role="radio"
+                        aria-checked={on}
+                        aria-label={k}
+                        className="dotbtn"
+                        style={{ width: 30, height: 30 }}
+                        onClick={() => {
+                          setCat(c.id, { color: k });
+                          setPicking(null);
+                        }}
+                      >
                         <span className="dot" style={{ width: 16, height: 16, background: col, ...ring(on, col) }} />
                       </button>
                     );
@@ -233,39 +316,75 @@ export function SettingsPopover({ settings, board, colourOf, paletteColour, onCl
             </div>
           ))}
           {cats.length < 6 && (
-            <button type="button" className="iconbtn" onClick={board.addCategory} style={{ height: 36, textAlign: "left", padding: "0 8px", fontSize: 13 }}>+ Category</button>
+            <button
+              type="button"
+              className="iconbtn"
+              onClick={board.addCategory}
+              style={{ height: 36, textAlign: "left", padding: "0 8px", fontSize: 13 }}
+            >
+              + Category
+            </button>
           )}
         </div>
 
         <div className="field-group">
-          <label htmlFor="vault" className="cap">Obsidian vault</label>
+          <label htmlFor="vault" className="cap">
+            Obsidian vault
+          </label>
           <div className="vault-row">
             {vaultOptions.length > 0 ? (
               <div className="select-wrap" style={{ flex: 1, minWidth: 0 }}>
-                <select id="vault" className="sel themed" value={settings.vaultPath || ""} title={settings.vaultPath}
-                  onChange={(e) => (e.target.value === CHOOSE ? chooseFolder() : setVault(e.target.value))}>
-                  {!settings.vaultPath && <option value="" disabled>Choose a vault</option>}
-                  {vaultOptions.map((p) => <option key={p} value={p}>{baseName(p)}</option>)}
+                <select
+                  id="vault"
+                  className="sel themed"
+                  value={settings.vaultPath || ""}
+                  title={settings.vaultPath}
+                  onChange={(e) => (e.target.value === CHOOSE ? chooseFolder() : setVault(e.target.value))}
+                >
+                  {!settings.vaultPath && (
+                    <option value="" disabled>
+                      Choose a vault
+                    </option>
+                  )}
+                  {vaultOptions.map((p) => (
+                    <option key={p} value={p}>
+                      {baseName(p)}
+                    </option>
+                  ))}
                   <option value={CHOOSE}>Other folder…</option>
                 </select>
                 <DownIcon />
               </div>
             ) : (
               <>
-                <span id="vault" className="vault-path mono" title={settings.vaultPath}>{settings.vaultPath || "No vault chosen"}</span>
-                <button type="button" className="btn-small themed" onClick={chooseFolder}>Choose…</button>
+                <span id="vault" className="vault-path mono" title={settings.vaultPath}>
+                  {settings.vaultPath || "No vault chosen"}
+                </span>
+                <button type="button" className="btn-small themed" onClick={chooseFolder}>
+                  Choose…
+                </button>
               </>
             )}
           </div>
-          {settings.vaultPath && vaultOptions.length > 0 && <span className="vault-path mono" title={settings.vaultPath}>{settings.vaultPath}</span>}
-          <span style={{ fontSize: 12, color: "var(--muted)" }}>Tasks live in <span className="mono">{settings.tasksFolder}/</span>.</span>
+          {settings.vaultPath && vaultOptions.length > 0 && (
+            <span className="vault-path mono" title={settings.vaultPath}>
+              {settings.vaultPath}
+            </span>
+          )}
+          <span style={{ fontSize: 12, color: "var(--muted)" }}>
+            Tasks live in <span className="mono">{settings.tasksFolder}/</span>.
+          </span>
         </div>
 
         <div className="field-group">
           <span className="cap">Finished tasks are logged in</span>
           <div className="vault-row">
-            <span className="vault-path mono" title="One daily note per day, e.g. 2026-11-22.md">{settings.dailyFolder ? `${settings.dailyFolder}/` : "the vault's top folder"}</span>
-            <button type="button" className="btn-small themed" onClick={chooseDailyFolder} disabled={!settings.vaultPath}>Choose…</button>
+            <span className="vault-path mono" title="One daily note per day, e.g. 2026-11-22.md">
+              {settings.dailyFolder ? `${settings.dailyFolder}/` : "the vault's top folder"}
+            </span>
+            <button type="button" className="btn-small themed" onClick={chooseDailyFolder} disabled={!settings.vaultPath}>
+              Choose…
+            </button>
           </div>
           {dailyError && <span style={{ fontSize: 12, color: "var(--accent)" }}>{dailyError}</span>}
         </div>

@@ -32,8 +32,7 @@ export interface Task {
 }
 
 export type PaletteKey =
-  | "rose" | "red" | "orange" | "amber" | "lime" | "green" | "teal" | "cyan"
-  | "blue" | "indigo" | "violet" | "pink" | "brown" | "slate";
+  "rose" | "red" | "orange" | "amber" | "lime" | "green" | "teal" | "cyan" | "blue" | "indigo" | "violet" | "pink" | "brown" | "slate";
 
 export interface Category {
   id: string;
@@ -42,10 +41,15 @@ export interface Category {
 }
 
 export type ThemeKey =
-  | "braun" | "graphite"          // Rams
-  | "aluminium" | "spacegrey"     // Ive
-  | "peach" | "lavender"          // Pastel
-  | "plywood" | "walnut" | "casestudy"; // Eames
+  | "braun"
+  | "graphite" // Rams
+  | "aluminium"
+  | "spacegrey" // Ive
+  | "peach"
+  | "lavender" // Pastel
+  | "plywood"
+  | "walnut"
+  | "casestudy"; // Eames
 
 export interface Settings {
   vaultPath: string;

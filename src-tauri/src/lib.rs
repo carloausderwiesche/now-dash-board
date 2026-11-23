@@ -2,13 +2,16 @@
 //! `#[tauri::command]` with `invoke("list_tasks")` and friends; everything
 //! that touches the disk happens here.
 
+// `tauri_panel!` below requires `-> ()` in its syntax, which Clippy flags.
+#![allow(clippy::unused_unit)]
+
 mod settings;
 mod tasks;
 
 use settings::Settings;
 use std::path::PathBuf;
 use std::sync::Mutex;
-use tasks::Task;
+use tasks::{Status, Task};
 use tauri::{AppHandle, Emitter, Manager, State};
 
 /// Shared state. `Mutex` because Tauri may run commands on several threads.
@@ -55,12 +58,16 @@ fn save_task(state: State<AppState>, task: Task) -> Result<Task, String> {
     }
     // Was this task finished before this save? (`.ok()` turns "file not found" into None,
     // `.filter(…)` keeps it only if it was done.)
-    let was_done = if task.id.is_empty() { None } else { tasks::load_one(&dir, &task.id).ok().filter(|t| t.status == "done") };
+    let was_done = if task.id.is_empty() {
+        None
+    } else {
+        tasks::load_one(&dir, &task.id).ok().filter(|t| t.status == Status::Done)
+    };
     let saved = tasks::save(&dir, task)?;
     // Reopened (Undo, or dragged back out of Done): take its `- [x]` line back out of
     // the daily note it was logged in. Like logging, this never fails the save.
     if let Some(old) = was_done {
-        if saved.status != "done" {
+        if saved.status != Status::Done {
             let day = old.done_on.as_deref().and_then(|d| d.get(..10));
             let _ = tasks::unlog_from_daily_note(&PathBuf::from(&s.vault_path), &s.daily_folder, &old.title, day);
         }
@@ -73,7 +80,7 @@ fn complete_task(state: State<AppState>, id: String) -> Result<Task, String> {
     let s = state.settings();
     let dir = s.tasks_dir()?;
     let mut task = tasks::load_one(&dir, &id)?;
-    task.status = "done".into();
+    task.status = Status::Done;
     task.focus = false;
     task.done_on = Some(now());
     let task = tasks::save(&dir, task)?;
@@ -218,7 +225,7 @@ fn setup_quick_window(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>
             .set_style_mask(StyleMask::empty().borderless().nonactivating_panel().into())
             .map_err(|e| e.to_string())?;
         panel.set_level(PanelLevel::ModalPanel.value()); // above normal windows
-        // Show on whichever desktop (Space) you're on, even over full-screen apps.
+                                                         // Show on whichever desktop (Space) you're on, even over full-screen apps.
         panel.set_collection_behavior(CollectionBehavior::new().can_join_all_spaces().full_screen_auxiliary().into());
         panel.set_transparent(true); // the rounded box draws itself; the rest of the window is see-through
         panel.set_has_shadow(false); // the box has its own CSS shadow
@@ -277,9 +284,9 @@ fn toggle_quick(app: &AppHandle) {
         if let Ok(panel) = app.get_webview_panel("quick") {
             panel.order_front_regardless(); // on top, without activating the app
             panel.make_key_window(); // keyboard input goes to this window
-            // Inside the window, give keyboard focus to the web page itself.
-            // (`show_and_make_key` would focus the window's container view instead;
-            // the page then gets a "blur" right away and the box closes again.)
+                                     // Inside the window, give keyboard focus to the web page itself.
+                                     // (`show_and_make_key` would focus the window's container view instead;
+                                     // the page then gets a "blur" right away and the box closes again.)
             let _ = window.with_webview(|wv| unsafe {
                 use tauri_nspanel::objc2::{msg_send, runtime::AnyObject};
                 // Raw Objective-C pointers to the WKWebView and its NSWindow.
@@ -325,20 +332,15 @@ fn hide_quick(app: AppHandle, reason: String) {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    let builder = tauri::Builder::default()
-        .plugin(tauri_plugin_opener::init())
-        .plugin(tauri_plugin_dialog::init()); // native folder picker
-    // `let builder = builder.plugin(...)` inside `#[cfg]`: add the panel plugin on macOS only.
+    let builder = tauri::Builder::default().plugin(tauri_plugin_opener::init()).plugin(tauri_plugin_dialog::init()); // native folder picker
+                                                                                                                     // `let builder = builder.plugin(...)` inside `#[cfg]`: add the panel plugin on macOS only.
     #[cfg(target_os = "macos")]
     let builder = builder.plugin(tauri_nspanel::init());
     builder
         .setup(|app| {
             let config_dir = app.path().app_config_dir()?;
-            let state = AppState {
-                settings: Mutex::new(settings::load(&config_dir)),
-                config_dir,
-                watcher: Mutex::new(None),
-            };
+            let state =
+                AppState { settings: Mutex::new(settings::load(&config_dir)), config_dir, watcher: Mutex::new(None) };
             app.manage(state);
             restart_watcher(app.handle(), &app.state::<AppState>());
             setup_quick_window(app)?;

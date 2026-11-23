@@ -37,6 +37,20 @@ pub struct ChecklistItem {
     pub done: bool,
 }
 
+/// Which list a task is in. An enum instead of a `String`, so a typo like
+/// `"tody"` is a compile error. `rename_all = "lowercase"` makes serde read and
+/// write it as `today`, `backlog`… in both the frontmatter and the JSON.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum Status {
+    Today,
+    /// Also what a missing or unknown `status:` becomes.
+    #[default]
+    Backlog,
+    Done,
+    Suggested,
+}
+
 /// What the frontend sees. `serde` converts it to/from JSON automatically;
 /// `rename_all = "camelCase"` makes `done_on` arrive in TypeScript as `doneOn`.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -49,8 +63,7 @@ pub struct Task {
     /// The file name without `.md`, or the full title from `title:` when the file
     /// name had to be shortened. (For a new task: the title to name the file after.)
     pub title: String,
-    /// "today" | "backlog" | "done" | "suggested"
-    pub status: String,
+    pub status: Status,
     /// Category id from the settings, e.g. "work".
     pub area: String,
     /// The one card you're working on (an extra field of this app, not in the spec).
@@ -151,12 +164,8 @@ pub fn parse(id: &str, text: &str) -> Task {
     Task {
         id: id.to_string(),
         title: title_of(id, text_of(get("title"))),
-        status: match text_of(get("status")).as_deref() {
-            Some("today") => "today".into(),
-            Some("done") => "done".into(),
-            Some("suggested") => "suggested".into(),
-            _ => "backlog".into(),
-        },
+        // Let serde turn `today` into `Status::Today`; anything it doesn't know → Backlog.
+        status: get("status").and_then(|v| serde_yaml::from_value(v.clone()).ok()).unwrap_or_default(),
         // `colour:` was this app's old name for the field; still read it.
         area: text_of(get("area")).or_else(|| text_of(get("colour"))).unwrap_or_else(|| "personal".into()),
         focus: matches!(get("focus"), Some(Value::Bool(true))),
@@ -187,10 +196,13 @@ pub fn load_all(dir: &Path) -> Result<Vec<Task>, String> {
         }
         if let Ok(text) = fs::read_to_string(entry.path()) {
             let mut task = parse(&name, &text);
-            if task.status == "done" {
+            if task.status == Status::Done {
                 // `.ok()` turns the Result into an Option, so a file system that can't
                 // tell us the modified time simply gives None (and nothing changes).
-                let modified = entry.metadata().and_then(|m| m.modified()).ok()
+                let modified = entry
+                    .metadata()
+                    .and_then(|m| m.modified())
+                    .ok()
                     .map(|t| chrono::DateTime::<chrono::Local>::from(t).format("%Y-%m-%dT%H:%M").to_string());
                 task.done_on = done_time(task.done_on, modified);
             }
@@ -208,10 +220,7 @@ pub fn load_all(dir: &Path) -> Result<Vec<Task>, String> {
 }
 
 pub fn load_one(dir: &Path, id: &str) -> Result<Task, String> {
-    load_all(dir)?
-        .into_iter()
-        .find(|t| t.id == id)
-        .ok_or_else(|| format!("Task file not found: {id}"))
+    load_all(dir)?.into_iter().find(|t| t.id == id).ok_or_else(|| format!("Task file not found: {id}"))
 }
 
 // ---------- file names ----------
@@ -260,9 +269,7 @@ fn title_matches_file(title: &str, id: &str) -> bool {
 /// The title to show: the `title:` field if it belongs to this file, else the file name.
 fn title_of(id: &str, field: Option<String>) -> String {
     // `.filter(…)` turns Some(x) into None when the check fails.
-    field
-        .filter(|t| title_matches_file(t, id))
-        .unwrap_or_else(|| stem_of(id).to_string())
+    field.filter(|t| title_matches_file(t, id)).unwrap_or_else(|| stem_of(id).to_string())
 }
 
 /// Writes or removes `title:` so the full title survives. Needed only when the
@@ -287,15 +294,16 @@ fn apply_title(fm: &mut Mapping, id: &str, title: &str) -> bool {
 /// or Obsidian can't have in a file name become `-`; at most 80 characters.
 pub fn file_stem_for(title: &str) -> String {
     const BAD: &[char] = &['/', '\\', ':', '*', '?', '"', '<', '>', '|', '#', '^', '[', ']'];
-    let clean: String = title
-        .chars()
-        .map(|c| if BAD.contains(&c) || c.is_control() { '-' } else { c })
-        .collect();
+    let clean: String = title.chars().map(|c| if BAD.contains(&c) || c.is_control() { '-' } else { c }).collect();
     // `.chars().take(80)` counts characters, not bytes, so "é" can't be cut in half.
     let short: String = clean.trim().chars().take(80).collect();
     // A leading dot would hide the file (and we'd ignore it), so strip dots and spaces at the ends.
     let stem = short.trim_matches(|c: char| c == '.' || c.is_whitespace()).to_string();
-    if stem.is_empty() { "Untitled".into() } else { stem }
+    if stem.is_empty() {
+        "Untitled".into()
+    } else {
+        stem
+    }
 }
 
 /// A free file name for `title`: `Name.md`, else `Name (2).md`, `Name (3).md`…
@@ -401,7 +409,9 @@ pub fn save(dir: &Path, mut task: Task) -> Result<Task, String> {
         Some(text) => {
             let (yaml, body) = split_frontmatter(text);
             let fm = match yaml {
-                Some(y) => parse_yaml(y).map_err(|e| format!("Not saving {}: its frontmatter isn't valid YAML ({e}). Fix it in Obsidian first.", task.id))?,
+                Some(y) => parse_yaml(y).map_err(|e| {
+                    format!("Not saving {}: its frontmatter isn't valid YAML ({e}). Fix it in Obsidian first.", task.id)
+                })?,
                 None => Mapping::new(),
             };
             (fm, Some(body.to_string()))
@@ -414,7 +424,7 @@ pub fn save(dir: &Path, mut task: Task) -> Result<Task, String> {
         fm.insert(Value::from(k), v);
     };
     let opt = |s: &Option<String>| s.as_ref().map(|x| Value::from(x.as_str())).unwrap_or(Value::Null);
-    set(&mut fm, "status", Value::from(task.status.as_str()));
+    set(&mut fm, "status", serde_yaml::to_value(task.status).map_err(|e| e.to_string())?);
     set(&mut fm, "area", Value::from(task.area.as_str()));
     fm.remove("colour"); // old name of `area`
     if task.order.is_finite() {
@@ -496,11 +506,7 @@ pub fn log_to_daily_note(vault: &Path, daily_folder: &str, title: &str) -> Resul
     let folder = vault.join(daily_folder);
     fs::create_dir_all(&folder).map_err(|e| e.to_string())?;
     let file = folder.join(format!("{}.md", chrono::Local::now().format("%Y-%m-%d")));
-    let mut f = fs::OpenOptions::new()
-        .create(true)
-        .append(true)
-        .open(file)
-        .map_err(|e| e.to_string())?;
+    let mut f = fs::OpenOptions::new().create(true).append(true).open(file).map_err(|e| e.to_string())?;
     writeln!(f, "- [x] {title}").map_err(|e| e.to_string())
 }
 
@@ -511,9 +517,7 @@ pub fn log_to_daily_note(vault: &Path, daily_folder: &str, title: &str) -> Resul
 pub fn unlog_from_daily_note(vault: &Path, daily_folder: &str, title: &str, day: Option<&str>) -> Result<(), String> {
     let today = chrono::Local::now().format("%Y-%m-%d").to_string();
     // Only accept a real date shape, so a strange `done:` value can't point at another file.
-    let day = day
-        .filter(|d| d.len() == 10 && d.chars().all(|c| c.is_ascii_digit() || c == '-'))
-        .unwrap_or(&today);
+    let day = day.filter(|d| d.len() == 10 && d.chars().all(|c| c.is_ascii_digit() || c == '-')).unwrap_or(&today);
     let file = vault.join(daily_folder).join(format!("{day}.md"));
     let Ok(text) = fs::read_to_string(&file) else { return Ok(()) }; // no note → nothing to undo
     let wanted = format!("- [x] {title}");
@@ -549,7 +553,7 @@ mod tests {
         let text = "---\nstatus: today\narea: work\norder: 1024.5\ncreated: 2026-11-22T09:40\ndone:\nproject: \"[[Wiki/Projects/uKonn-X]]\"\n---\n- [ ] optional checklist item\n- [x] another one\nFree text notes below the checklist are allowed.\n";
         let t = parse("Fix k6 nightly token.md", text);
         assert_eq!(t.title, "Fix k6 nightly token");
-        assert_eq!(t.status, "today");
+        assert_eq!(t.status, Status::Today);
         assert_eq!(t.area, "work");
         assert_eq!(t.order, 1024.5);
         assert_eq!(t.created.as_deref(), Some("2026-11-22T09:40"));
@@ -565,10 +569,17 @@ mod tests {
     fn plain_note_without_frontmatter() {
         let t = parse("Buy milk.md", "Remember the oat one #private");
         assert_eq!(t.title, "Buy milk");
-        assert_eq!(t.status, "backlog");
+        assert_eq!(t.status, Status::Backlog);
         assert_eq!(t.area, "personal");
         assert!(t.order.is_nan());
         assert!(t.private);
+    }
+
+    #[test]
+    fn unknown_status_falls_back_to_backlog() {
+        assert_eq!(parse("A.md", "---\nstatus: suggested\n---\n").status, Status::Suggested);
+        assert_eq!(parse("A.md", "---\nstatus: someday\n---\n").status, Status::Backlog);
+        assert_eq!(parse("A.md", "---\nstatus: 3\n---\n").status, Status::Backlog);
     }
 
     #[test]
@@ -598,7 +609,7 @@ mod tests {
         let original = "---\nstatus: backlog\narea: work\nagent_note: keep me\norder: 10\ncreated: 2026-11-20T08:00\ndone:\nfrom: \"[[Notes/2026-11-22]]\"\n---\nSome  odd   spacing\n\n- [ ] step\n";
         fs::write(dir.join("Task.md"), original).unwrap();
         let mut t = load_one(&dir, "Task.md").unwrap();
-        t.status = "today".into();
+        t.status = Status::Today;
         t.order = 5.5;
         save(&dir, t).unwrap();
         let after = fs::read_to_string(dir.join("Task.md")).unwrap();
@@ -613,9 +624,19 @@ mod tests {
     fn new_tasks_get_title_file_names() {
         let dir = temp_dir("new");
         let t = |title: &str| Task {
-            id: String::new(), title: title.into(), status: "today".into(), area: "work".into(),
-            focus: false, order: -1024.0, created: Some("2026-11-22T09:40".into()), done_on: None,
-            project: None, from: None, private: false, items: vec![], notes: String::new(),
+            id: String::new(),
+            title: title.into(),
+            status: Status::Today,
+            area: "work".into(),
+            focus: false,
+            order: -1024.0,
+            created: Some("2026-11-22T09:40".into()),
+            done_on: None,
+            project: None,
+            from: None,
+            private: false,
+            items: vec![],
+            notes: String::new(),
         };
         let a = save(&dir, t("Fix: token")).unwrap();
         let b = save(&dir, t("Fix: token")).unwrap();

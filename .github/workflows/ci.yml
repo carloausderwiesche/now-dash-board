@@ -1,0 +1,43 @@
+# Checks every push and pull request: frontend types, lint and tests, and the
+# Rust side's formatting, Clippy and tests.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  frontend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22 # runs the .test.ts files directly (type stripping)
+          cache: npm
+      - run: npm ci
+      - run: npx tsc --noEmit
+      - run: npm run format:check
+      - run: npm run lint
+      - run: npm test
+
+  rust:
+    # macOS: the app uses macOS-only crates (tauri-nspanel), and it's the only target.
+    runs-on: macos-latest
+    defaults:
+      run:
+        working-directory: src-tauri
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy, rustfmt
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+      # Tauri checks at compile time that the frontend folder exists; it may be empty here.
+      - run: mkdir -p ../dist
+      - run: cargo fmt --check
+      - run: cargo clippy --all-targets -- -D warnings
+      - run: cargo test

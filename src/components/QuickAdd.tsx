@@ -15,7 +15,10 @@ interface Props {
   floating?: boolean;
 }
 
-const WHERE: { key: Status; name: string }[] = [{ key: "today", name: "Today" }, { key: "backlog", name: "Backlog" }];
+const WHERE: { key: Status; name: string }[] = [
+  { key: "today", name: "Today" },
+  { key: "backlog", name: "Backlog" },
+];
 
 export function QuickAdd({ categories, colourOf, initialColour, onAdd, onClose, floating }: Props) {
   const [text, setText] = useState("");
@@ -35,12 +38,17 @@ export function QuickAdd({ categories, colourOf, initialColour, onAdd, onClose, 
       setWhere((w) => (w === "today" ? "backlog" : "today"));
     } else if ((e.metaKey || e.ctrlKey) && /^[1-6]$/.test(e.key)) {
       const c = categories[Number(e.key) - 1];
-      if (c) { e.preventDefault(); setColour(c.id); }
+      if (c) {
+        e.preventDefault();
+        setColour(c.id);
+      }
     }
   };
 
   const ringed = (id: string) => ({
-    width: 14, height: 14, background: colourOf(id),
+    width: 14,
+    height: 14,
+    background: colourOf(id),
     ...ring(id === colour, colourOf(id)),
   });
 
@@ -50,24 +58,52 @@ export function QuickAdd({ categories, colourOf, initialColour, onAdd, onClose, 
       <div className="quick themed" role="dialog" aria-label="New task">
         <div className="quick-top">
           <span className="dot" style={{ width: 12, height: 12, flex: "none", background: colourOf(colour) }} />
-          <label htmlFor="quick-input" className="sr-only">New task</label>
-          <input id="quick-input" ref={input} className="quick-input" value={text} onChange={(e) => setText(e.target.value)} onKeyDown={onKey} placeholder="What needs doing?" />
+          <label htmlFor="quick-input" className="sr-only">
+            New task
+          </label>
+          <input
+            id="quick-input"
+            ref={input}
+            className="quick-input"
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+            onKeyDown={onKey}
+            placeholder="What needs doing?"
+          />
         </div>
         <div className="quick-opts">
           {/* Left: the dots, lined up under the input's dot, then the chosen category's name. */}
           <div className="quick-cats">
             {categories.map((c, i) => (
-              <button key={c.id} type="button" className="dotbtn" onClick={() => setColour(c.id)} aria-label={c.name} aria-pressed={c.id === colour}
-                data-tip={c.id === colour ? undefined : `${c.name}  ⌘${i + 1}`} style={{ width: 34, height: 34 }}>
+              <button
+                key={c.id}
+                type="button"
+                className="dotbtn"
+                onClick={() => setColour(c.id)}
+                aria-label={c.name}
+                aria-pressed={c.id === colour}
+                data-tip={c.id === colour ? undefined : `${c.name}  ⌘${i + 1}`}
+                style={{ width: 34, height: 34 }}
+              >
                 <span className="dot" style={ringed(c.id)} />
               </button>
             ))}
-            <span className="quick-cat-name" key={colour}>{categories.find((c) => c.id === colour)?.name}</span>
+            <span className="quick-cat-name" key={colour}>
+              {categories.find((c) => c.id === colour)?.name}
+            </span>
           </div>
           {/* Right: where it goes. */}
           <div className="segmented themed">
             {WHERE.map((w) => (
-              <button key={w.key} type="button" className={w.key === where ? "seg on" : "seg"} aria-pressed={w.key === where} onClick={() => setWhere(w.key)}>{w.name}</button>
+              <button
+                key={w.key}
+                type="button"
+                className={w.key === where ? "seg on" : "seg"}
+                aria-pressed={w.key === where}
+                onClick={() => setWhere(w.key)}
+              >
+                {w.name}
+              </button>
             ))}
           </div>
         </div>

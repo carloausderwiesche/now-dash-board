@@ -10,11 +10,12 @@ import "./styles.css";
 import App from "./App";
 import { isQuickWindow } from "./api";
 import { QuickWindow } from "./QuickWindow";
+import { ErrorBoundary } from "./components/ErrorBoundary";
 
 // The same page runs in two windows: the board, and the small quick-add
 // window that ⌥ Space opens from anywhere.
 ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
   <React.StrictMode>
-    {isQuickWindow ? <QuickWindow /> : <App />}
+    <ErrorBoundary>{isQuickWindow ? <QuickWindow /> : <App />}</ErrorBoundary>
   </React.StrictMode>,
 );

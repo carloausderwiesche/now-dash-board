@@ -5,8 +5,8 @@
 // a "+ copy" cursor for a moment and leaves stale hover states behind. Here a
 // copy of the card simply follows the pointer, and the cursor stays a closed hand.
 //
-// `over` is where the card would land; App renders a faded "ghost" there and
-// tints that section. Rules, so it feels calm:
+// `over` is where the card would land; `preview` tells App where to render a
+// faded "ghost" there, and `zoneClass` tints that section. Rules, so it feels calm:
 //  - A press only becomes a drag after the pointer moves a few pixels, so
 //    clicks on a card (title, dot, check) work as before.
 //  - Picking a card up changes nothing: its own slot is the preview.
@@ -72,29 +72,40 @@ const spanOf = (el: Element, cols: number) => {
 function spotIn(grid: HTMLElement | null, status: Status, x: number, y: number, draggedId: string): DropTarget | null {
   if (!grid || status === "done") return { status };
   const cs = getComputedStyle(grid);
-  const widths = cs.gridTemplateColumns.split(" ").map(parseFloat).filter((n) => !Number.isNaN(n));
+  const widths = cs.gridTemplateColumns
+    .split(" ")
+    .map(parseFloat)
+    .filter((n) => !Number.isNaN(n));
   const cols = Math.max(1, widths.length);
-  const colGap = parseFloat(cs.columnGap) || 0, rowGap = parseFloat(cs.rowGap) || 0;
+  const colGap = parseFloat(cs.columnGap) || 0,
+    rowGap = parseFloat(cs.rowGap) || 0;
   const o = grid.getBoundingClientRect();
-  const px = x - o.left, py = y - o.top;
+  const px = x - o.left,
+    py = y - o.top;
 
   // Column under the pointer (each column owns half the gap on either side).
   let col = cols - 1;
   for (let i = 0, left = 0; i < cols; left += widths[i] + colGap, i++) {
-    if (px < left + widths[i] + colGap / 2) { col = i; break; }
+    if (px < left + widths[i] + colGap / 2) {
+      col = i;
+      break;
+    }
   }
   // Row under the pointer, from where the visible cards sit (offsetTop ignores slide animations).
   const shown = Array.from(grid.querySelectorAll<HTMLElement>(":scope > [data-flip]")).filter((el) => el.offsetParent !== null);
   const bottoms = new Map<number, number>();
   for (const el of shown) bottoms.set(el.offsetTop, Math.max(bottoms.get(el.offsetTop) ?? 0, el.offsetTop + el.offsetHeight));
-  const rowBottoms = Array.from(bottoms.keys()).sort((a, b) => a - b).map((t) => bottoms.get(t)!);
+  const rowBottoms = Array.from(bottoms.keys())
+    .sort((a, b) => a - b)
+    .map((t) => bottoms.get(t)!);
   let row = rowBottoms.findIndex((b) => py < b + rowGap / 2);
   if (row < 0) row = rowBottoms.length; // below the last row
   const cell = row * cols + col;
 
   // The list without the dragged card and without the preview, in order.
-  const rest = Array.from(grid.querySelectorAll<HTMLElement>(":scope > [data-flip]"))
-    .filter((el) => !el.dataset.ghostFor && el.dataset.flip !== draggedId);
+  const rest = Array.from(grid.querySelectorAll<HTMLElement>(":scope > [data-flip]")).filter(
+    (el) => !el.dataset.ghostFor && el.dataset.flip !== draggedId,
+  );
   const spans = rest.map((el) => spanOf(el, cols));
   const dragged = document.querySelector(`[data-flip="${CSS.escape(draggedId)}"]`);
   const ghostSpan = status === "today" && dragged?.classList.contains("is-focus") ? Math.min(2, cols) : 1;
@@ -102,12 +113,19 @@ function spotIn(grid: HTMLElement | null, status: Status, x: number, y: number, 
   // Lay the cards out like CSS grid does, with the preview at position p,
   // and return the cell where the preview starts.
   const previewCell = (p: number) => {
-    let r = 0, c = 0;
+    let r = 0,
+      c = 0;
     const place = (span: number) => {
-      if (span > cols - c) { r++; c = 0; } // doesn't fit: next row
+      if (span > cols - c) {
+        r++;
+        c = 0;
+      } // doesn't fit: next row
       const start = r * cols + c;
       c += span;
-      if (c >= cols) { r++; c = 0; }
+      if (c >= cols) {
+        r++;
+        c = 0;
+      }
       return start;
     };
     for (let i = 0; i < p; i++) place(spans[i]);
@@ -119,6 +137,20 @@ function spotIn(grid: HTMLElement | null, status: Status, x: number, y: number, 
   }
   // Past the last card: at the end. Otherwise (a gap left by a wide card): keep.
   return cell > previewCell(rest.length) ? { status } : null;
+}
+
+/**
+ * Where the drop preview goes in one list (`ids` = its cards in order), or null
+ * for none. While dragging inside one list, the card's own slot *is* the
+ * preview (it just fades), so nothing moves until you point somewhere else.
+ * Then that slot closes (`collapse`) and the preview opens at `index`: only the
+ * cards in between shift, by one place.
+ */
+export function dropPreview(ids: string[], draggedId: string, beforeId?: string): { index: number; collapse: boolean } | null {
+  const at = beforeId ? ids.indexOf(beforeId) : ids.length;
+  const from = ids.indexOf(draggedId);
+  if (at < 0 || (from >= 0 && (at === from || at === from + 1))) return null;
+  return { index: at, collapse: from >= 0 };
 }
 
 const START_PX = 5; // movement needed before a press becomes a drag
@@ -142,10 +174,15 @@ export function useDnd(onDrop: (id: string, target: DropTarget) => void) {
   };
   /** Moves the preview to `t`, but only once the pointer has settled there. */
   const propose = (t: DropTarget) => {
-    if (same(overRef.current, t)) { pending.current = null; return; }
-    const now = performance.now(), p = pending.current;
-    if (p && same(p.t, t)) { if (now - p.since >= SETTLE_MS) commit(t); }
-    else pending.current = { t, since: now };
+    if (same(overRef.current, t)) {
+      pending.current = null;
+      return;
+    }
+    const now = performance.now(),
+      p = pending.current;
+    if (p && same(p.t, t)) {
+      if (now - p.since >= SETTLE_MS) commit(t);
+    } else pending.current = { t, since: now };
   };
 
   /** Props for a draggable card. */
@@ -154,7 +191,8 @@ export function useDnd(onDrop: (id: string, target: DropTarget) => void) {
     onPointerDown: (e: PointerEvent) => {
       if (e.button !== 0 || e.pointerType === "touch") return; // touch keeps scrolling the page
       const el = e.currentTarget as HTMLElement;
-      const sx = e.clientX, sy = e.clientY;
+      const sx = e.clientX,
+        sy = e.clientY;
       let clone: HTMLElement | null = null;
       let last = { x: sx, y: sy };
       let raf = 0;
@@ -202,7 +240,10 @@ export function useDnd(onDrop: (id: string, target: DropTarget) => void) {
         clone.remove();
         document.documentElement.classList.remove("grabbing");
         // The click that ends a drag must not also open or tick the card.
-        const swallow = (ce: MouseEvent) => { ce.stopPropagation(); ce.preventDefault(); };
+        const swallow = (ce: MouseEvent) => {
+          ce.stopPropagation();
+          ce.preventDefault();
+        };
         window.addEventListener("click", swallow, { capture: true, once: true });
         setTimeout(() => window.removeEventListener("click", swallow, { capture: true }), 0);
         // Where you let go counts, even if the preview hadn't caught up yet
@@ -212,10 +253,18 @@ export function useDnd(onDrop: (id: string, target: DropTarget) => void) {
         if (zone) target = spotIn(zone.grid, zone.status, last.x, last.y, id) ?? target;
         commit(null);
         setDragging(null);
-        if (drop && target && id !== target.beforeId) { setLanded(id); onDropRef.current(id, target); }
+        if (drop && target && id !== target.beforeId) {
+          setLanded(id);
+          onDropRef.current(id, target);
+        }
       };
-      const up = (ev: globalThis.PointerEvent) => { last = { x: ev.clientX, y: ev.clientY }; end(true); };
-      const key = (ke: KeyboardEvent) => { if (ke.key === "Escape") end(false); };
+      const up = (ev: globalThis.PointerEvent) => {
+        last = { x: ev.clientX, y: ev.clientY };
+        end(true);
+      };
+      const key = (ke: KeyboardEvent) => {
+        if (ke.key === "Escape") end(false);
+      };
       window.addEventListener("pointermove", move);
       window.addEventListener("pointerup", up);
       window.addEventListener("keydown", key);
@@ -224,6 +273,11 @@ export function useDnd(onDrop: (id: string, target: DropTarget) => void) {
 
   /** CSS class for a section: tinted while it's the drop target. */
   const zoneClass = (status: Status) => (over?.status === status ? "zone over" : "zone");
+  /** True while a card is being dragged over `status`. */
+  const isOver = (status: Status) => !!dragging && over?.status === status;
+  /** The drop preview for the list `status`, see `dropPreview`. */
+  const preview = (status: Status, ids: string[]) =>
+    dragging && isOver(status) && status !== "done" ? dropPreview(ids, dragging, over?.beforeId) : null;
 
-  return { card, zoneClass, dragging, over, landed };
+  return { card, zoneClass, isOver, preview, dragging, landed };
 }

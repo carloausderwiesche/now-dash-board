@@ -5,9 +5,9 @@
 // new file through its folder watcher and shows it.
 
 import { useCallback, useEffect, useState } from "react";
-import { api } from "./api";
+import { api, cleanupFor } from "./api";
 import { colours, themeVars } from "./themes";
-import { nowStamp } from "./useBoard";
+import { nowStamp, topOrder } from "./board";
 import { QuickAdd } from "./components/QuickAdd";
 import type { Settings, Status, ThemeKey } from "./types";
 
@@ -25,24 +25,22 @@ export function QuickWindow() {
 
   useEffect(() => {
     api.getSettings().then(setSettings);
-    let unlisten: (() => void) | undefined, unlistenClosed: (() => void) | undefined;
-    // Clicking anywhere outside the box closes it. Rust notices that (macOS tells
-    // the panel it lost keyboard focus), hides the window and tells us to empty it.
-    api.onQuickClosed(() => setOpen(false)).then((u) => (unlistenClosed = u));
-    api.onQuickOpen(() => {
-      api.getSettings().then(setSettings); // categories may have changed in the board window
-      setError(null);
-      setSession((n) => n + 1);
-      setOpen(true);
-    }).then((u) => (unlisten = u));
-    return () => { unlisten?.(); unlistenClosed?.(); };
-  }, [close]);
+    return cleanupFor(
+      // Clicking anywhere outside the box closes it. Rust notices that (macOS tells
+      // the panel it lost keyboard focus), hides the window and tells us to empty it.
+      api.onQuickClosed(() => setOpen(false)),
+      api.onQuickOpen(() => {
+        api.getSettings().then(setSettings); // categories may have changed in the board window
+        setError(null);
+        setSession((n) => n + 1);
+        setOpen(true);
+      }),
+    );
+  }, []);
 
   const add = async (title: string, area: string, status: Status) => {
     try {
-      // New tasks go on top: 1024 above the smallest order in that list.
-      const orders = (await api.listTasks()).filter((t) => t.status === status).map((t) => t.order);
-      const order = orders.length ? Math.min(...orders) - 1024 : 0;
+      const order = topOrder(await api.listTasks(), status); // new tasks go on top
       await api.saveTask({ id: "", title, area, status, order, focus: false, created: nowStamp(), doneOn: null, items: [], notes: "" });
       close("task added");
     } catch (e) {
@@ -57,7 +55,15 @@ export function QuickWindow() {
 
   return (
     <div className="quick-window" style={themeVars(theme)}>
-      <QuickAdd key={session} floating categories={cats} colourOf={colourOf} initialColour={cats[0]?.id ?? ""} onAdd={add} onClose={() => close("esc")} />
+      <QuickAdd
+        key={session}
+        floating
+        categories={cats}
+        colourOf={colourOf}
+        initialColour={cats[0]?.id ?? ""}
+        onAdd={add}
+        onClose={() => close("esc")}
+      />
       {error && <div className="quick-error">{error}</div>}
     </div>
   );

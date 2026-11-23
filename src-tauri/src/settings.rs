@@ -32,7 +32,8 @@ pub struct Settings {
 
 impl Default for Settings {
     fn default() -> Self {
-        let cat = |id: &str, name: &str, color: &str| Category { id: id.into(), name: name.into(), color: color.into() };
+        let cat =
+            |id: &str, name: &str, color: &str| Category { id: id.into(), name: name.into(), color: color.into() };
         Settings {
             // Handy during development: NOWBOARD_VAULT=/path/to/vault npm run app
             vault_path: std::env::var("NOWBOARD_VAULT").unwrap_or_default(),
@@ -60,10 +61,7 @@ impl Settings {
 
 pub fn load(config_dir: &Path) -> Settings {
     let file = config_dir.join("settings.json");
-    let mut s: Settings = fs::read_to_string(file)
-        .ok()
-        .and_then(|t| serde_json::from_str(&t).ok())
-        .unwrap_or_default();
+    let mut s: Settings = fs::read_to_string(file).ok().and_then(|t| serde_json::from_str(&t).ok()).unwrap_or_default();
     // Task format v1 moved tasks from `Tasks/` to `Notes/Tasks/`. Settings saved
     // with the old default follow along; a folder you chose yourself is left alone.
     if s.tasks_folder == "Tasks" {
@@ -107,7 +105,7 @@ pub fn parse_obsidian_vaults(json: &str) -> Vec<String> {
             Some((ts, path))
         })
         .collect();
-    found.sort_by(|a, b| b.0.cmp(&a.0)); // newest first
+    found.sort_by_key(|(ts, _)| std::cmp::Reverse(*ts)); // newest first
     found.into_iter().map(|(_, path)| path).collect()
 }
 

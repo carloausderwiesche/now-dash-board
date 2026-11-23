@@ -18,7 +18,7 @@ Nowboard answers one question: *what am I doing today?*
 - **Frontend:** React + TypeScript (`src/`). That's where the design lives.
 - **Backend:** Rust with Tauri 2 (`src-tauri/`). It reads and writes the `.md` files, watches the folder for changes, and owns the ⌥ Space shortcut.
 
-The design decisions are in [DESIGN.md](DESIGN.md). Read it before changing how something looks or behaves.
+The design decisions are in [DESIGN.md](DESIGN.md). Read it before changing how something looks or behaves. How the frontend code is organised (components, hooks, business logic, re-renders, tests) is in [GUIDELINES.md](GUIDELINES.md). Why things are the way they are is recorded as decision records in [docs/adr/](docs/adr/README.md); every pull request either adds one or says why it doesn't need one.
 
 ## 1. Install the tools (once)
 
@@ -83,15 +83,20 @@ Or in one step: `npm run install-app` builds the app and replaces `/Applications
 
 ```
 src/
-  App.tsx              page layout: header, Today, Backlog, Done
-  useBoard.ts          all state and actions (move, complete, add, edit…)
-  useDnd.ts            drag and drop (with the drop preview)
+  App.tsx              page layout: wires the board to the sections below
+  useBoard.ts          all task state and actions (move, complete, add, edit…)
+  board.ts             the pure logic behind them: ordering, moves (with tests)
+  useSettings.ts       settings state, saved shortly after each change
+  useCompletion.ts     the "done" animation and its queue
+  useDnd.ts            drag and drop (with the drop preview, tested)
   useFlip.ts           cards gliding to their new place
   QuickWindow.tsx      the ⌥ Space window (quick add only)
   api.ts               the only file that talks to Rust (plus the browser demo store)
   themes.ts            the 9 themes and the colour palette
   styles.css           every style and animation
   components/
+    Header.tsx         date, category filter, settings and + buttons
+    Sections.tsx       Today/Backlog list, Suggested, Done
     Cards.tsx          TodayCard and BacklogCard
     QuickAdd.tsx       the add box
     DetailPanel.tsx    the panel that slides in from the right
@@ -111,7 +116,11 @@ src-tauri/
 | `npm run app` | Run the desktop app with hot reload |
 | `npm run dev` | Frontend only, in the browser, with demo data |
 | `cd src-tauri && cargo test` | Run the Rust tests (parsing and writing task files) |
+| `npm test` | Run the frontend tests (Node's built-in test runner, Node 22+) |
+| `npm run lint` | ESLint, including the React hooks rules |
 | `npm run build` | Type-check and build the frontend |
+
+`.github/workflows/ci.yml` runs all of these, plus `cargo fmt --check` and `cargo clippy -- -D warnings`, on every push and pull request.
 | `npm run tauri build` | Build `Nowboard.app` |
 
 ## Ideas for next steps

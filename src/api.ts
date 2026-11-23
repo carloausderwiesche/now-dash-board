@@ -58,17 +58,36 @@ const tauriApi: Api = {
   resetDemo: () => {},
 };
 
+/** For effects: `return cleanupFor(api.onTasksChanged(…), …)`. Subscribing is
+ *  async, so the cleanup can run before a subscription is ready (React Strict
+ *  Mode unmounts right away in development). Those are then removed as soon as
+ *  they arrive, instead of leaking. */
+export function cleanupFor(...subscriptions: Promise<() => void>[]): () => void {
+  let cancelled = false;
+  const offs: (() => void)[] = [];
+  subscriptions.forEach((p) => p.then((off) => (cancelled ? off() : offs.push(off))));
+  return () => {
+    cancelled = true;
+    offs.forEach((off) => off());
+  };
+}
+
 // ---------- browser demo store ----------
 
 /** Same file-name rules as `file_stem_for` in tasks.rs. */
 const fileName = (title: string) => {
-  const stem = Array.from(title.replace(/[/\\:*?"<>|#^[\]\p{Cc}]/gu, "-").trim()).slice(0, 80).join("").replace(/^[.\s]+|[.\s]+$/g, "");
+  const stem = Array.from(title.replace(/[/\\:*?"<>|#^[\]\p{Cc}]/gu, "-").trim())
+    .slice(0, 80)
+    .join("")
+    .replace(/^[.\s]+|[.\s]+$/g, "");
   return (stem || "Untitled") + ".md";
 };
 /** Like `title_of` in tasks.rs: the full title survives even when the file name had to be shortened. */
 const titleFor = (title: string, id: string) => {
   const stem = id.slice(0, -3);
-  return fileName(title).slice(0, -3) === stem.replace(/ \(\d+\)$/, "") && title.trim() !== stem.replace(/ \(\d+\)$/, "") ? title.trim() : stem;
+  return fileName(title).slice(0, -3) === stem.replace(/ \(\d+\)$/, "") && title.trim() !== stem.replace(/ \(\d+\)$/, "")
+    ? title.trim()
+    : stem;
 };
 const freeName = (all: Task[], title: string, self?: string) => {
   const base = fileName(title).slice(0, -3);
@@ -80,7 +99,8 @@ const freeName = (all: Task[], title: string, self?: string) => {
 
 const today = () => new Date().toLocaleDateString("sv-SE"); // YYYY-MM-DD, local time
 const stamp = (daysAgo = 0) => {
-  const d = new Date(Date.now() - daysAgo * 864e5), pad = (n: number) => String(n).padStart(2, "0");
+  const d = new Date(Date.now() - daysAgo * 864e5),
+    pad = (n: number) => String(n).padStart(2, "0");
   return `${d.toLocaleDateString("sv-SE")}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 };
 const DEMO_SETTINGS: Settings = {
@@ -94,13 +114,28 @@ const DEMO_SETTINGS: Settings = {
     { id: "freelance", name: "Freelance", color: "amber" },
   ],
 };
-const t = (title: string, area: string, status: Task["status"], order: number, extra: Partial<Task> = {}): Task =>
-  ({ id: fileName(title), title: fileName(title).slice(0, -3), area, status, order, focus: false, created: stamp(), doneOn: status === "done" ? stamp() : null, items: [], notes: "", ...extra });
+const t = (title: string, area: string, status: Task["status"], order: number, extra: Partial<Task> = {}): Task => ({
+  id: fileName(title),
+  title: fileName(title).slice(0, -3),
+  area,
+  status,
+  order,
+  focus: false,
+  created: stamp(),
+  doneOn: status === "done" ? stamp() : null,
+  items: [],
+  notes: "",
+  ...extra,
+});
 const DEMO_TASKS: Task[] = [
   t("Review PR for alert thresholds", "work", "today", 1024, {
     focus: true,
     notes: "Check the hysteresis values against the old dashboard before approving.",
-    items: [{ text: "Read the diff", done: true }, { text: "Run it locally", done: false }, { text: "Leave comments", done: false }],
+    items: [
+      { text: "Read the diff", done: true },
+      { text: "Run it locally", done: false },
+      { text: "Leave comments", done: false },
+    ],
   }),
   t("Homepage copy review", "freelance", "today", 2048),
   t("Piano practice", "personal", "today", 3072, { private: true }),
@@ -131,7 +166,11 @@ function store<T>(key: string, fallback: T): { get(): T; set(v: T): void } {
       }
     },
     set(v) {
-      try { localStorage.setItem(key, JSON.stringify(v)); } catch { /* private mode */ }
+      try {
+        localStorage.setItem(key, JSON.stringify(v));
+      } catch {
+        /* private mode */
+      }
     },
   };
 }
@@ -139,9 +178,15 @@ const demoTasks = store<Task[]>("nowboard-demo-tasks-v1", DEMO_TASKS);
 const demoSettings = store<Settings>("nowboard-demo-settings", DEMO_SETTINGS);
 
 const demoApi: Api = {
-  async getSettings() { return demoSettings.get(); },
-  async saveSettings(s) { demoSettings.set(s); },
-  async listTasks() { return demoTasks.get(); },
+  async getSettings() {
+    return demoSettings.get();
+  },
+  async saveSettings(s) {
+    demoSettings.set(s);
+  },
+  async listTasks() {
+    return demoTasks.get();
+  },
   async saveTask(task) {
     const all = demoTasks.get();
     let saved = { ...task, created: task.created ?? stamp() };
@@ -165,22 +210,44 @@ const demoApi: Api = {
     demoTasks.set(all.map((x) => (x.id === id ? done : x)));
     return done;
   },
-  async deleteTask(id) { demoTasks.set(demoTasks.get().filter((x) => x.id !== id)); },
-  async taskPath(id) { return "Tasks/" + id; },
-  async openInObsidian(id) { console.info("In the desktop app this opens Tasks/" + id + " in Obsidian."); },
-  async pickFolder() { console.info("In the desktop app this opens Finder to choose a folder."); return null; },
-  async knownVaults() { return []; },
+  async deleteTask(id) {
+    demoTasks.set(demoTasks.get().filter((x) => x.id !== id));
+  },
+  async taskPath(id) {
+    return "Tasks/" + id;
+  },
+  async openInObsidian(id) {
+    console.info("In the desktop app this opens Tasks/" + id + " in Obsidian.");
+  },
+  async pickFolder() {
+    console.info("In the desktop app this opens Finder to choose a folder.");
+    return null;
+  },
+  async knownVaults() {
+    return [];
+  },
   // Another tab changing the demo tasks stands in for "a file changed on disk".
   async onTasksChanged(cb) {
-    const on = (e: StorageEvent) => { if (e.key === "nowboard-demo-tasks-v1") cb(); };
+    const on = (e: StorageEvent) => {
+      if (e.key === "nowboard-demo-tasks-v1") cb();
+    };
     window.addEventListener("storage", on);
     return () => window.removeEventListener("storage", on);
   },
-  async onQuickOpen() { return () => {}; },
-  async onQuickClosed() { return () => {}; },
+  async onQuickOpen() {
+    return () => {};
+  },
+  async onQuickClosed() {
+    return () => {};
+  },
   async hideQuick() {},
   resetDemo() {
-    try { localStorage.removeItem("nowboard-demo-tasks-v1"); localStorage.removeItem("nowboard-demo-settings"); } catch { /* ignore */ }
+    try {
+      localStorage.removeItem("nowboard-demo-tasks-v1");
+      localStorage.removeItem("nowboard-demo-settings");
+    } catch {
+      /* ignore */
+    }
     location.reload();
   },
 };
