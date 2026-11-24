@@ -72,7 +72,7 @@ Timestamps have no seconds and no time zone: `2026-11-22T09:40` is the local wal
 ### 3.1 The body
 
 - The body is split into lines (`\n` or `\r\n`).
-- A line is a **checklist item** if, after removing leading spaces and tabs, it starts with:
+- A line is a **checklist item** if, after removing leading whitespace, it starts with:
   - `- [ ] ` (dash, space, `[`, space, `]`, space) → an open item; its text is the rest of the line
   - `- [x] ` or `- [X] ` → a done item
   
