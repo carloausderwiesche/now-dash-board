@@ -1,0 +1,27 @@
+{
+  "description": "Moving a task rewrites only our fields: unknown fields and the odd body stay.",
+  "file": "Task.md",
+  "task": {
+    "title": "Task",
+    "status": "backlog",
+    "area": "work",
+    "focus": false,
+    "order": 10,
+    "created": "2026-11-20T08:00",
+    "done": null,
+    "project": null,
+    "from": "[[Notes/2026-11-22]]",
+    "private": false,
+    "items": [
+      {
+        "text": "step",
+        "done": false
+      }
+    ],
+    "notes": "Some  odd   spacing"
+  },
+  "save": {
+    "status": "today",
+    "order": 5.5
+  }
+}

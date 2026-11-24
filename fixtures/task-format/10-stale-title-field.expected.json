@@ -1,0 +1,19 @@
+{
+  "description": "Renamed in Obsidian: the old `title:` no longer fits, the file name wins, and the field is kept as an unknown field.",
+  "file": "Renamed.md",
+  "task": {
+    "title": "Renamed",
+    "status": "backlog",
+    "area": "personal",
+    "focus": false,
+    "order": null,
+    "created": null,
+    "done": null,
+    "project": null,
+    "from": null,
+    "private": false,
+    "items": [],
+    "notes": ""
+  },
+  "save": {}
+}

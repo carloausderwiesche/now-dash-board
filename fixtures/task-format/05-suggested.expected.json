@@ -1,0 +1,18 @@
+{
+  "description": "A suggested task keeps where it came from.",
+  "file": "Reply to Anna.md",
+  "task": {
+    "title": "Reply to Anna",
+    "status": "suggested",
+    "area": "work",
+    "focus": false,
+    "order": -10,
+    "created": "2026-11-22T07:00",
+    "done": null,
+    "project": null,
+    "from": "[[Notes/2026-11-22]]",
+    "private": false,
+    "items": [],
+    "notes": ""
+  }
+}

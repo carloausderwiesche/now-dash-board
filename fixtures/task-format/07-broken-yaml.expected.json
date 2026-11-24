@@ -1,0 +1,20 @@
+{
+  "description": "Invalid YAML: shown as a task with no fields, but saving is refused.",
+  "file": "Broken.md",
+  "task": {
+    "title": "Broken",
+    "status": "backlog",
+    "area": "personal",
+    "focus": false,
+    "order": null,
+    "created": null,
+    "done": null,
+    "project": null,
+    "from": null,
+    "private": false,
+    "items": [],
+    "notes": "body line"
+  },
+  "save": {},
+  "save_error": true
+}

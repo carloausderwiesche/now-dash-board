@@ -1,0 +1,18 @@
+{
+  "description": "A status we don't know becomes backlog.",
+  "file": "Someday thing.md",
+  "task": {
+    "title": "Someday thing",
+    "status": "backlog",
+    "area": "work",
+    "focus": false,
+    "order": 3,
+    "created": null,
+    "done": null,
+    "project": null,
+    "from": null,
+    "private": false,
+    "items": [],
+    "notes": ""
+  }
+}

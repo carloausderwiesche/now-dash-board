@@ -1,0 +1,18 @@
+{
+  "description": "Status is case-sensitive: `Today` is not `today`, so it's backlog.",
+  "file": "Shouting.md",
+  "task": {
+    "title": "Shouting",
+    "status": "backlog",
+    "area": "work",
+    "focus": false,
+    "order": 3,
+    "created": null,
+    "done": null,
+    "project": null,
+    "from": null,
+    "private": false,
+    "items": [],
+    "notes": ""
+  }
+}

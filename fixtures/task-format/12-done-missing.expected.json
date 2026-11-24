@@ -1,0 +1,19 @@
+{
+  "description": "Done without a `done:` field: shown with the file's time.",
+  "file": "Watered plants.md",
+  "modified": "2026-11-22T15:07",
+  "task": {
+    "title": "Watered plants",
+    "status": "done",
+    "area": "personal",
+    "focus": false,
+    "order": 1,
+    "created": null,
+    "done": "2026-11-22T15:07",
+    "project": null,
+    "from": null,
+    "private": false,
+    "items": [],
+    "notes": ""
+  }
+}

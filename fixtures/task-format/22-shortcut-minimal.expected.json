@@ -1,0 +1,19 @@
+{
+  "description": "What the quick-capture Shortcut writes: status, area and created, no order (so it goes on top).",
+  "file": "Call the dentist.md",
+  "task": {
+    "title": "Call the dentist",
+    "status": "today",
+    "area": "work",
+    "focus": false,
+    "order": null,
+    "created": "2026-11-24T08:15",
+    "done": null,
+    "project": null,
+    "from": null,
+    "private": false,
+    "items": [],
+    "notes": ""
+  },
+  "save": {}
+}

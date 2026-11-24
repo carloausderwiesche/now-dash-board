@@ -1,0 +1,20 @@
+{
+  "description": "Renaming to a title that fits the file name removes our `title:` field again.",
+  "file": "Write the quarterly review summary for the platform team including the k6 nightl.md",
+  "rename": "Short",
+  "saved_as": "Short.md",
+  "task": {
+    "title": "Write the quarterly review summary for the platform team including the k6 nightly results",
+    "status": "today",
+    "area": "personal",
+    "focus": false,
+    "order": null,
+    "created": null,
+    "done": null,
+    "project": null,
+    "from": null,
+    "private": false,
+    "items": [],
+    "notes": "body"
+  }
+}

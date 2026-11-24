@@ -1,0 +1,20 @@
+{
+  "description": "A title over 80 characters: the file name is cut, the full title goes in `title:`, the body is untouched.",
+  "file": "Short.md",
+  "rename": "Write the quarterly review summary for the platform team including the k6 nightly results",
+  "saved_as": "Write the quarterly review summary for the platform team including the k6 nightl.md",
+  "task": {
+    "title": "Short",
+    "status": "today",
+    "area": "personal",
+    "focus": false,
+    "order": null,
+    "created": null,
+    "done": null,
+    "project": null,
+    "from": null,
+    "private": false,
+    "items": [],
+    "notes": "body"
+  }
+}
