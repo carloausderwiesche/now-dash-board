@@ -1,0 +1,425 @@
+// The detail panel: everything about one task (DESIGN.md, "Detail panel";
+// sizes from the .drawer rules in src/styles.css). On the Mac it slides in
+// from the right as a floating sheet; on the iPhone it's a sheet from below.
+//
+// Changes are saved as you make them: the checklist, list and category right
+// away, notes a moment after you stop typing, the title when you leave it
+// (that renames the file).
+
+import NowboardKit
+import SwiftUI
+
+struct DetailPanel: View {
+    @Environment(BoardStore.self) private var store
+    @Environment(\.openURL) private var openURL
+    let id: String
+    /// Off only for debug snapshots: ImageRenderer can't draw scroll views.
+    var scrolls = true
+
+    /// The task as you edit it. Starts as the stored one; written back on change.
+    @State private var draft: BoardTask?
+    @State private var title = ""
+    @State private var newStep = ""
+    @State private var showFile = false
+    /// The bin's second step ("Delete file"), which turns back after 4 seconds.
+    @State private var confirmDelete = false
+    @State private var notesSave: Task<Void, Never>?
+    @FocusState private var titleFocused: Bool
+
+    var body: some View {
+        let theme = store.theme
+        if let task = draft ?? store.task(id) {
+            let cat = category(for: task.area, in: store.settings.categories)
+            VStack(spacing: 0) {
+                // .drawer-strip: the category colour along the top.
+                Rectangle().fill(cat.color.strong(in: theme)).frame(height: 6)
+                let content = VStack(alignment: .leading, spacing: 26) {
+                    top(task, cat: cat, theme: theme)
+                    titleField(theme: theme)
+                    whereRow(task, theme: theme)
+                    checklist(task, theme: theme)
+                    notes(task, theme: theme)
+                    file(task, theme: theme)
+                }
+                .padding(.top, 20)
+                .padding(.horizontal, 28)
+                .padding(.bottom, 28)
+                if scrolls {
+                    ScrollView { content }
+                } else {
+                    content
+                    Spacer(minLength: 0)
+                }
+                footer(task, theme: theme)
+            }
+            .background(theme.surface)
+            .foregroundStyle(theme.ink)
+            .onAppear {
+                draft = task
+                title = task.title
+            }
+            .onChange(of: titleFocused) { _, focused in
+                if !focused { commitTitle() }
+            }
+            .onDisappear {
+                commitTitle()
+                flushNotes()
+            }
+        }
+    }
+
+    // MARK: - Parts
+
+    /// Category dots and name; the bin and the close button on the right.
+    private func top(_ task: BoardTask, cat: Category, theme: Theme) -> some View {
+        HStack(spacing: 10) {
+            ForEach(store.settings.categories) { c in
+                let on = c.id == task.area
+                Button {
+                    edit { $0.area = c.id }
+                } label: {
+                    Circle().fill(c.color.strong(in: theme)).frame(width: 14, height: 14)
+                        .overlay(Circle().strokeBorder(c.color.strong(in: theme), lineWidth: 1.5).padding(-4).opacity(on ? 1 : 0))
+                        .frame(width: 28, height: 28)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .help(c.name)
+                .accessibilityLabel(c.name)
+                .accessibilityAddTraits(on ? .isSelected : [])
+            }
+            Text(cat.name).font(theme.font(13)).foregroundStyle(theme.muted)
+            Spacer(minLength: 0)
+            if confirmDelete {
+                Button("Delete file") {
+                    store.openID = nil
+                    store.delete(id)
+                }
+                .buttonStyle(.plain)
+                .font(theme.font(12, .semibold))
+                .foregroundStyle(theme.onAccent)
+                .padding(.horizontal, 12)
+                .frame(height: 30)
+                .background(theme.accent, in: Capsule())
+                .transition(.opacity)
+            } else {
+                Button {
+                    withAnimation(.easeOut(duration: 0.15)) { confirmDelete = true }
+                    Task {
+                        try? await Task.sleep(for: .seconds(4))
+                        withAnimation { confirmDelete = false }
+                    }
+                } label: {
+                    Image(systemName: "trash").frame(width: 36, height: 44).contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(theme.muted)
+                .accessibilityLabel("Delete")
+            }
+            Button {
+                store.openID = nil
+            } label: {
+                Image(systemName: "xmark").frame(width: 36, height: 44).contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .foregroundStyle(theme.muted)
+            .keyboardShortcut(.cancelAction)
+            .accessibilityLabel("Close")
+        }
+    }
+
+    /// The title: 30pt, grows to fit, never cut off. Leaving it renames the file.
+    private func titleField(theme: Theme) -> some View {
+        TextField("Title", text: $title, axis: .vertical)
+            .textFieldStyle(.plain)
+            .font(theme.font(30, .semibold))
+            .tracking(Theme.tracking(-0.02, size: 30))
+            .focused($titleFocused)
+            .onSubmit { titleFocused = false }
+    }
+
+    /// Which list: the Today / Backlog switch, or "Accept to Backlog" for a suggestion.
+    @ViewBuilder
+    private func whereRow(_ task: BoardTask, theme: Theme) -> some View {
+        switch task.status {
+        case .suggested:
+            HStack(spacing: 10) {
+                Text("Suggested").foregroundStyle(theme.muted)
+                Button("Accept to Backlog") {
+                    store.accept(id)
+                    draft?.status = .backlog
+                }
+                .buttonStyle(.plain)
+                .underline()
+            }
+            .font(theme.font(13))
+        case .today, .backlog:
+            Segmented(selection: Binding(get: { task.status }, set: { s in store.move(id, to: s); draft?.status = s }),
+                      options: [(.today, "Today"), (.backlog, "Backlog")], theme: theme)
+        case .done:
+            HStack(spacing: 10) {
+                Text("Done").foregroundStyle(theme.muted)
+                Button("Reopen") {
+                    store.reopen(id)
+                    draft?.status = .today
+                }
+                .buttonStyle(.plain)
+                .underline()
+            }
+            .font(theme.font(13))
+        }
+    }
+
+    /// The checklist: round checks like the cards, × to remove a step, a row to add one.
+    private func checklist(_ task: BoardTask, theme: Theme) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            HStack(alignment: .firstTextBaseline, spacing: 10) {
+                Text("Checklist")
+                if !task.items.isEmpty {
+                    Text("\(task.items.filter(\.done).count) / \(task.items.count)").foregroundStyle(theme.muted).monospacedDigit()
+                }
+            }
+            .font(theme.font(15, .semibold))
+            .padding(.bottom, 8)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .overlay(alignment: .bottom) { Rectangle().fill(theme.ink).frame(height: 2) }
+
+            ForEach(Array(task.items.enumerated()), id: \.offset) { i, item in
+                StepRow(item: item, theme: theme,
+                        toggle: { edit { $0.items[i].done.toggle() } },
+                        remove: { edit { $0.items.remove(at: i) } })
+            }
+            HStack(spacing: 12) {
+                Text("+").font(.system(size: 18)).foregroundStyle(theme.muted).frame(width: 20)
+                TextField("Add a step", text: $newStep)
+                    .textFieldStyle(.plain)
+                    .font(theme.font(15))
+                    .onSubmit {
+                        let text = newStep.trimmingCharacters(in: .whitespaces)
+                        guard !text.isEmpty else { return }
+                        edit { $0.items.append(ChecklistItem(text: text, done: false)) }
+                        newStep = ""
+                    }
+            }
+            .frame(minHeight: 44)
+            .overlay(alignment: .bottom) { Rectangle().fill(theme.line).frame(height: 1) }
+        }
+    }
+
+    private func notes(_ task: BoardTask, theme: Theme) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Notes").font(theme.font(15, .semibold))
+            TextField("Anything worth remembering", text: Binding(
+                get: { draft?.notes ?? "" },
+                set: { value in
+                    draft?.notes = value
+                    scheduleNotesSave()
+                }), axis: .vertical)
+                .textFieldStyle(.plain)
+                .font(theme.font(15))
+                .lineSpacing(4)
+                .lineLimit(4...)
+                .padding(.vertical, 12)
+                .padding(.horizontal, 14)
+                .background(theme.bg, in: RoundedRectangle(cornerRadius: theme.radiusSmall))
+        }
+    }
+
+    /// The file name; tap to see the markdown as it's stored.
+    private func file(_ task: BoardTask, theme: Theme) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Button {
+                withAnimation(.easeOut(duration: 0.2)) { showFile.toggle() }
+            } label: {
+                HStack(alignment: .firstTextBaseline, spacing: 8) {
+                    Image(systemName: "chevron.right").font(.system(size: 10, weight: .semibold))
+                        .rotationEffect(.degrees(showFile ? 90 : 0))
+                    Text(store.fileURL(task.id)?.path ?? "Demo board: \(task.id)")
+                        .multilineTextAlignment(.leading)
+                }
+                .font(.system(size: 12, design: .monospaced))
+                .foregroundStyle(theme.muted)
+            }
+            .buttonStyle(.plain)
+            if showFile, let url = store.fileURL(task.id), let text = try? readFile(url) {
+                Text(text)
+                    .font(.system(size: 12, design: .monospaced))
+                    .textSelection(.enabled)
+                    .padding(12)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(theme.bg, in: RoundedRectangle(cornerRadius: theme.radiusSmall))
+            }
+        }
+    }
+
+    /// Mark done (solid) and Open in Obsidian (soft), pinned to the bottom.
+    private func footer(_ task: BoardTask, theme: Theme) -> some View {
+        HStack(spacing: 10) {
+            if task.status == .today || task.status == .backlog {
+                Button {
+                    store.openID = nil
+                    store.complete(id)
+                } label: {
+                    Label("Mark done", systemImage: "checkmark")
+                        .font(theme.font(15, .semibold))
+                        .frame(maxWidth: .infinity, minHeight: 52)
+                        .foregroundStyle(theme.bg)
+                        .background(theme.ink, in: Capsule())
+                }
+                .buttonStyle(.plain)
+            }
+            if let url = store.obsidianURL(task.id) {
+                Button {
+                    openURL(url)
+                } label: {
+                    HStack(spacing: 6) {
+                        Text("Open in Obsidian")
+                        Image(systemName: "arrow.up.right").imageScale(.small).opacity(0.6)
+                    }
+                    .font(theme.font(15, .semibold))
+                    .padding(.horizontal, 22)
+                    .frame(minHeight: 52)
+                    .frame(maxWidth: task.status == .done || task.status == .suggested ? .infinity : nil)
+                    .background(theme.well, in: Capsule())
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .padding(.top, 16)
+        .padding(.horizontal, 28)
+        .padding(.bottom, 22)
+        .overlay(alignment: .top) { Rectangle().fill(theme.line).frame(height: 1) }
+        .background(theme.surface)
+    }
+
+    // MARK: - Saving
+
+    /// Changes the draft and saves it right away.
+    private func edit(_ change: (inout BoardTask) -> Void) {
+        guard var t = draft ?? store.task(id) else { return }
+        change(&t)
+        draft = t
+        store.update(t)
+    }
+
+    /// Notes are saved 0.6s after you stop typing, so each key isn't a write.
+    private func scheduleNotesSave() {
+        notesSave?.cancel()
+        notesSave = Task {
+            try? await Task.sleep(for: .milliseconds(600))
+            guard !Task.isCancelled else { return }
+            flushNotes()
+        }
+    }
+
+    private func flushNotes() {
+        notesSave?.cancel()
+        guard let d = draft, let stored = store.task(id), stored.notes != d.notes else { return }
+        var t = stored
+        t.notes = d.notes
+        store.update(t)
+    }
+
+    private func commitTitle() {
+        let new = title.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let stored = store.task(id), !new.isEmpty, new != stored.title else { return }
+        store.rename(id, to: new)
+        // The file has a new name now: close, so the panel doesn't follow an old id.
+        store.openID = nil
+    }
+
+    private func readFile(_ url: URL) throws -> String {
+        let folder = url.deletingLastPathComponent()
+        let ok = folder.startAccessingSecurityScopedResource()
+        defer { if ok { folder.stopAccessingSecurityScopedResource() } }
+        return try String(contentsOf: url, encoding: .utf8)
+    }
+}
+
+/// One checklist step: a round check, the text (struck through when done), ×.
+private struct StepRow: View {
+    let item: ChecklistItem
+    let theme: Theme
+    let toggle: () -> Void
+    let remove: () -> Void
+    @State private var hovering = false
+
+    var body: some View {
+        HStack(spacing: 12) {
+            Button(action: toggle) {
+                ZStack {
+                    Circle().fill(item.done ? theme.accent : .clear)
+                    Circle().strokeBorder(item.done ? theme.accent : theme.ink, lineWidth: 1.5)
+                    if item.done {
+                        Tick().stroke(theme.onAccent, style: StrokeStyle(lineWidth: 2, lineCap: .round, lineJoin: .round)).padding(4)
+                    }
+                }
+                .frame(width: 20, height: 20)
+                .scaleEffect(item.done ? 1.08 : 1)
+                .animation(.easeOut(duration: 0.2), value: item.done)
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(item.done ? "Done" : "Not done")
+            Text(item.text)
+                .font(theme.font(15))
+                .strikethrough(item.done)
+                .foregroundStyle(item.done ? theme.muted : theme.ink)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .contentShape(Rectangle())
+                .onTapGesture(perform: toggle)
+            Button(action: remove) {
+                Image(systemName: "xmark").font(.system(size: 11, weight: .semibold)).frame(width: 32, height: 32)
+            }
+            .buttonStyle(.plain)
+            .foregroundStyle(theme.muted)
+            .opacity(showRemove ? 1 : 0)
+            .accessibilityLabel("Remove step: \(item.text)")
+        }
+        .frame(minHeight: 44)
+        .overlay(alignment: .bottom) { Rectangle().fill(theme.line).frame(height: 1) }
+        .onHover { hovering = $0 }
+    }
+
+    private var showRemove: Bool {
+        #if os(iOS)
+            true
+        #else
+            hovering
+        #endif
+    }
+}
+
+/// The pill-shaped switch (.segmented): Today / Backlog, here and in quick add.
+struct Segmented<Value: Hashable>: View {
+    @Binding var selection: Value
+    let options: [(Value, String)]
+    let theme: Theme
+
+    var body: some View {
+        HStack(spacing: 0) {
+            ForEach(options, id: \.0) { value, name in
+                let on = value == selection
+                Button {
+                    withAnimation(.easeOut(duration: 0.2)) { selection = value }
+                } label: {
+                    Text(name)
+                        .font(theme.font(12, .medium))
+                        .foregroundStyle(on ? theme.ink : theme.muted)
+                        .padding(.horizontal, 12)
+                        .frame(height: 30)
+                        .background {
+                            if on {
+                                Capsule().fill(theme.surface).shadow(color: .black.opacity(0.12), radius: 1.5, y: 1)
+                            }
+                        }
+                        .contentShape(Capsule())
+                }
+                .buttonStyle(.plain)
+                .accessibilityAddTraits(on ? .isSelected : [])
+            }
+        }
+        .padding(3)
+        .background(theme.well, in: Capsule())
+        .fixedSize()
+    }
+}

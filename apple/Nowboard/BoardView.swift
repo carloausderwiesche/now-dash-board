@@ -32,6 +32,26 @@ struct BoardView: View {
         .onChange(of: scenePhase) { _, phase in
             if phase == .active { Task { await store.reload() } }
         }
+        #if os(macOS)
+            // Mac: the panel slides in from the right, quick add drops in at the
+            // top, both over a scrim (a soft shade over the board).
+            .overlay { macOverlays }
+        #else
+            // iPhone: both are sheets from below.
+            .sheet(isPresented: Binding(get: { store.openID != nil }, set: { if !$0 { store.openID = nil } })) {
+                if let id = store.openID {
+                    DetailPanel(id: id)
+                        .presentationDetents([.large])
+                        .presentationCornerRadius(store.theme.radiusLarge)
+                }
+            }
+            .sheet(isPresented: Binding(get: { store.adding }, set: { store.adding = $0 })) {
+                QuickAdd()
+                    .presentationDetents([.height(150)])
+                    .presentationCornerRadius(store.theme.radiusLarge)
+                    .presentationBackground(store.theme.surface)
+            }
+        #endif
         // The system's folder picker (Files on iOS, Finder's panel on the Mac).
         .fileImporter(isPresented: $pickingFolder, allowedContentTypes: [.folder]) { result in
             if case .success(let url) = result {
@@ -40,6 +60,53 @@ struct BoardView: View {
         }
     }
 }
+
+#if os(macOS)
+    extension BoardView {
+        /// The detail panel and quick add, over a scrim. Clicking the scrim closes them.
+        @ViewBuilder
+        var macOverlays: some View {
+            let theme = store.theme
+            ZStack {
+                if store.openID != nil || store.adding {
+                    theme.scrim
+                        .ignoresSafeArea()
+                        .onTapGesture {
+                            store.openID = nil
+                            store.adding = false
+                        }
+                        .transition(.opacity)
+                }
+                if let id = store.openID {
+                    HStack {
+                        Spacer(minLength: 0)
+                        DetailPanel(id: id)
+                            .id(id)
+                            .frame(width: 460)
+                            .clipShape(RoundedRectangle(cornerRadius: theme.radiusLarge))
+                            .overlay(RoundedRectangle(cornerRadius: theme.radiusLarge).strokeBorder(theme.line, lineWidth: 1))
+                            .shadow(color: .black.opacity(0.45), radius: 35, y: 30)
+                    }
+                    .padding(12)
+                    .transition(.move(edge: .trailing).combined(with: .opacity))
+                }
+                if store.adding {
+                    VStack {
+                        QuickAdd()
+                            .frame(width: 600)
+                            .clipShape(RoundedRectangle(cornerRadius: theme.radiusLarge))
+                            .shadow(color: .black.opacity(0.45), radius: 40, y: 30)
+                            .padding(.top, 150)
+                        Spacer()
+                    }
+                    .transition(.opacity.combined(with: .scale(scale: 0.97, anchor: .top)))
+                }
+            }
+            .animation(.timingCurve(0.2, 0.8, 0.3, 1, duration: 0.3), value: store.openID)
+            .animation(.easeOut(duration: 0.25), value: store.adding)
+        }
+    }
+#endif
 
 /// Everything inside the scroll view. Separate, so a snapshot can render it.
 struct BoardContent: View {
@@ -219,19 +286,32 @@ struct SettingsMenu: View {
     }
 }
 
-/// The round + button. Quick add arrives with editing (next milestone).
+/// The round + button: opens quick add (also the N key on the Mac).
 struct PlusButton: View {
     @Environment(BoardStore.self) private var store
+    @State private var hovering = false
 
     var body: some View {
         let theme = store.theme
-        ZStack {
-            Circle().fill(theme.ink)
-            PlusIcon()
-                .stroke(theme.bg, style: StrokeStyle(lineWidth: 2.2, lineCap: .round))
-                .frame(width: 20, height: 20)
+        Button {
+            store.adding = true
+        } label: {
+            ZStack {
+                Circle().fill(theme.ink)
+                PlusIcon()
+                    .stroke(theme.bg, style: StrokeStyle(lineWidth: 2.2, lineCap: .round))
+                    .frame(width: 20, height: 20)
+                    // .plus:hover turns the + a quarter and grows it a little.
+                    .rotationEffect(.degrees(hovering ? 90 : 0))
+            }
+            .frame(width: 48, height: 48)
+            .scaleEffect(hovering ? 1.05 : 1)
+            .contentShape(Circle())
         }
-        .frame(width: 48, height: 48)
+        .buttonStyle(.plain)
+        .keyboardShortcut("n", modifiers: [])
+        .onHover { h in withAnimation(.spring(response: 0.3, dampingFraction: 0.55)) { hovering = h } }
+        .help("Add task  N")
         .accessibilityLabel("Add task")
     }
 }
@@ -333,10 +413,26 @@ struct SuggestedStrip: View {
             ForEach(tasks, id: \.id) { t in
                 HStack(spacing: 10) {
                     CategoryDot(color: category(for: t.area, in: store.settings.categories).color.strong(in: theme), size: 8)
-                    Text(t.title).font(theme.font(14)).lineLimit(1).frame(maxWidth: .infinity, alignment: .leading)
+                    Button { store.openID = t.id } label: {
+                        Text(t.title).font(theme.font(14)).lineLimit(1).frame(maxWidth: .infinity, alignment: .leading).contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
                     if let from = t.from {
                         Text(from).font(.system(size: 11, design: .monospaced)).foregroundStyle(theme.muted).lineLimit(1)
                     }
+                    Button("Accept") { store.accept(t.id) }
+                        .buttonStyle(.plain)
+                        .font(theme.font(12, .medium))
+                        .foregroundStyle(theme.ink)
+                        .padding(.horizontal, 8)
+                        .frame(height: 32)
+                    Button("Dismiss") { store.delete(t.id) }
+                        .buttonStyle(.plain)
+                        .font(theme.font(12, .medium))
+                        .foregroundStyle(theme.muted)
+                        .padding(.horizontal, 8)
+                        .frame(height: 32)
+                        .help("Dismiss (deletes the file)")
                 }
                 .frame(minHeight: 40)
                 .overlay(alignment: .bottom) { Rectangle().fill(theme.line).frame(height: 1) }
@@ -352,6 +448,19 @@ struct DoneSection: View {
     let today: [BoardTask]
     let recent: [BoardTask]
     @State private var open = false
+    /// The Done number's short nudge when a task arrives (.bump).
+    @State private var bump = false
+
+    private var todayString: String { String(TaskFormat.timestamp(.now).prefix(10)) }
+
+    /// "Mon 23" for a task finished on another day.
+    private func dayLabel(_ stamp: String) -> String {
+        let f = DateFormatter()
+        f.locale = Locale(identifier: "en_US_POSIX")
+        f.dateFormat = "yyyy-MM-dd"
+        guard let d = f.date(from: String(stamp.prefix(10))) else { return "" }
+        return d.formatted(.dateTime.weekday(.abbreviated).day())
+    }
 
     var body: some View {
         let theme = store.theme
@@ -365,6 +474,8 @@ struct DoneSection: View {
                         .tracking(Theme.tracking(-0.04, size: 56))
                         .monospacedDigit()
                         .padding(.vertical, theme.lineBoxTrim(56, lineHeight: 0.85))
+                        .foregroundStyle(bump ? theme.accent : theme.ink)
+                        .scaleEffect(bump ? 1.08 : 1, anchor: .bottomLeading)
                     VStack(alignment: .leading, spacing: 3) {
                         Text("Done today").fontWeight(.semibold)
                         Text(today.first.map { "Last: \($0.title)" } ?? "Nothing finished yet today")
@@ -387,6 +498,11 @@ struct DoneSection: View {
             }
             .buttonStyle(.plain)
             .accessibilityHint(open ? "Hides the list" : "Shows the last 7 days")
+            .onChange(of: today.count) { old, new in
+                guard new > old else { return }
+                withAnimation(.easeOut(duration: 0.15)) { bump = true }
+                withAnimation(.easeOut(duration: 0.35).delay(0.15)) { bump = false }
+            }
 
             if open {
                 VStack(spacing: 0) {
@@ -402,6 +518,14 @@ struct DoneSection: View {
                                 .padding(.leading, 11)
                             Text(t.title).font(theme.font(14)).strikethrough().foregroundStyle(theme.muted)
                                 .frame(maxWidth: .infinity, alignment: .leading)
+                            if let done = t.done, !done.hasPrefix(todayString) {
+                                Text(dayLabel(done)).font(theme.font(12)).foregroundStyle(theme.muted).padding(.horizontal, 8)
+                            }
+                            Button("Undo") { store.reopen(t.id) }
+                                .buttonStyle(.plain)
+                                .font(theme.font(12, .medium))
+                                .padding(.horizontal, 8)
+                                .frame(height: 32)
                         }
                         .frame(minHeight: 40)
                         .overlay(alignment: .bottom) { Rectangle().fill(theme.line).frame(height: 1) }

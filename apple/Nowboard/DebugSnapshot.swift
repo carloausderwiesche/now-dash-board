@@ -19,6 +19,19 @@
             return args[i + 1]
         }
 
+        /// `-open <file name>` opens that card's panel, `-adding true` opens
+        /// quick add, `-theme <id>` picks a theme: for screenshots of the panels.
+        @MainActor
+        static func applyLaunchState(store: BoardStore) {
+            guard argument("snapshot") == nil else { return }
+            if let theme = argument("theme") { store.settings.theme = theme }
+            Task {
+                try? await Task.sleep(for: .milliseconds(600))
+                if let id = argument("open") { store.openID = id }
+                if argument("adding") == "true" { store.adding = true }
+            }
+        }
+
         /// Renders and quits if the app was started with `-snapshot <path>`.
         @MainActor
         static func runIfAsked(store: BoardStore) {
@@ -26,10 +39,19 @@
             if let theme = argument("theme") { store.settings.theme = theme }
             if argument("compact") == "true" { store.settings.compact = true }
             store.filter = argument("filter")
+            if argument("demo") == "true" { store.useDemoForSnapshot() }
             let width = argument("width").flatMap { Double($0) } ?? 1190
             Task {
                 await store.reload()
-                let view = BoardContent(narrow: width < 640)
+                // With `-open <file name>`: the detail panel instead of the board.
+                let panelID = argument("open")
+                let view = Group {
+                    if let panelID {
+                        DetailPanel(id: panelID, scrolls: false).frame(height: 900)
+                    } else {
+                        BoardContent(narrow: width < 640)
+                    }
+                }
                     .environment(store)
                     .frame(width: width)
                     .background(store.theme.bg)

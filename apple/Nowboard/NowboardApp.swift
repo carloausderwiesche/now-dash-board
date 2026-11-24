@@ -11,6 +11,7 @@ struct NowboardApp: App {
     init() {
         #if DEBUG
             DebugSnapshot.runIfAsked(store: store)
+            DebugSnapshot.applyLaunchState(store: store)
         #endif
     }
 

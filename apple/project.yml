@@ -59,3 +59,34 @@ targets:
         CODE_SIGN_STYLE: Automatic
         CODE_SIGN_IDENTITY: "-"
         ENABLE_PREVIEWS: YES
+
+  # Tests for the app's store: every action against a temporary folder.
+  # `xcodebuild test -scheme Nowboard -destination 'platform=macOS'`
+  NowboardTests:
+    type: bundle.unit-test
+    supportedDestinations: [macOS, iOS]
+    sources:
+      - path: NowboardTests
+    dependencies:
+      - target: Nowboard
+      - package: NowboardKit
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES
+        SWIFT_VERSION: "6.0"
+        CODE_SIGN_IDENTITY: "-"
+        # The app the tests run inside. A Mac app keeps its program in
+        # Contents/MacOS, an iPhone app at the top, so each platform gets its own path.
+        "TEST_HOST[sdk=macosx*]": $(BUILT_PRODUCTS_DIR)/Nowboard.app/Contents/MacOS/Nowboard
+        "TEST_HOST[sdk=iphone*]": $(BUILT_PRODUCTS_DIR)/Nowboard.app/Nowboard
+        BUNDLE_LOADER: $(TEST_HOST)
+
+schemes:
+  Nowboard:
+    build:
+      targets:
+        Nowboard: all
+        NowboardTests: [test]
+    test:
+      targets:
+        - NowboardTests

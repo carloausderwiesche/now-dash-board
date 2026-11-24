@@ -53,3 +53,10 @@ jobs:
       - uses: actions/checkout@v4
       - run: swift --version
       - run: swift test
+      # The app's own tests (every board action against a temporary folder),
+      # on macOS. The Xcode project is generated from apple/project.yml.
+      - run: brew install xcodegen
+      - run: xcodegen
+        working-directory: apple
+      - run: xcodebuild test -project Nowboard.xcodeproj -scheme Nowboard -destination 'platform=macOS' CODE_SIGNING_ALLOWED=NO
+        working-directory: apple
