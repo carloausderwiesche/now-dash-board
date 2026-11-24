@@ -1,0 +1,19 @@
+{
+  "description": "Done by hand with only a date, on the day the file was saved: shown with the file's time.",
+  "file": "Paid rent.md",
+  "modified": "2026-11-22T15:07",
+  "task": {
+    "title": "Paid rent",
+    "status": "done",
+    "area": "personal",
+    "focus": false,
+    "order": 1,
+    "created": null,
+    "done": "2026-11-22T15:07",
+    "project": null,
+    "from": null,
+    "private": false,
+    "items": [],
+    "notes": ""
+  }
+}

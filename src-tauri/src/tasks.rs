@@ -1,29 +1,16 @@
-//! Tasks are plain markdown files (format v1, see DESIGN.md). This module turns
-//! a file into a `Task` and writes a `Task` back. No database: the folder *is*
-//! the database, and other programs (Obsidian, MEGA sync, AI agents) write to
-//! it too. So we follow three rules when saving:
+//! Tasks are plain markdown files. This module turns a file into a `Task` and
+//! writes a `Task` back. No database: the folder *is* the database, and other
+//! programs (Obsidian, sync, AI agents, the iPhone app) write to it too.
 //!
-//! 1. Frontmatter fields we don't know are kept exactly as they are.
+//! The format is specified in `docs/task-format.md`; read it before changing
+//! anything here. The shared cases in `fixtures/task-format/` check this code
+//! against the spec (see `conformance.rs`), and the iPhone app runs the same
+//! cases. The three rules that matter most when saving:
+//!
+//! 1. Frontmatter fields we don't know are kept, in their place.
 //! 2. The body is kept byte-for-byte unless you actually edited the checklist or notes.
 //! 3. Writes are atomic: write `.<name>.tmp`, then rename it over the original,
 //!    so nobody ever reads a half-written file.
-//!
-//! ```markdown
-//! ---
-//! status: today          # today | backlog | done | suggested
-//! area: work             # category id (= card colour)
-//! order: 1024.5          # float, smaller = higher
-//! created: 2026-11-22T09:40
-//! done:
-//! project:
-//! ---
-//! - [ ] optional checklist item
-//! Free notes.
-//! ```
-//!
-//! The title is the file name: `Fix k6 nightly token.md`. When the title can't
-//! be a file name exactly (longer than 80 characters, or it has characters like
-//! `:` or `?`), the full title is also kept in the frontmatter as `title:`.
 
 use serde::{Deserialize, Serialize};
 use serde_yaml::{Mapping, Value};
@@ -287,7 +274,7 @@ fn apply_title(fm: &mut Mapping, id: &str, title: &str) -> bool {
         return true;
     }
     let ours = text_of(fm.get(&key)).is_some_and(|t| title_matches_file(&t, id));
-    ours && fm.remove(&key).is_some()
+    ours && fm.shift_remove(&key).is_some()
 }
 
 /// "Fix k6: nightly/token?" → "Fix k6- nightly-token-". Characters that macOS
@@ -426,7 +413,10 @@ pub fn save(dir: &Path, mut task: Task) -> Result<Task, String> {
     let opt = |s: &Option<String>| s.as_ref().map(|x| Value::from(x.as_str())).unwrap_or(Value::Null);
     set(&mut fm, "status", serde_yaml::to_value(task.status).map_err(|e| e.to_string())?);
     set(&mut fm, "area", Value::from(task.area.as_str()));
-    fm.remove("colour"); // old name of `area`
+    // `shift_remove`, not `remove`: serde_yaml's `remove` is a "swap remove" that
+    // fills the gap with the *last* field, which would move fields other
+    // programs wrote. `shift_remove` closes the gap and keeps everyone's place.
+    fm.shift_remove("colour"); // old name of `area`
     if task.order.is_finite() {
         set(&mut fm, "order", order_value(task.order));
     }
@@ -437,7 +427,7 @@ pub fn save(dir: &Path, mut task: Task) -> Result<Task, String> {
     if task.focus {
         set(&mut fm, "focus", Value::Bool(true));
     } else {
-        fm.remove("focus");
+        fm.shift_remove("focus");
     }
     if is_new && !fm.contains_key("project") {
         set(&mut fm, "project", opt(&task.project));
@@ -482,7 +472,7 @@ pub fn rename(dir: &Path, id: &str, title: &str, order: f64) -> Result<Task, Str
         // `apply_title` writes a new one if the new name needs it.
         let mut changed = false;
         if text_of(fm.get("title")).is_some_and(|t| title_matches_file(&t, id)) {
-            fm.remove("title");
+            fm.shift_remove("title");
             changed = true;
         }
         // `|` (not `||`) so `apply_title` always runs, even when `changed` is already true.
@@ -510,6 +500,10 @@ pub fn delete(dir: &Path, id: &str) -> Result<(), String> {
     let path = safe_path(dir, id)?;
     fs::remove_file(path).map_err(|e| e.to_string())
 }
+
+// The shared fixture cases. `#[cfg(test)]` means it's only compiled for `cargo test`.
+#[cfg(test)]
+mod conformance;
 
 #[cfg(test)]
 mod tests {

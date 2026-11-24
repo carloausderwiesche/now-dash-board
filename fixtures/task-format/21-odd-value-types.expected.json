@@ -1,0 +1,18 @@
+{
+  "description": "Only a YAML `true` turns focus on, only a number is an order, and an empty string is missing.",
+  "file": "Odd values.md",
+  "task": {
+    "title": "Odd values",
+    "status": "today",
+    "area": "personal",
+    "focus": false,
+    "order": null,
+    "created": "2026-11-22T09:40",
+    "done": null,
+    "project": null,
+    "from": null,
+    "private": false,
+    "items": [],
+    "notes": ""
+  }
+}

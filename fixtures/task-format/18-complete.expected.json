@@ -1,0 +1,23 @@
+{
+  "description": "Completing: status done, the time, focus removed. Other fields keep their place.",
+  "file": "Buy milk.md",
+  "task": {
+    "title": "Buy milk",
+    "status": "today",
+    "area": "personal",
+    "focus": true,
+    "order": 2,
+    "created": "2026-11-21T08:00",
+    "done": null,
+    "project": null,
+    "from": null,
+    "private": false,
+    "items": [],
+    "notes": "Get the oat one"
+  },
+  "save": {
+    "status": "done",
+    "done": "2026-11-22T10:40",
+    "focus": false
+  }
+}

@@ -1,0 +1,21 @@
+{
+  "description": "Only .md files directly in the folder count (not hidden, not README.md). Tasks without an order share the smallest order of all tasks minus 1024.",
+  "tasks": [
+    {
+      "file": "A.md",
+      "order": 100
+    },
+    {
+      "file": "B.md",
+      "order": -1074
+    },
+    {
+      "file": "C.md",
+      "order": -50
+    },
+    {
+      "file": "D.md",
+      "order": -1074
+    }
+  ]
+}

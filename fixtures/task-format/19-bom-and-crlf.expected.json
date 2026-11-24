@@ -1,0 +1,24 @@
+{
+  "description": "A BOM and Windows line breaks: read fine; saving writes `\\n` frontmatter and keeps the body's bytes.",
+  "file": "Windows note.md",
+  "task": {
+    "title": "Windows note",
+    "status": "today",
+    "area": "work",
+    "focus": false,
+    "order": 4,
+    "created": null,
+    "done": null,
+    "project": null,
+    "from": null,
+    "private": false,
+    "items": [
+      {
+        "text": "step one",
+        "done": false
+      }
+    ],
+    "notes": "notes here"
+  },
+  "save": {}
+}

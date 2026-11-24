@@ -1,0 +1,61 @@
+{
+  "description": "stem_for(title): the file name (without .md) a title gets. 80 characters = 80 Unicode scalar values.",
+  "cases": [
+    {
+      "title": "Fix k6 nightly token",
+      "stem": "Fix k6 nightly token"
+    },
+    {
+      "title": "Fix k6: nightly/token?",
+      "stem": "Fix k6- nightly-token-"
+    },
+    {
+      "title": "[[link]] #tag ^block",
+      "stem": "--link-- -tag -block"
+    },
+    {
+      "title": "a\\b*c\"d<e>f|g",
+      "stem": "a-b-c-d-e-f-g"
+    },
+    {
+      "title": "tab\there",
+      "stem": "tab-here"
+    },
+    {
+      "title": "  .hidden  ",
+      "stem": "hidden"
+    },
+    {
+      "title": "...dots...",
+      "stem": "dots"
+    },
+    {
+      "title": "!!!",
+      "stem": "!!!"
+    },
+    {
+      "title": "",
+      "stem": "Untitled"
+    },
+    {
+      "title": "   ",
+      "stem": "Untitled"
+    },
+    {
+      "title": "Café crème",
+      "stem": "Café crème"
+    },
+    {
+      "title": "Write the quarterly review summary for the platform team including the k6 nightly results",
+      "stem": "Write the quarterly review summary for the platform team including the k6 nightl"
+    },
+    {
+      "title": "éééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééé",
+      "stem": "éééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééé"
+    },
+    {
+      "title": "👩‍💻 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+      "stem": "👩‍💻 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+    }
+  ]
+}

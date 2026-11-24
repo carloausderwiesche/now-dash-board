@@ -1,0 +1,27 @@
+{
+  "description": "The example from the spec: every field, a checklist and notes.",
+  "file": "Fix k6 nightly token.md",
+  "task": {
+    "title": "Fix k6 nightly token",
+    "status": "today",
+    "area": "work",
+    "focus": false,
+    "order": 1024.5,
+    "created": "2026-11-22T09:40",
+    "done": null,
+    "project": "[[Wiki/Projects/uKonn-X]]",
+    "from": null,
+    "private": false,
+    "items": [
+      {
+        "text": "optional checklist item",
+        "done": false
+      },
+      {
+        "text": "another one",
+        "done": true
+      }
+    ],
+    "notes": "Free text notes below the checklist are allowed."
+  }
+}

@@ -1,0 +1,19 @@
+{
+  "description": "`colour` is the old name of `area`; saving replaces it with `area`.",
+  "file": "Old colour.md",
+  "task": {
+    "title": "Old colour",
+    "status": "today",
+    "area": "freelance",
+    "focus": false,
+    "order": 7,
+    "created": null,
+    "done": null,
+    "project": null,
+    "from": null,
+    "private": false,
+    "items": [],
+    "notes": ""
+  },
+  "save": {}
+}

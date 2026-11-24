@@ -1,0 +1,11 @@
+{
+  "description": "A plain new title: the file name is the title, no `title:` field.",
+  "file": "Buy oat milk.md",
+  "new": {
+    "title": "Buy oat milk",
+    "status": "backlog",
+    "area": "personal",
+    "order": 0,
+    "created": "2026-11-22T09:40"
+  }
+}

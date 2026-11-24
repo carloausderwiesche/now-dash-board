@@ -79,32 +79,15 @@ All theme values live in `src/themes.ts` as CSS variables. Components never hard
 - Hover-only actions also appear on keyboard focus (`:focus-within`) and always show on narrow screens.
 - Colours that must be told apart (category dots) also have names in tooltips and in the panel.
 
-## Data format (task file format v1, one task = one file)
+## Data (one task = one markdown file)
 
-- One file per task in `<vault>/Notes/Tasks/`, flat (subfolders are ignored).
-- **File name = title** + `.md`, e.g. `Fix k6 nightly token.md`. Characters macOS/Obsidian can't take (`/ \ : * ? " < > | # ^ [ ]`) become `-`; at most 80 characters; clashes get ` (2)`, ` (3)`… Editing the title in the app renames the file (when you leave the title field).
-- **`title:`** (optional): when the file name can't hold the title exactly (too long, or it had one of those characters), the full title is also stored as `title: …`. It only counts while it still matches the file name, so renaming the file in Obsidian wins. If the file name is the title, the field isn't written.
+The file format is specified in **[docs/task-format.md](docs/task-format.md)**, with shared test cases in `fixtures/task-format/`. Change the format there, not here. In short: one file per task in `<vault>/Notes/Tasks/`, the file name is the title, the frontmatter holds `status`, `area`, `order`, `created` and `done`, and the body is an optional checklist plus notes.
 
-```markdown
----
-status: today          # today | backlog | done | suggested
-area: work             # category id (= card colour)
-order: 1024.5          # position within its status; float, smaller = higher
-created: 2026-11-22T09:40
-done:                  # timestamp, set when done; cleared if reopened
-project:               # optional, e.g. "[[Wiki/Projects/uKonn-X]]"
-from:                  # only on agent-suggested tasks, e.g. "[[Notes/2026-11-22]]"
----
-- [ ] optional checklist item
-- [x] another one
-Free text notes below the checklist are allowed.
-```
+How the board uses it:
 
-- The body is optional. Lines starting with `- [ ]` / `- [x]` are the checklist; the rest is notes.
-- **Ordering:** moving a card sets its `order` to the midpoint of its two neighbours, so only that file is rewritten. New tasks go on top (smallest order − 1024).
-- **Done:** `status: done` + `done:` timestamp, in the task's own file only. Undo (or dragging it back out of Done) clears `done:`. Daily notes show finished tasks through a query (see Settings), so nothing else needs updating. Done files are never deleted automatically; only the bin in the panel deletes a task. The big number counts today; the expanded list shows the last 7 days. Older ones stay on disk.
+- **Ordering:** moving a card sets its `order` to the midpoint of its two neighbours, so only that file is rewritten. New tasks go on top. Editing the title renames the file (when you leave the title field).
+- **Done:** `status: done` + `done:` timestamp, in the task's own file only. Undo (or dragging it back out of Done) clears `done:`. Daily notes show finished tasks through a query (see Settings), so nothing else needs updating. Done files are never deleted automatically; only the bin in the panel or the card menu deletes a task. The big number counts today; the expanded list shows the last 7 days. Older ones stay on disk.
 - **Suggested:** a small strip between Today and Backlog. Accept → top of Backlog (keeps `from:`). Dismiss → the file is deleted.
-- **Other writers exist** (MEGA sync, Obsidian, AI agents): the folder is watched and reloaded; unknown frontmatter fields and the body are kept exactly as they are (the body is only rewritten if you edit the checklist or notes in the app); writes go to `.<name>.tmp` and are renamed over the original. A card that someone else marks `status: done` plays the same finish animation (ring → strike → fly → counter bump) and becomes "Last"; the app doesn't rewrite that file. A done task whose `done:` has no time (or is empty) is shown with the file's last-saved time, so it sorts as the latest one finished; the file isn't changed.
-- A file without frontmatter = backlog, `area: personal`, shown on top. Files starting with `.` and `README.md` are ignored.
-- `focus: true` is an extra field of this app (the Focus card).
+- **Other writers exist** (iCloud sync, Obsidian, AI agents, the iPhone app): the folder is watched and reloaded, and the app only ever changes its own fields. A card that someone else marks `status: done` plays the same finish animation (ring → strike → fly → counter bump) and becomes "Last"; the app doesn't rewrite that file.
+- `focus: true` marks the Focus card.
 - **Privacy:** `#private` anywhere in the body shows a small lock on the card. Nothing else changes.

@@ -1,0 +1,14 @@
+{
+  "description": "A new title with `:` gets a cleaned file name, a clash counter and a `title:` field.",
+  "file": "Fix- token (2).md",
+  "existing": [
+    "Fix- token.md"
+  ],
+  "new": {
+    "title": "Fix: token",
+    "status": "today",
+    "area": "work",
+    "order": -1024,
+    "created": "2026-11-22T09:40"
+  }
+}

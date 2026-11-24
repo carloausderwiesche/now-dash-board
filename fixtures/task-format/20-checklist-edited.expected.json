@@ -1,0 +1,39 @@
+{
+  "description": "Editing the checklist rewrites the body: items first, a blank line, then the notes. `[X]` and indented items count.",
+  "file": "Plan trip.md",
+  "task": {
+    "title": "Plan trip",
+    "status": "backlog",
+    "area": "personal",
+    "focus": false,
+    "order": 10,
+    "created": null,
+    "done": null,
+    "project": null,
+    "from": null,
+    "private": false,
+    "items": [
+      {
+        "text": "book train",
+        "done": false
+      },
+      {
+        "text": "pack",
+        "done": true
+      }
+    ],
+    "notes": "Some notes first"
+  },
+  "save": {
+    "items": [
+      {
+        "text": "book train",
+        "done": true
+      },
+      {
+        "text": "pack",
+        "done": true
+      }
+    ]
+  }
+}
