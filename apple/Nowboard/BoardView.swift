@@ -326,6 +326,7 @@ struct CardSection: View {
     let style: CardStyle
     let narrow: Bool
     let empty: (String, String)
+    @State private var targeted = false
 
     var body: some View {
         let compact = store.settings.compact
@@ -339,6 +340,18 @@ struct CardSection: View {
                 CardGridLayout(minWidth: minWidth, spacing: gap) {
                     ForEach(cards, id: \.id) { task in
                         CardView(task: task, style: style)
+                            // Drag a card by its id; drop another card here to
+                            // put it before this one (planMove's midpoint rule).
+                            .draggable(task.id) {
+                                CardView(task: task, style: style).frame(width: minWidth).environment(store)
+                            }
+                            .dropDestination(for: String.self) { ids, _ in
+                                guard let id = ids.first, id != task.id else { return false }
+                                withAnimation(.timingCurve(0.2, 0.8, 0.3, 1, duration: 0.4)) {
+                                    store.move(id, to: status, before: task.id)
+                                }
+                                return true
+                            }
                             // The focus card is twice as wide (not on a phone).
                             .gridSpan(style == .today && task.focus && !narrow ? 2 : 1)
                             // Highlighting a category fades the others to 22%.
@@ -348,7 +361,23 @@ struct CardSection: View {
             }
         }
         .animation(.easeOut(duration: 0.3), value: store.filter)
+        // .zone.over: the whole section takes a drop (at the end of the list),
+        // with a soft tint that spills a little past its edges.
+        .background {
+            RoundedRectangle(cornerRadius: store.theme.radiusLarge)
+                .fill(store.theme.hover)
+                .padding(-14)
+                .opacity(targeted ? 1 : 0)
+        }
+        .dropDestination(for: String.self) { ids, _ in
+            guard let id = ids.first else { return false }
+            withAnimation(.timingCurve(0.2, 0.8, 0.3, 1, duration: 0.4)) { store.move(id, to: status) }
+            return true
+        } isTargeted: { targeted = $0 }
+        .animation(.easeOut(duration: 0.2), value: targeted)
     }
+
+    private var status: TaskStatus { style == .today ? .today : .backlog }
 }
 
 /// .section-head: 22pt semibold title, the count in muted, a 2pt rule under it.
@@ -450,6 +479,8 @@ struct DoneSection: View {
     @State private var open = false
     /// The Done number's short nudge when a task arrives (.bump).
     @State private var bump = false
+    /// A card is being dragged over Done: the number turns accent.
+    @State private var targeted = false
 
     private var todayString: String { String(TaskFormat.timestamp(.now).prefix(10)) }
 
@@ -474,7 +505,7 @@ struct DoneSection: View {
                         .tracking(Theme.tracking(-0.04, size: 56))
                         .monospacedDigit()
                         .padding(.vertical, theme.lineBoxTrim(56, lineHeight: 0.85))
-                        .foregroundStyle(bump ? theme.accent : theme.ink)
+                        .foregroundStyle(bump || targeted ? theme.accent : theme.ink)
                         .scaleEffect(bump ? 1.08 : 1, anchor: .bottomLeading)
                     VStack(alignment: .leading, spacing: 3) {
                         Text("Done today").fontWeight(.semibold)
@@ -498,6 +529,12 @@ struct DoneSection: View {
             }
             .buttonStyle(.plain)
             .accessibilityHint(open ? "Hides the list" : "Shows the last 7 days")
+            // Dropping a card on Done completes it.
+            .dropDestination(for: String.self) { ids, _ in
+                guard let id = ids.first, store.task(id)?.status != .done else { return false }
+                store.complete(id)
+                return true
+            } isTargeted: { targeted = $0 }
             .onChange(of: today.count) { old, new in
                 guard new > old else { return }
                 withAnimation(.easeOut(duration: 0.15)) { bump = true }
