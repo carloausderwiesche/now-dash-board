@@ -48,7 +48,7 @@ jobs:
     runs-on: macos-latest
     defaults:
       run:
-        working-directory: ios/NowboardKit
+        working-directory: apple/NowboardKit
     steps:
       - uses: actions/checkout@v4
       - run: swift --version

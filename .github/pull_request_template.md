@@ -12,5 +12,5 @@
 
 - [ ] `npm run format:check && npm run lint && npm test && npm run build`
 - [ ] `cargo fmt --check && cargo clippy --all-targets -- -D warnings && cargo test` (in `src-tauri/`)
-- [ ] `swift test` (in `ios/NowboardKit/`), if Swift code or the fixtures changed
+- [ ] `swift test` (in `apple/NowboardKit/`), if Swift code or the fixtures changed
 - [ ] Tried it in the app or the browser demo (`npm run dev`)

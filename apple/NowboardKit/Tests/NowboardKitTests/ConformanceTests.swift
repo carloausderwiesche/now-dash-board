@@ -14,7 +14,7 @@ import Yams
 @testable import NowboardKit
 
 /// `fixtures/task-format`, found from this file's own path:
-/// ios/NowboardKit/Tests/NowboardKitTests/ConformanceTests.swift → four folders up is the repo.
+/// apple/NowboardKit/Tests/NowboardKitTests/ConformanceTests.swift → four folders up is the repo.
 let fixtures: URL = {
     var url = URL(fileURLWithPath: #filePath)
     for _ in 0..<5 { url.deleteLastPathComponent() }

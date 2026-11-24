@@ -35,3 +35,4 @@ ADRs aren't edited after they're accepted, except for their status. To change a 
 | [0005](0005-icloud-vault-sync.md) | The vault syncs through iCloud Drive; the operating system does the syncing | Accepted |
 | [0006](0006-native-swiftui-app.md) | Nowboard moves to a native SwiftUI multiplatform app | Accepted |
 | [0007](0007-yams-for-yaml.md) | The Swift app reads frontmatter with Yams, but decides what values mean itself | Accepted |
+| [0008](0008-swift-app-in-this-repo.md) | The Swift app lives in this repo, in `apple/` | Accepted |

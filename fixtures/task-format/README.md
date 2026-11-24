@@ -3,7 +3,7 @@
 Shared test cases for [the task file format](../../docs/task-format.md). Any program that reads or writes Nowboard task files runs all of them:
 
 - the Tauri app: `cargo test` in `src-tauri/` (runner: `src-tauri/src/tasks/conformance.rs`)
-- the SwiftUI app: `swift test` in `ios/NowboardKit/` (runner: `Tests/NowboardKitTests/ConformanceTests.swift`)
+- the SwiftUI app: `swift test` in `apple/NowboardKit/` (runner: `Tests/NowboardKitTests/ConformanceTests.swift`)
 
 The Rust runner is the reference until the Tauri app is archived ([ADR 0006](../../docs/adr/0006-native-swiftui-app.md)). A new rule or a bug found in one app gets a case here first, so both apps learn it.
 
