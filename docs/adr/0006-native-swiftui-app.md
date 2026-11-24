@@ -16,7 +16,12 @@ The end state is **one SwiftUI multiplatform app (iOS and macOS)** in `ios/` in 
 - The Xcode project is generated from a text file (XcodeGen `project.yml`), so it stays reviewable. Both targets exist from the start; the iOS one is built first.
 - A local Swift package, `NowboardKit`, holds the file format and the store, with no UI and no platform code. The views are shared too; platform code sits behind `#if os(iOS)` / `#if os(macOS)`.
 - **We share the file format, not code.** The format is [docs/task-format.md](../task-format.md), and both apps pass the same cases in `fixtures/task-format/`. No Rust in Swift.
-- **Order:** the Tauri app stays in daily use until the macOS target reaches parity, measured by a checklist made from `src/` and [DESIGN.md](../../DESIGN.md). Then it's archived, not deleted. Until then the Rust code and its tests are the reference for the format.
+- **Order:** Swift first, iCloud last.
+  1. Build the SwiftUI app now: `NowboardKit` and its fixtures, then the iOS target, then the macOS target. It's developed against demo data and copies of the vault, never the real one.
+  2. Meanwhile the vault stays where it is (MEGA + LiveSync), and the Tauri app stays in daily use **unchanged**: bug fixes only, no new features and no iCloud work.
+  3. When the macOS target reaches parity, measured by a checklist made from `src/` and [DESIGN.md](../../DESIGN.md), the Tauri app is archived (not deleted) and the vault moves to iCloud ([ADR 0005](0005-icloud-vault-sync.md)). Only from then on do the two devices share the vault.
+
+  Until the Tauri app is archived, the Rust code and its tests are the reference for the format.
 - Theme tokens are ported from `src/themes.ts` to Swift. While both apps exist, each has one source of truth for its own platform.
 
 ## Alternatives considered
@@ -30,6 +35,7 @@ The end state is **one SwiftUI multiplatform app (iOS and macOS)** in `ios/` in 
 - Better iPhone and Mac apps: native gestures, widgets, Siri and Shortcuts, proper iCloud handling.
 - **A rewrite.** The UI, the board rules (`src/board.ts`) and the Mac-only parts (global shortcut, the floating quick-add panel, menu bar) all get rebuilt in Swift. Phase 5 is the macOS target and its parity checklist.
 - **Learning Rust on this project ends** once the Tauri app is archived; learning Swift starts. Code comments explain Swift in plain language, as they do Rust now.
+- **No iPhone sync until the Mac app is done.** Making the Tauri app work on an iCloud vault (files not downloaded yet, conflict copies) would be thrown away once it's archived, so we wait instead. The iPhone app can be tried on its own with demo data or a copy of the vault in the meantime.
 - Two implementations of the format exist for a while. The fixtures are what keep them in step: a bug found in either app becomes a fixture first.
 - Needs Xcode and a paid Apple Developer account to run on a device for more than a week and to use iCloud entitlements.
 - We'd revisit this if a non-Apple platform becomes a requirement again (which would also undo ADR 0005).

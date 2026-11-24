@@ -15,7 +15,7 @@ An inventory of scripts and configs on the Mac, made before this decision, found
 
 The vault moves to an **Obsidian iCloud vault** (`~/Library/Mobile Documents/iCloud~md~obsidian/Documents/<vault>`), and iCloud Drive syncs it. LiveSync is switched off for this vault and must never run alongside iCloud on it. Nowboard doesn't sync anything itself: it reads and writes files, and the operating system moves them in the background.
 
-Nestor moves the vault by hand, following `docs/migrate-to-icloud.md` (phase 2). No code or test touches the real vault.
+**When:** only after the SwiftUI macOS app has replaced the Tauri app ([ADR 0006](0006-native-swiftui-app.md)). Until then the vault stays on MEGA and LiveSync, where the Tauri app works today, so the Tauri app never needs to learn iCloud's quirks. Nestor moves the vault by hand, following a checklist (`docs/migrate-to-icloud.md`, written when the move gets close). No code or test touches the real vault.
 
 ## Alternatives considered
 
@@ -28,7 +28,7 @@ Nestor moves the vault by hand, following `docs/migrate-to-icloud.md` (phase 2).
 - Sync "just works" with every app closed, on both devices. The iPhone app can use Apple's own file APIs.
 - **Apple-only.** Every device that edits the vault must be a Mac, iPhone or iPad. A Linux or Windows machine couldn't reach it. Together with this decision, that's why [ADR 0006](0006-native-swiftui-app.md) drops the cross-platform Tauri app.
 - **Slower sync:** seconds to minutes, not instant. It's checked with a 10-minute test in the migration checklist.
-- **Conflicts become duplicate files** (`Buy milk 2.md`) instead of merges. The spec treats them as ordinary tasks; phase 2 flags likely duplicates on the card and never deletes them on its own.
+- **Conflicts become duplicate files** (`Buy milk 2.md`) instead of merges. The spec treats them as ordinary tasks; the Swift app flags likely duplicates on the card and never deletes them on its own.
 - **Files may not be downloaded yet.** The app has to skip or download them instead of failing. On the Mac, the vault folder needs "Keep Downloaded" (Optimize Mac Storage must not evict it).
 - **Privacy:** the vault (with `Private/` and finances) sits in iCloud. Turning on Advanced Data Protection is recommended so Apple can't read it.
 - **Backups and scripts:** the restic backup only covers `~/MEGA`, so the new path has to be added, as do the 14 scripts and configs found in the inventory.
