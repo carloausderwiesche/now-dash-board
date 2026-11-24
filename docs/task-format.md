@@ -1,6 +1,6 @@
 # Task file format, v1
 
-This is the one place that says what a Nowboard task file is. Every program that reads or writes the Tasks folder has to follow it: the Mac app (`src-tauri/src/tasks.rs`), the iPhone app (`ios/`, planned) and anything written by hand, a Shortcut or an AI agent.
+This is the one place that says what a Nowboard task file is. Every program that reads or writes the Tasks folder has to follow it: the Mac app (`src-tauri/src/tasks.rs`), the SwiftUI app for iPhone and Mac (`apple/NowboardKit`) and anything written by hand, a Shortcut or an AI agent.
 
 The rules are checked by the conformance cases in [`fixtures/task-format/`](../fixtures/task-format/README.md). If you change a rule here, change the fixtures and the code in the same PR, and add an ADR (it's a file-format change).
 
@@ -72,7 +72,7 @@ Timestamps have no seconds and no time zone: `2026-11-22T09:40` is the local wal
 ### 3.1 The body
 
 - The body is split into lines (`\n` or `\r\n`).
-- A line is a **checklist item** if, after removing leading spaces and tabs, it starts with:
+- A line is a **checklist item** if, after removing leading whitespace, it starts with:
   - `- [ ] ` (dash, space, `[`, space, `]`, space) → an open item; its text is the rest of the line
   - `- [x] ` or `- [X] ` → a done item
   

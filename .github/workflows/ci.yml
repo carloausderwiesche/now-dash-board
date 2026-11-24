@@ -1,5 +1,6 @@
-# Checks every push and pull request: frontend types, lint and tests, and the
-# Rust side's formatting, Clippy and tests.
+# Checks every push and pull request: frontend types, lint and tests, the
+# Rust side's formatting, Clippy and tests, and the Swift package's tests.
+# Rust and Swift both run the shared cases in fixtures/task-format/.
 name: CI
 
 on:
@@ -41,3 +42,14 @@ jobs:
       - run: cargo fmt --check
       - run: cargo clippy --all-targets -- -D warnings
       - run: cargo test
+
+  swift:
+    # NowboardKit, the Swift package behind the SwiftUI app (docs/adr/0006).
+    runs-on: macos-latest
+    defaults:
+      run:
+        working-directory: apple/NowboardKit
+    steps:
+      - uses: actions/checkout@v4
+      - run: swift --version
+      - run: swift test
