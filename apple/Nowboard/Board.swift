@@ -10,8 +10,8 @@ struct Category: Identifiable, Equatable, Codable, Sendable {
     var name: String
     var color: Palette
 
-    /// The Tauri app's defaults. Categories still live in each app's own
-    /// settings; sharing them through the vault is a later decision (an ADR).
+    /// Defaults, as in the browser demo. On a Mac the first launch copies the
+    /// Tauri app's categories instead (Settings.swift).
     static let defaults = [
         Category(id: "personal", name: "Personal", color: .rose),
         Category(id: "work", name: "Work", color: .blue),

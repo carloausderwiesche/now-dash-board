@@ -3,6 +3,7 @@
 // While both apps exist, src/themes.ts is the source for the Tauri app and
 // this file for the Swift app; change both when a theme changes.
 
+import CoreText
 import SwiftUI
 
 /// The theme families from DESIGN.md. They set radii and the font.
@@ -23,16 +24,38 @@ struct Theme: Identifiable, Equatable {
     var radiusLarge: CGFloat { [.rams: 8, .ive: 20, .pastel: 18, .eames: 16][style]! }
     var radiusCard: CGFloat { [.rams: 4, .ive: 12, .pastel: 12, .eames: 10][style]! }
 
-    /// The theme's font at a size and weight. Inter (Rams, Pastel) doesn't ship
-    /// with iOS or macOS, so those use the system font; Pastel gets its rounded
-    /// version. Avenir Next (Eames) ships with both.
+    /// The theme's font at a size and weight, the same one the Tauri app ends
+    /// up with on a Mac: its CSS asks for Inter first, but Inter isn't
+    /// installed, so Rams and Pastel fall back to Helvetica Neue. Ive is the
+    /// system font (SF), Eames is Avenir Next. All of these ship with iOS too.
     func font(_ size: CGFloat, _ weight: Font.Weight = .regular) -> Font {
         switch style {
         case .eames: .custom("Avenir Next", size: size).weight(weight)
-        case .pastel: .system(size: size, weight: weight, design: .rounded)
-        case .rams, .ive: .system(size: size, weight: weight)
+        case .rams, .pastel: .custom("Helvetica Neue", size: size).weight(weight)
+        case .ive: .system(size: size, weight: weight)
         }
     }
+
+    /// How much to trim above and below a text line to get CSS's
+    /// `line-height: <lineHeight>` (e.g. 0.8 for the big day number).
+    /// SwiftUI always gives text the font's full height (ascent + descent);
+    /// CSS centres the glyphs in a box of `lineHeight × size` instead. The
+    /// font's real ascent and descent come from CoreText. Returns a negative
+    /// padding for top and bottom.
+    func lineBoxTrim(_ size: CGFloat, lineHeight: CGFloat, weight: Font.Weight = .semibold) -> CGFloat {
+        let name: String =
+            switch style {
+            case .eames: "AvenirNext-DemiBold"
+            case .rams, .pastel: "HelveticaNeue-Medium"
+            case .ive: ".AppleSystemUIFont"
+            }
+        let ct = CTFontCreateWithName(name as CFString, size, nil)
+        let full = CTFontGetAscent(ct) + CTFontGetDescent(ct)
+        return -max(0, (full - lineHeight * size) / 2)
+    }
+
+    /// Letter spacing in CSS `em` (a share of the font size) → points.
+    static func tracking(_ em: CGFloat, size: CGFloat) -> CGFloat { em * size }
 
     var colorScheme: ColorScheme { dark ? .dark : .light }
 

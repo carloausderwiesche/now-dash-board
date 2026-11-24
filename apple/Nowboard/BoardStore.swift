@@ -19,24 +19,24 @@ final class BoardStore {
     private(set) var tasks: [BoardTask] = []
     private(set) var source: Source = .demo
     private(set) var error: String?
-    var categories: [Category] = Category.defaults
-    var themeID: String {
-        didSet { UserDefaults.standard.set(themeID, forKey: Keys.theme) }
+    /// Theme, card size and categories; saved whenever they change.
+    var settings: DeviceSettings {
+        didSet { settings.save() }
     }
+    /// The highlighted category (tap a header dot), or nil for all.
+    var filter: String?
 
-    var theme: Theme { Theme.named(themeID) }
+    var theme: Theme { Theme.named(settings.theme) }
 
     /// The lists on the board, for today's date.
     var lists: BoardLists {
-        BoardLists(tasks: tasks, today: String(TaskFormat.timestamp(.now).prefix(10)))
-    }
-
-    private enum Keys {
-        static let theme = "theme"
+        let day = { (d: Date) in String(TaskFormat.timestamp(d).prefix(10)) }
+        let weekAgo = Calendar.current.date(byAdding: .day, value: -6, to: .now) ?? .now
+        return BoardLists(tasks: tasks, today: day(.now), recentSince: day(weekAgo))
     }
 
     init() {
-        themeID = UserDefaults.standard.string(forKey: Keys.theme) ?? "braun"
+        settings = DeviceSettings.load()
         if let url = FolderAccess.restore() {
             source = .folder(url)
         }

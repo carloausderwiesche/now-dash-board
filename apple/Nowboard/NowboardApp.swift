@@ -8,13 +8,22 @@ struct NowboardApp: App {
     /// it through `.environment(store)` and read it with `@Environment`.
     @State private var store = BoardStore()
 
+    init() {
+        #if DEBUG
+            DebugSnapshot.runIfAsked(store: store)
+        #endif
+    }
+
     var body: some Scene {
         WindowGroup {
             BoardView()
                 .environment(store)
         }
         #if os(macOS)
-            .defaultSize(width: 900, height: 820)
+            // No title bar, like the Tauri app: the board runs to the top edge
+            // and the window buttons float over it.
+            .windowStyle(.hiddenTitleBar)
+            .defaultSize(width: 1190, height: 900)
             .commands {
                 // ⌘R reloads, like pull-to-refresh on the phone.
                 CommandGroup(after: .toolbar) {

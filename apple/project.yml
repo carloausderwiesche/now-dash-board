@@ -36,6 +36,10 @@ targets:
         com.apple.security.app-sandbox: true
         com.apple.security.files.user-selected.read-write: true
         com.apple.security.files.bookmarks.app-scope: true
+        # Read the Tauri app's settings once, to start with the same theme
+        # and categories (Settings.swift). Only that folder, only reading.
+        com.apple.security.temporary-exception.files.home-relative-path.read-only:
+          - /Library/Application Support/com.nestoririondo.nowboard/
     settings:
       base:
         # Not the Tauri app's id (com.nestoririondo.nowboard), so both apps
