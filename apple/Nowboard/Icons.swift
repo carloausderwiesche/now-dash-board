@@ -65,6 +65,29 @@ struct ExternalIcon: Shape {
     }
 }
 
+/// Lucide's copy icon (`rect 8,8 14×14 r2` and the corner of the sheet behind
+/// it), or a tick once copied.
+struct CopyIcon: Shape {
+    var copied = false
+
+    func path(in rect: CGRect) -> Path {
+        let s = rect.width / 24
+        func pt(_ x: CGFloat, _ y: CGFloat) -> CGPoint { CGPoint(x: rect.minX + x * s, y: rect.minY + y * s) }
+        var p = Path()
+        if copied {
+            p.move(to: pt(5, 12.5)); p.addLine(to: pt(9.5, 17)); p.addLine(to: pt(19, 7.5))
+            return p
+        }
+        p.addRoundedRect(in: CGRect(origin: pt(8, 8), size: CGSize(width: 14 * s, height: 14 * s)),
+                         cornerSize: CGSize(width: 2 * s, height: 2 * s))
+        p.move(to: pt(4, 16))
+        p.addQuadCurve(to: pt(2, 14), control: pt(2, 16)); p.addLine(to: pt(2, 4))
+        p.addQuadCurve(to: pt(4, 2), control: pt(2, 2)); p.addLine(to: pt(14, 2))
+        p.addQuadCurve(to: pt(16, 4), control: pt(16, 2))
+        return p
+    }
+}
+
 /// .iconbtn: an icon in the muted colour that turns ink on hover (0.2s),
 /// with a hand cursor and an optional tooltip.
 struct IconButton<Icon: Shape>: View {

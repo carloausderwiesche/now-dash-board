@@ -442,12 +442,13 @@ struct CardMenu: View {
     let task: BoardTask
 
     var body: some View {
-        Picker("Category", selection: Binding(get: { task.area }, set: { store.setCategory(task.id, to: $0) })) {
-            ForEach(store.settings.categories) { c in
-                Text(c.name).tag(c.id)
+        // Plain rows with coloured dots: a Picker would add a checkmark column
+        // that pushes every row of the menu to the right. The current one is ringed.
+        ForEach(store.settings.categories) { c in
+            Button { store.setCategory(task.id, to: c.id) } label: {
+                Label { Text(c.name) } icon: { dot(c.color.strong(in: store.theme), current: c.id == task.area) }
             }
         }
-        .pickerStyle(.inline)
         Divider()
         Button("Open", systemImage: "arrow.up.left.and.arrow.down.right") { store.openID = task.id }
         if task.status == .today {
@@ -462,6 +463,16 @@ struct CardMenu: View {
         }
         Divider()
         Button("Delete file", systemImage: "trash", role: .destructive) { store.delete(task.id) }
+    }
+
+    /// System menus draw icons in one colour unless the image keeps its own.
+    private func dot(_ color: Color, current: Bool) -> Image {
+        let name = current ? "largecircle.fill.circle" : "circle.fill"
+        #if os(iOS)
+            return Image(uiImage: UIImage(systemName: name)!.withTintColor(UIColor(color), renderingMode: .alwaysOriginal))
+        #else
+            return Image(systemName: name)
+        #endif
     }
 }
 

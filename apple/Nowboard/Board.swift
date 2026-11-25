@@ -58,6 +58,44 @@ func vaultRelativePath(of folder: URL) -> String {
     return folder.lastPathComponent
 }
 
+/// Where a folder or file is, as Finder and Files name it: "iCloud Drive ›
+/// vault › Tasks" instead of /private/var/mobile/Library/Mobile Documents/….
+func displayLocation(of url: URL) -> String {
+    // Without symlinks, so /private/var and /var compare equal; minus the leading "/".
+    var parts = Array(url.resolvingSymlinksInPath().pathComponents.dropFirst())
+    let home = URL(fileURLWithPath: NSHomeDirectory()).resolvingSymlinksInPath().pathComponents.dropFirst()
+    // On the iPhone, "home" is the app's own folder; Files shows its Documents there.
+    #if os(iOS)
+        let homeName = ["On My iPhone", "Nowboard"]
+    #else
+        let homeName = ["Home"]
+    #endif
+    if let i = parts.firstIndex(of: "Mobile Documents"), i + 1 < parts.count {
+        // com~apple~CloudDocs is iCloud Drive itself; iCloud~md~obsidian is an
+        // app's folder in it (named after the app, files under Documents).
+        let box = parts[i + 1]
+        var rest = Array(parts[(i + 2)...])
+        if box == "com~apple~CloudDocs" {
+            parts = ["iCloud Drive"] + rest
+        } else {
+            if rest.first == "Documents" { rest.removeFirst() }
+            let app = box.split(separator: "~").last.map { $0.prefix(1).uppercased() + $0.dropFirst() } ?? box
+            parts = ["iCloud Drive", app] + rest
+        }
+    } else if let i = parts.firstIndex(of: "File Provider Storage") {
+        parts = ["On My iPhone"] + parts[(i + 1)...]
+    } else if parts.starts(with: home) {
+        var rest = Array(parts.dropFirst(home.count))
+        #if os(iOS)
+            if rest.first == "Documents" { rest.removeFirst() }
+        #endif
+        parts = homeName + rest
+    } else if parts.first == "Volumes" {
+        parts.removeFirst()
+    }
+    return parts.joined(separator: " › ")
+}
+
 /// A Dataview query for a daily note named YYYY-MM-DD: the tasks finished
 /// that day (ADR 0003). Same text as the Tauri app's settings.
 func doneQuery(tasksFolder: String) -> String {

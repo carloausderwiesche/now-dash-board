@@ -77,12 +77,12 @@ struct SettingsPanel: View {
     @ViewBuilder
     private func folder(theme: Theme) -> some View {
         if case .folder(let url) = store.source {
-            Text(url.path)
-                .font(.system(size: 11, design: .monospaced))
+            Text(displayLocation(of: url))
+                .font(theme.font(12))
                 .foregroundStyle(theme.muted)
                 .lineLimit(2)
                 .truncationMode(.middle)
-                .textSelection(.enabled)
+                .help(url.path)
             HStack(spacing: 8) {
                 SmallButton(title: "Choose…", action: choose)
                 SmallButton(title: "Show the demo board") {
@@ -117,17 +117,27 @@ struct SettingsPanel: View {
             .textSelection(.enabled)
             .fixedSize(horizontal: false, vertical: true)
             .padding(10)
+            .padding(.trailing, 24)  // room for the copy button
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(theme.hover, in: RoundedRectangle(cornerRadius: 8))
-        SmallButton(title: copied ? "Copied" : "Copy") {
-            #if os(macOS)
-                NSPasteboard.general.clearContents()
-                NSPasteboard.general.setString(text, forType: .string)
-            #else
-                UIPasteboard.general.string = text
-            #endif
-            copied = true
-        }
+            // The usual copy button in the block's corner; a tick for a moment once copied.
+            .overlay(alignment: .topTrailing) {
+                IconButton(icon: CopyIcon(copied: copied), size: 15, width: 32, height: 32,
+                           tip: copied ? "Copied" : "Copy") {
+                    #if os(macOS)
+                        NSPasteboard.general.clearContents()
+                        NSPasteboard.general.setString(text, forType: .string)
+                    #else
+                        UIPasteboard.general.string = text
+                    #endif
+                    copied = true
+                    Task {
+                        try? await Task.sleep(for: .seconds(1.5))
+                        copied = false
+                    }
+                }
+                .accessibilityLabel(copied ? "Copied" : "Copy query")
+            }
     }
 }
 
