@@ -271,8 +271,16 @@ final class BoardStore {
             t.focus = t.id == id ? on : false
             changed.append(t)
         }
-        save(changed)
+        // The card grows into focus on a soft spring with a little overshoot,
+        // like something growing; the cards around it glide aside on the same
+        // spring. Pausing settles back calmly, without the overshoot.
+        withAnimation(on ? Self.focusSpring : Self.pauseSpring) {
+            save(changed)
+        }
     }
+
+    static let focusSpring = Animation.spring(response: 0.55, dampingFraction: 0.72)
+    static let pauseSpring = Animation.spring(response: 0.45, dampingFraction: 0.92)
 
     /// A suggested task: accept → top of Backlog (keeps `from:`).
     func accept(_ id: String) {

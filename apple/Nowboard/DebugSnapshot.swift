@@ -73,16 +73,36 @@
                             try? await Task.sleep(for: .milliseconds(900))
                         }
                     }
-                    guard let window = NSApp.windows.first(where: { $0.isVisible && $0.contentView != nil }),
-                        let view = window.contentView?.superview ?? window.contentView,
-                        let rep = view.bitmapImageRepForCachingDisplay(in: view.bounds)
-                    else { exit(1) }
-                    view.cacheDisplay(in: view.bounds, to: rep)
-                    let url = FileManager.default.temporaryDirectory.appendingPathComponent(name)
-                    try? rep.representation(using: .png, properties: [:])?.write(to: url)
-                    print("snapshot:", url.path)
+                    // `-focusdemo <file name>`: focus that card and capture the
+                    // window during the animation (name-0.png … name-6.png).
+                    if let id = argument("focusdemo"), store.isDemo {
+                        let start = Date()
+                        store.toggleFocus(id)
+                        for (i, ms) in [0, 60, 130, 200, 300, 420, 700].enumerated() {
+                            let wait = Double(ms) / 1000 - Date().timeIntervalSince(start)
+                            if wait > 0 { try? await Task.sleep(for: .seconds(wait)) }
+                            capture("\(i)-" + name)
+                        }
+                        exit(0)
+                    }
+                    capture(name)
                     exit(0)
                 }
+            }
+        #endif
+
+        #if os(macOS)
+            /// Captures the app's window to the temp folder and prints the path.
+            @MainActor
+            static func capture(_ name: String) {
+                guard let window = NSApp.windows.first(where: { $0.isVisible && $0.contentView != nil && !($0 is QuickPanel) }),
+                    let view = window.contentView?.superview ?? window.contentView,
+                    let rep = view.bitmapImageRepForCachingDisplay(in: view.bounds)
+                else { return }
+                view.cacheDisplay(in: view.bounds, to: rep)
+                let url = FileManager.default.temporaryDirectory.appendingPathComponent(name)
+                try? rep.representation(using: .png, properties: [:])?.write(to: url)
+                print("snapshot:", url.path)
             }
         #endif
 

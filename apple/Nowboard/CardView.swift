@@ -35,6 +35,8 @@ struct CardView: View {
     /// The finishing animation, step by step (see `finish()`).
     @State private var finishing: FinishStep = .idle
     @State private var confirmingDelete = false
+    /// Going into focus, the card swells a little and settles (see `breathe()`).
+    @State private var swelling = false
 
     var body: some View {
         let theme = store.theme
@@ -69,8 +71,9 @@ struct CardView: View {
         .frame(maxWidth: .infinity, minHeight: m.minHeight, maxHeight: .infinity, alignment: .topLeading)
         .background {
             switch (style, focus) {
-            case (.today, true): shape.fill(theme.ink)
-            case (.today, false): shape.fill(cat.color.tint(in: theme))
+            // One fill whose colour changes, so going into focus *blends* the
+            // tint into ink instead of swapping one shape for another.
+            case (.today, _): shape.fill(focus ? theme.ink : cat.color.tint(in: theme))
             case (.backlog, _): shape.fill(theme.surface).overlay(shape.strokeBorder(theme.line, lineWidth: 1))
             }
         }
@@ -86,8 +89,13 @@ struct CardView: View {
         // that reacts to the pointer, so pointing at the bottom edge can't lift
         // the card off the pointer and drop it back in a loop.
         .visualEffect { content, _ in content.offset(y: lifted ? -3 : 0) }
-        // Finishing: shrink and fade away (the list then closes the gap).
-        .scaleEffect(finishing == .leaving ? 0.6 : 1)
+        // Focus: a short breath while it grows. Finishing: shrink and fade away.
+        .scaleEffect(finishing == .leaving ? 0.6 : (swelling ? 1.035 : 1))
+        .onChange(of: task.focus) { _, on in
+            if on && style == .today && mode == .normal { breathe() }
+        }
+        // iPhone: a firm tap as the card comes into focus.
+        .sensoryFeedback(.impact(weight: .medium), trigger: task.focus) { _, on in on }
         .opacity(opacity(dragging: dragging))
         .animation(.timingCurve(0.2, 0.8, 0.3, 1, duration: 0.25), value: lifted)
         .contentShape(Rectangle())
@@ -151,6 +159,10 @@ struct CardView: View {
                     .font(theme.font(11, .semibold))
                     .tracking(Theme.tracking(0.14, size: 11))
                     .opacity(0.8)
+                    // Slides out of the dot a moment after the card starts growing.
+                    .transition(.asymmetric(
+                        insertion: .opacity.combined(with: .offset(x: -8)).animation(.easeOut(duration: 0.35).delay(0.18)),
+                        removal: .opacity.animation(.easeOut(duration: 0.15))))
             }
             Spacer(minLength: 0)
             revealButton(theme: theme)
@@ -229,6 +241,16 @@ struct CardView: View {
                 store.moveToTop(task.id, of: .today)
             }
             .foregroundStyle(theme.ink)
+        }
+    }
+
+    /// The swell: up quickly (0.18s), then a spring brings it back to size
+    /// while the width is still growing, so the two blend into one organic motion.
+    private func breathe() {
+        withAnimation(.easeOut(duration: 0.18)) { swelling = true }
+        Task {
+            try? await Task.sleep(for: .milliseconds(180))
+            withAnimation(.spring(response: 0.5, dampingFraction: 0.6)) { swelling = false }
         }
     }
 
@@ -414,14 +436,36 @@ private struct TitleText: View {
         }
         return
             text
-            .font(theme.font(size, weight))
-            .tracking(Theme.tracking(-0.01, size: size))
+            // The size is animated (17 → 24pt into focus): a plain font change
+            // would jump, `GrowingFont` passes every size in between.
+            .modifier(GrowingFont(size: size, weight: weight, theme: theme))
             .strikethrough(struck)
             .lineSpacing(1)
             .lineLimit(lines)
             .multilineTextAlignment(.leading)
             .frame(maxWidth: .infinity, alignment: .leading)
             .fixedSize(horizontal: false, vertical: true)
+    }
+}
+
+/// A font whose size SwiftUI can animate. `Animatable` with `animatableData`
+/// means: during an animation, call `body` again for every in-between value.
+private struct GrowingFont: ViewModifier, @preconcurrency Animatable {
+    var size: CGFloat
+    let weight: Font.Weight
+    let theme: Theme
+
+    // `@preconcurrency Animatable` above: SwiftUI drives this from the main
+    // thread, as views are, so Swift 6 can trust it without extra locks.
+    var animatableData: CGFloat {
+        get { size }
+        set { size = newValue }
+    }
+
+    func body(content: Content) -> some View {
+        content
+            .font(theme.font(size, weight))
+            .tracking(Theme.tracking(-0.01, size: size))
     }
 }
 
