@@ -7,6 +7,8 @@ import SwiftUI
 
 struct QuickAdd: View {
     @Environment(BoardStore.self) private var store
+    /// How to close: the board's quick add (nil) or the floating ⌥ Space panel.
+    var onClose: (() -> Void)? = nil
     @State private var title = ""
     @State private var area = ""
     @State private var status: TaskStatus = .today
@@ -71,7 +73,7 @@ struct QuickAdd: View {
                 HStack {
                     Text("⌘1–\(cats.count) category")
                     Spacer()
-                    Text("↩ add · esc close")
+                    Text(onClose == nil ? "↩ add · esc close" : "⌥ Space anywhere · ↩ add · esc close")
                 }
                 .font(.system(size: 11, design: .monospaced))
                 .foregroundStyle(theme.muted)
@@ -87,13 +89,22 @@ struct QuickAdd: View {
             focused = true
         }
         #if os(macOS)
-            .onExitCommand { store.adding = false }  // Escape on the Mac
+            .onExitCommand { close() }  // Escape on the Mac
         #endif
     }
 
     private func add() {
         guard !title.trimmingCharacters(in: .whitespaces).isEmpty else { return }
         store.add(title: title, area: area, status: status)
-        store.adding = false
+        title = ""
+        close()
+    }
+
+    private func close() {
+        if let onClose {
+            onClose()
+        } else {
+            store.adding = false
+        }
     }
 }

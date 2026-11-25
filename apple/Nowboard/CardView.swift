@@ -16,14 +16,22 @@ enum CardStyle {
     case today, backlog
 }
 
+/// How a card is drawn: on the board, as the copy that follows the pointer
+/// while dragging, or as the faded preview where it will land.
+enum CardMode {
+    case normal, clone, ghost
+}
+
 struct CardView: View {
     @Environment(BoardStore.self) private var store
-    @Environment(\.openURL) private var openURL
     let task: BoardTask
     let style: CardStyle
+    var mode: CardMode = .normal
 
-    /// The pointer is over the card (Mac): shows the Focus / Today buttons and lifts it.
+    /// The pointer is over the card (Mac): lifts it and shows Focus / Today ↑.
     @State private var hovering = false
+    /// The pointer is over the round check: shows a faint tick, hides Focus.
+    @State private var overRing = false
     /// The finishing animation, step by step (see `finish()`).
     @State private var finishing: FinishStep = .idle
     @State private var confirmingDelete = false
@@ -41,63 +49,18 @@ struct CardView: View {
             case (.today, false): .today(compact: compact)
             }
         let ink = focus ? theme.bg : theme.ink
-        let lifted = hovering || store.openID == task.id
+        let dragging = store.drag.id != nil
+        let isHovered = hovering || debugHover
+        let isOverRing = overRing || (debugHover && debugRing)
+        // .card:hover and .card.open lift the card 3pt; never while dragging.
+        let lifted = mode == .normal && !dragging && finishing == .idle && (isHovered || store.openID == task.id)
+        let shape = RoundedRectangle(cornerRadius: style == .today ? theme.radiusCard : theme.radiusSmall)
 
         VStack(alignment: .leading, spacing: m.gap) {
-            Button {
-                store.openID = task.id
-            } label: {
-                VStack(alignment: .leading, spacing: compact ? 4 : 6) {
-                    TitleText(task: task, size: m.titleSize, weight: m.titleWeight, lines: m.lines, theme: theme,
-                              struck: finishing != .idle)
-                    if style == .today && !task.items.isEmpty {
-                        Text("\(task.items.filter(\.done).count) / \(task.items.count)")
-                            .font(.system(size: 11, design: .monospaced))
-                            .monospacedDigit()
-                            .opacity(0.7)
-                    }
-                }
-                .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel(task.title)
-            .accessibilityHint("Opens the task")
-
+            title(m, compact: compact, theme: theme)
             Spacer(minLength: 0)
-            // .card-foot: dot, (NOW), spacer, Focus / Today ↑, ring.
-            HStack(spacing: 2) {
-                Button {
-                    store.cycleCategory(task.id)
-                } label: {
-                    CategoryDot(color: cat.color.strong(in: theme), size: 10)
-                        .frame(width: m.dotBox, height: m.dotBox)
-                        .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-                .padding(.leading, style == .today ? -8 : -7)
-                .help("\(cat.name): click to change category")
-                .accessibilityLabel("\(cat.name), change category")
-                if focus {
-                    Text("NOW")
-                        .font(theme.font(11, .semibold))
-                        .tracking(Theme.tracking(0.14, size: 11))
-                        .opacity(0.8)
-                }
-                Spacer(minLength: 0)
-                revealButton(theme: theme)
-                    .opacity(showReveal ? 1 : 0)
-                    .animation(.easeOut(duration: 0.15).delay(showReveal ? 0.12 : 0), value: showReveal)
-                if style == .today {
-                    Button(action: finish) {
-                        CheckRing(size: 22, step: finishing, accent: theme.accent, onAccent: theme.onAccent)
-                            .frame(width: 40, height: compact ? 34 : 40)
-                            .contentShape(Rectangle())
-                    }
-                    .buttonStyle(.plain)
-                    .padding(.trailing, -8)
-                    .accessibilityLabel("Mark done")
-                }
-            }
+            footer(m, cat: cat, focus: focus, compact: compact, theme: theme,
+                   reveal: showReveal(hovering: isHovered, overRing: isOverRing), overRing: isOverRing)
         }
         .foregroundStyle(ink)
         .padding(.top, m.padTop)
@@ -105,24 +68,32 @@ struct CardView: View {
         .padding(.bottom, m.padBottom)
         .frame(maxWidth: .infinity, minHeight: m.minHeight, maxHeight: .infinity, alignment: .topLeading)
         .background {
-            let shape = RoundedRectangle(cornerRadius: style == .today ? theme.radiusCard : theme.radiusSmall)
             switch (style, focus) {
-            case (.today, true):
-                shape.fill(theme.ink).shadow(color: .black.opacity(0.55), radius: 17, y: 14)
-            case (.today, false):
-                shape.fill(cat.color.tint(in: theme))
-            case (.backlog, _):
-                shape.fill(theme.surface).overlay(shape.strokeBorder(theme.line, lineWidth: 1))
+            case (.today, true): shape.fill(theme.ink)
+            case (.today, false): shape.fill(cat.color.tint(in: theme))
+            case (.backlog, _): shape.fill(theme.surface).overlay(shape.strokeBorder(theme.line, lineWidth: 1))
             }
         }
-        // .card:hover: lifts 3pt with a soft shadow.
-        .shadow(color: .black.opacity(lifted && !focus ? 0.18 : 0), radius: 15, y: 14)
+        // Shadows from the CSS, with its negative spread (CSSLike.swift):
+        // the focus card always (0 14px 34px -16px .55), others when lifted
+        // (0 14px 30px -16px .35), the dragged copy (0 18px 40px -14px .4).
+        .cssShadow(y: 14, blur: 34, spread: -16, opacity: 0.55, radius: theme.radiusCard,
+                   visible: focus && mode != .ghost)
+        .cssShadow(y: 14, blur: 30, spread: -16, opacity: 0.35, radius: theme.radiusCard,
+                   visible: lifted && !focus)
+        .cssShadow(y: 18, blur: 40, spread: -14, opacity: 0.4, radius: theme.radiusCard, visible: mode == .clone)
         .offset(y: lifted ? -3 : 0)
         // Finishing: shrink and fade away (the list then closes the gap).
         .scaleEffect(finishing == .leaving ? 0.6 : 1)
-        .opacity(finishing == .leaving ? 0 : 1)
+        .opacity(opacity(dragging: dragging))
         .animation(.timingCurve(0.2, 0.8, 0.3, 1, duration: 0.25), value: lifted)
-        .onHover { hovering = $0 }
+        // Hover is read on an outer frame that doesn't move with the 3pt lift,
+        // so pointing at the bottom edge can't lift and drop it in a loop
+        // (the CSS uses an invisible strip for the same reason).
+        .background(Color.clear.contentShape(Rectangle()).onHover { hovering = $0 })
+        .cursor(.openHand)
+        .zIndex(isHovered ? 3 : 0)
+        .allowsHitTesting(mode == .normal)
         .contextMenu { CardMenu(task: task, confirmingDelete: $confirmingDelete) }
         .confirmationDialog("Delete “\(task.title)”?", isPresented: $confirmingDelete) {
             Button("Delete file", role: .destructive) { store.delete(task.id) }
@@ -134,12 +105,103 @@ struct CardView: View {
         .accessibilityElement(children: .contain)
     }
 
-    /// The hover-only buttons always show on a phone, like the CSS's narrow rule.
-    private var showReveal: Bool {
-        #if os(iOS)
-            return finishing == .idle
+    /// The title (opens the panel) and the checklist count under it.
+    private func title(_ m: Metrics, compact: Bool, theme: Theme) -> some View {
+        Button {
+            store.openID = task.id
+        } label: {
+            VStack(alignment: .leading, spacing: compact ? 4 : 6) {
+                TitleText(task: task, size: m.titleSize, weight: m.titleWeight, lines: m.lines, theme: theme,
+                          struck: finishing != .idle)
+                if style == .today && !task.items.isEmpty {
+                    Text("\(task.items.filter(\.done).count) / \(task.items.count)")
+                        .font(.system(size: 11, design: .monospaced))
+                        .monospacedDigit()
+                        .opacity(0.7)
+                }
+            }
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .cursor(.pointingHand)
+        .accessibilityLabel(task.title)
+        .accessibilityHint("Opens the task")
+    }
+
+    /// .card-foot: the dot, (NOW), a spacer, Focus / Today ↑, the ring.
+    private func footer(_ m: Metrics, cat: Category, focus: Bool, compact: Bool, theme: Theme, reveal: Bool, overRing isOverRing: Bool) -> some View {
+        HStack(spacing: 2) {
+            DotButton(color: cat.color.strong(in: theme), name: cat.name, box: m.dotBox, inverted: focus) {
+                store.cycleCategory(task.id)
+            }
+            .padding(.leading, style == .today ? -8 : -7)
+            if focus {
+                Text("NOW")
+                    .font(theme.font(11, .semibold))
+                    .tracking(Theme.tracking(0.14, size: 11))
+                    .opacity(0.8)
+            }
+            Spacer(minLength: 0)
+            revealButton(theme: theme)
+                .opacity(reveal ? 1 : 0)
+                // Shows after 0.12s (so passing through doesn't flash it), hides at once.
+                .animation(.easeOut(duration: 0.15).delay(reveal ? 0.12 : 0), value: reveal)
+                .allowsHitTesting(reveal)
+            if style == .today {
+                Button(action: finish) {
+                    CheckRing(size: 22, step: finishing, hover: isOverRing, theme: theme)
+                        .frame(width: 40, height: compact ? 34 : 40)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .onHover { h in withAnimation(.easeOut(duration: 0.2)) { overRing = h } }
+                .cursor(.pointingHand)
+                .padding(.trailing, -8)
+                .accessibilityLabel("Mark done")
+            }
+        }
+    }
+
+    private func opacity(dragging: Bool) -> Double {
+        if finishing == .leaving { return 0 }
+        switch mode {
+        case .clone: return 0.96
+        case .ghost: return 0.45
+        case .normal:
+            // The dragged card's own slot is the preview: it fades.
+            if store.drag.id == task.id { return 0.45 }
+            // Highlighting a category fades the others to 22%.
+            if let f = store.filter, f != task.area { return 0.22 }
+            return 1
+        }
+    }
+
+    /// Debug screenshots: `-hover <file name>` shows this card as hovered,
+    /// `-hoverring true` also points at its ring.
+    private var debugHover: Bool {
+        #if DEBUG
+            DebugSnapshot.argument("hover") == task.id && mode == .normal
         #else
-            return hovering && finishing == .idle
+            false
+        #endif
+    }
+
+    private var debugRing: Bool {
+        #if DEBUG
+            DebugSnapshot.argument("hoverring") == "true"
+        #else
+            false
+        #endif
+    }
+
+    /// Focus / Today ↑: on hover (after a moment), not while pointing at the
+    /// ring, never while dragging. Always shown on a phone (CSS narrow rule).
+    private func showReveal(hovering: Bool, overRing: Bool) -> Bool {
+        guard mode == .normal, finishing == .idle, store.drag.id == nil else { return false }
+        #if os(iOS)
+            return true
+        #else
+            return hovering && !overRing
         #endif
     }
 
@@ -147,27 +209,15 @@ struct CardView: View {
     private func revealButton(theme: Theme) -> some View {
         switch style {
         case .today:
-            Button {
+            RevealButton(text: task.focus ? "Pause" : "Focus", icon: task.focus ? .pause : .focus, height: 32, padding: 8, theme: theme) {
                 store.toggleFocus(task.id)
-            } label: {
-                Label(task.focus ? "Pause" : "Focus", systemImage: task.focus ? "pause" : "scope")
-                    .labelStyle(TrailingIcon())
-                    .font(theme.font(12, .medium))
-                    .frame(height: 32)
-                    .padding(.horizontal, 8)
             }
-            .buttonStyle(.plain)
             .help(task.focus ? "Stop focusing on this" : "Focus on this now")
         case .backlog:
-            Button {
+            RevealButton(text: "Today ↑", icon: nil, height: 28, padding: 6, theme: theme) {
                 store.moveToTop(task.id, of: .today)
-            } label: {
-                Text("Today ↑")
-                    .font(theme.font(12, .medium))
-                    .frame(height: 28)
-                    .padding(.horizontal, 6)
             }
-            .buttonStyle(.plain)
+            .foregroundStyle(theme.ink)
         }
     }
 
@@ -184,6 +234,104 @@ struct CardView: View {
             finishing = .done
             withAnimation(.timingCurve(0.2, 0.8, 0.3, 1, duration: 0.4)) { store.complete(task.id) }
         }
+    }
+}
+
+/// A category dot you can click (.dotbtn): grows ×1.4 on hover with a little
+/// overshoot, shrinks to ×0.8 while pressed, and shows the category's name
+/// in a tooltip right away.
+struct DotButton: View {
+    let color: Color
+    let name: String
+    var box: CGFloat = 32
+    var size: CGFloat = 10
+    var inverted = false
+    let action: () -> Void
+    @State private var hovering = false
+
+    var body: some View {
+        Button(action: action) {
+            Circle().fill(color).frame(width: size, height: size)
+                .scaleEffect(hovering ? 1.4 : 1)
+                // cubic-bezier(0.2, 1.8, 0.4, 1) over 0.3s: a quick grow with a small overshoot.
+                .animation(.timingCurve(0.2, 1.8, 0.4, 1, duration: 0.3), value: hovering)
+                .frame(width: box, height: box)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(PressScale(pressed: 0.8))
+        .onHover { hovering = $0 }
+        .tip(name, inverted: inverted)
+        .cursor(.pointingHand)
+        .accessibilityLabel("\(name), change category")
+    }
+}
+
+/// Shrinks a button's label while it's pressed (CSS `:active { transform: scale(…) }`).
+struct PressScale: ButtonStyle {
+    var pressed: CGFloat
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .scaleEffect(configuration.isPressed ? pressed : 1)
+            .animation(.timingCurve(0.2, 1.8, 0.4, 1, duration: 0.3), value: configuration.isPressed)
+    }
+}
+
+/// The card buttons ("Focus ◎", "Pause ‖", "Today ↑"): text plus a small
+/// icon, in the card's text colour, underlined on hover (.iconbtn.reveal).
+private struct RevealButton: View {
+    enum Icon { case focus, pause }
+    let text: String
+    let icon: Icon?
+    let height: CGFloat
+    let padding: CGFloat
+    let theme: Theme
+    let action: () -> Void
+    @State private var hovering = false
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 5) {
+                Text(text).underline(hovering)
+                switch icon {
+                case .focus: FocusIcon().stroke(style: StrokeStyle(lineWidth: 2.2 * 12 / 24, lineCap: .round)).frame(width: 12, height: 12)
+                case .pause: PauseIcon().stroke(style: StrokeStyle(lineWidth: 2.6 * 12 / 24, lineCap: .round)).frame(width: 12, height: 12)
+                case nil: EmptyView()
+                }
+            }
+            .font(theme.font(12, .medium))
+            .frame(height: height)
+            .padding(.horizontal, padding)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .onHover { hovering = $0 }
+        .cursor(.pointingHand)
+    }
+}
+
+/// `<circle r=8/><circle r=2.5/>` on a 24×24 grid (Icons.tsx FocusIcon).
+/// Icon stroke widths are on that 24-unit grid too, so they scale with the size.
+struct FocusIcon: Shape {
+    func path(in rect: CGRect) -> Path {
+        let s = rect.width / 24
+        var p = Path()
+        p.addEllipse(in: CGRect(x: 4 * s, y: 4 * s, width: 16 * s, height: 16 * s))
+        p.addEllipse(in: CGRect(x: 9.5 * s, y: 9.5 * s, width: 5 * s, height: 5 * s))
+        return p.offsetBy(dx: rect.minX, dy: rect.minY)
+    }
+}
+
+/// `M9 6v12M15 6v12` (Icons.tsx PauseIcon).
+struct PauseIcon: Shape {
+    func path(in rect: CGRect) -> Path {
+        let s = rect.width / 24
+        var p = Path()
+        for x in [9.0, 15.0] {
+            p.move(to: CGPoint(x: x * s, y: 6 * s))
+            p.addLine(to: CGPoint(x: x * s, y: 18 * s))
+        }
+        return p.offsetBy(dx: rect.minX, dy: rect.minY)
     }
 }
 
@@ -272,24 +420,31 @@ struct CategoryDot: View {
     }
 }
 
-/// The round check (.ring): a 1.5pt circle in the card's text colour. When
-/// finishing it fills with the accent and a tick draws itself.
+/// The round check (.ring): a 1.5pt circle in the card's text colour.
+/// Hover: a soft tint inside and a faint tick (40%) that draws itself, so
+/// it's clear a click finishes the task. Finishing: it fills with the accent
+/// and the tick draws in the accent's text colour.
 struct CheckRing: View {
     var size: CGFloat = 22
     var step: FinishStep = .idle
-    var accent: Color = .accentColor
-    var onAccent: Color = .white
+    var hover = false
+    let theme: Theme
 
     var body: some View {
         let ticked = step != .idle
         ZStack {
-            Circle().fill(ticked ? accent : .clear)
+            Circle().fill(ticked ? theme.accent : (hover ? theme.hover : .clear))
             // `.foreground` = the card's text colour (ink, or the background on the focus card).
-            Circle().strokeBorder(ticked ? AnyShapeStyle(accent) : AnyShapeStyle(.foreground), lineWidth: 1.5)
+            Circle().strokeBorder(ticked ? AnyShapeStyle(theme.accent) : AnyShapeStyle(.foreground), lineWidth: 1.5)
             Tick()
-                .trim(from: 0, to: ticked ? 1 : 0)
-                .stroke(onAccent, style: StrokeStyle(lineWidth: 2, lineCap: .round, lineJoin: .round))
-                .padding(size * 0.27)
+                .trim(from: 0, to: ticked || hover ? 1 : 0)
+                .stroke(ticked ? AnyShapeStyle(theme.onAccent) : AnyShapeStyle(.foreground),
+                        style: StrokeStyle(lineWidth: 3.2 * 13 / 24, lineCap: .round, lineJoin: .round))
+                .opacity(ticked ? 1 : (hover ? 0.4 : 0))
+                // Icons.tsx Tick: 13pt, stroke 3.2 on its 24-unit grid.
+                .frame(width: 13, height: 13)
+                // stroke-dashoffset 0.24s after 0.06s: the tick draws itself.
+                .animation(.easeOut(duration: 0.24).delay(0.06), value: hover)
         }
         .frame(width: size, height: size)
         .accessibilityHidden(true)

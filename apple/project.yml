@@ -31,15 +31,10 @@ targets:
     entitlements:
       path: Nowboard/Nowboard.entitlements
       properties:
-        # macOS only (iOS ignores these): the app runs in the sandbox and may
-        # read and write only folders the user picked.
-        com.apple.security.app-sandbox: true
-        com.apple.security.files.user-selected.read-write: true
-        com.apple.security.files.bookmarks.app-scope: true
-        # Read the Tauri app's settings once, to start with the same theme
-        # and categories (Settings.swift). Only that folder, only reading.
-        com.apple.security.temporary-exception.files.home-relative-path.read-only:
-          - /Library/Application Support/com.nestoririondo.nowboard/
+        # macOS: no App Sandbox, like the Tauri app (ADR 0009). With the
+        # sandbox, every rebuild (signed ad hoc, no developer account) loses
+        # access to the picked folder. iOS ignores this key: it always sandboxes.
+        com.apple.security.app-sandbox: false
     settings:
       base:
         # Not the Tauri app's id (com.nestoririondo.nowboard), so both apps

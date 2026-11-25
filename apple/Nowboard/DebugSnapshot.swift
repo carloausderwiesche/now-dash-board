@@ -32,6 +32,43 @@
             }
         }
 
+        #if os(macOS)
+            /// `-windowshot <name>`: after the board has loaded, captures the
+            /// app's own window (real text fields, scroll view, title bar
+            /// spacing) to the temp folder and quits. No Screen Recording
+            /// permission needed: it's the app's own pixels.
+            /// `-dragdemo <file name>` first drags that card a little, so the
+            /// shot shows the drag (ghost, clone, cards moved aside).
+            static func windowShotIfAsked(store: BoardStore) {
+                guard let name = argument("windowshot") else { return }
+                Task { @MainActor in
+                    try? await Task.sleep(for: .seconds(2))
+                    if let id = argument("dragdemo"), let frame = store.drag.cardFrames[id] {
+                        let start = CGPoint(x: frame.midX, y: frame.midY)
+                        let dx = argument("dx").flatMap { Double($0) } ?? 0
+                        let dy = argument("dy").flatMap { Double($0) } ?? 0
+                        for step in 1...10 {
+                            let t = Double(step) / 10
+                            let p = CGPoint(x: start.x + dx * t, y: start.y + dy * t)
+                            let status = store.task(id)?.status ?? .today
+                            store.drag.moved(id, start: start, location: p, status: status)
+                            try? await Task.sleep(for: .milliseconds(30))
+                        }
+                        try? await Task.sleep(for: .milliseconds(700))  // settle + slide animation
+                    }
+                    guard let window = NSApp.windows.first(where: { $0.isVisible && $0.contentView != nil }),
+                        let view = window.contentView?.superview ?? window.contentView,
+                        let rep = view.bitmapImageRepForCachingDisplay(in: view.bounds)
+                    else { exit(1) }
+                    view.cacheDisplay(in: view.bounds, to: rep)
+                    let url = FileManager.default.temporaryDirectory.appendingPathComponent(name)
+                    try? rep.representation(using: .png, properties: [:])?.write(to: url)
+                    print("snapshot:", url.path)
+                    exit(0)
+                }
+            }
+        #endif
+
         /// Renders and quits if the app was started with `-snapshot <path>`.
         @MainActor
         static func runIfAsked(store: BoardStore) {

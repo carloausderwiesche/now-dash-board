@@ -41,10 +41,8 @@ enum TauriSettings {
 
     static func read() -> DeviceSettings? {
         #if os(macOS)
-            // The sandbox gives the app its own home folder, so build the real
-            // one from the user database. The entitlement
-            // `temporary-exception.files.home-relative-path.read-only` (in
-            // project.yml) allows reading just this one folder.
+            // The real home folder, from the user database (it would also be
+            // right if the app were ever sandboxed again, ADR 0009).
             guard let home = getpwuid(getuid())?.pointee.pw_dir else { return nil }
             let url = URL(fileURLWithPath: String(cString: home))
                 .appendingPathComponent("Library/Application Support/com.nestoririondo.nowboard/settings.json")

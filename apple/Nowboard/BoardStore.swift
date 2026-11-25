@@ -18,7 +18,12 @@ final class BoardStore {
 
     private(set) var tasks: [BoardTask] = []
     private(set) var source: Source = .demo
-    private(set) var error: String?
+    /// What's shown in the error bar: a failed save first, else a failed load.
+    var error: String? { writeError ?? loadError }
+    /// A save that failed. Stays until the next save works, so a reload
+    /// (from the watcher, say) can't hide it.
+    private(set) var writeError: String?
+    private(set) var loadError: String?
     /// Theme, card size and categories; saved whenever they change.
     var settings: DeviceSettings {
         didSet { settings.save() }
@@ -29,6 +34,8 @@ final class BoardStore {
     var openID: String?
     /// Quick add is showing.
     var adding = false
+    /// Dragging cards (Mac).
+    let drag = DragController()
 
     var theme: Theme { Theme.named(settings.theme) }
 
@@ -44,6 +51,8 @@ final class BoardStore {
         if let url = FolderAccess.restore() {
             source = .folder(url)
             watch(url)
+        } else if FolderAccess.lostFolder {
+            loadError = "Nowboard lost access to your Tasks folder. Choose it again: Settings → Choose Tasks folder…"
         }
     }
 
@@ -90,7 +99,6 @@ final class BoardStore {
         case .demo:
             // The demo lives in memory: load it once, then keep your edits.
             if tasks.isEmpty { tasks = Demo.tasks() }
-            error = nil
         case .folder(let url):
             // Reading many files is slow work; do it away from the main
             // thread (`Task.detached`), then come back with the result.
@@ -99,9 +107,9 @@ final class BoardStore {
             switch result {
             case .success(let loaded):
                 tasks = loaded
-                error = nil
+                loadError = nil
             case .failure(let failure):
-                error = failure.localizedDescription
+                loadError = failure.localizedDescription
             }
         }
     }
@@ -114,7 +122,7 @@ final class BoardStore {
             watch(url)
             await reload()
         } catch {
-            self.error = "Couldn't open that folder: \(error.localizedDescription)"
+            loadError = "Couldn't open that folder: \(error.localizedDescription)"
         }
     }
 
@@ -165,12 +173,10 @@ final class BoardStore {
         let previous = lastWrite
         lastWrite = Task {
             await previous?.value
-            let failure = await Task.detached { FolderAccess.write(in: url, disk) }.value
-            // Reload first (it clears old errors), then show this one.
+            let presenter = watcher
+            let failure = await Task.detached { FolderAccess.write(in: url, presenter: presenter, disk) }.value
+            writeError = failure?.localizedDescription
             await reload()
-            if let failure {
-                error = failure.localizedDescription
-            }
         }
     }
 

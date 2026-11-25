@@ -268,9 +268,12 @@ struct DetailPanel: View {
                 }
                 .buttonStyle(.plain)
             }
-            if let url = store.obsidianURL(task.id) {
+            // On the demo board there's no file to open: the button stays,
+            // greyed out, and says why.
+            let url = store.obsidianURL(task.id)
+            do {
                 Button {
-                    openURL(url)
+                    if let url { openURL(url) }
                 } label: {
                     HStack(spacing: 6) {
                         Text("Open in Obsidian")
@@ -283,6 +286,10 @@ struct DetailPanel: View {
                     .background(theme.well, in: Capsule())
                 }
                 .buttonStyle(.plain)
+                .disabled(url == nil)
+                .opacity(url == nil ? 0.5 : 1)
+                .help(url == nil ? "Demo board: choose a Tasks folder in Settings first" : "Open this file in Obsidian")
+                .cursor(.pointingHand)
             }
         }
         .padding(.top, 16)
