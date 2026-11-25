@@ -7,8 +7,15 @@ struct NowboardApp: App {
     /// `@State` keeps the store alive as long as the app runs. Views below get
     /// it through `.environment(store)` and read it with `@Environment`.
     @State private var store = BoardStore()
+    #if os(iOS)
+        @UIApplicationDelegateAdaptor(AppDelegate.self) private var delegate
+    #endif
 
     init() {
+        #if os(iOS)
+            // Home Screen quick actions (FocusLive.swift).
+            FocusLive.store = store
+        #endif
         #if os(macOS)
             // ⌥ Space from any app opens quick add in a floating panel.
             GlobalQuickAdd.shared.start(store: store)
