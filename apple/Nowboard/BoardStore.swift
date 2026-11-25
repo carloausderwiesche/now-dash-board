@@ -39,6 +39,21 @@ final class BoardStore {
     let drag = DragController()
     /// The card under the pointer (Mac): drawn above its neighbours.
     var hoveredID: String?
+    /// Cards playing the finish animation, and how far each one flies.
+    private(set) var finishing: [String: Finish] = [:]
+    /// Measured by the views, in board coordinates: the Done number (where a
+    /// finished card flies) and the bottom of the part of the board you can see.
+    @ObservationIgnored var doneTarget: CGRect?
+    @ObservationIgnored var visibleBottom: CGFloat = .infinity
+    /// Finished elsewhere and waiting for their animation, one at a time.
+    @ObservationIgnored private var incoming: [String] = []
+    /// The file's version of every card that's waiting or playing; the board
+    /// shows the old version until the card has landed.
+    @ObservationIgnored private var held: [String: BoardTask] = [:]
+    @ObservationIgnored private var playingIncoming = false
+    /// Finished in this app: a reload that still sees them as open (it started
+    /// before our write) mustn't play the animation a second time.
+    @ObservationIgnored private var completedHere: Set<String> = []
 
     var theme: Theme { Theme.named(settings.theme) }
 
@@ -53,10 +68,10 @@ final class BoardStore {
     private func connectDrag() {
         drag.onDrop = { [weak self] id, target in
             guard let self else { return }
-            withAnimation(.timingCurve(0.2, 0.8, 0.3, 1, duration: 0.4)) {
-                if target.status == .done {
-                    self.complete(id)
-                } else {
+            if target.status == .done {
+                self.finish(id)
+            } else {
+                withAnimation(.timingCurve(0.2, 0.8, 0.3, 1, duration: 0.4)) {
                     self.move(id, to: target.status, before: target.beforeID)
                 }
             }
@@ -129,8 +144,9 @@ final class BoardStore {
             let result = await Task.detached { FolderAccess.loadTasks(from: url) }.value
             switch result {
             case .success(let loaded):
-                tasks = loaded
+                tasks = absorb(loaded)
                 loadError = nil
+                playNextIncoming()
             case .failure(let failure):
                 loadError = failure.localizedDescription
             }
@@ -227,8 +243,78 @@ final class BoardStore {
         BoardLists.sorted(tasks.filter { $0.status == status })
     }
 
-    /// Marks a task done now and ends its focus. Only its own file is written.
+    /// Finishes a task with its animation (DESIGN.md, "Complete"): the ring
+    /// fills and the title strikes through, then the card glides into the Done
+    /// number and the task is marked done. `onDisk`: it was finished elsewhere,
+    /// so nothing is written and the card lands as the file says. A card that
+    /// isn't on screen lands at once.
+    func finish(_ id: String, onDisk: BoardTask? = nil) {
+        guard finishing[id] == nil else { return }
+        guard drag.cardFrames[id] != nil else { return land(id, onDisk: onDisk) }
+        withAnimation(.easeOut(duration: 0.25)) { finishing[id] = Finish(step: .ticked) }
+        Task {
+            try? await Task.sleep(for: .milliseconds(420))
+            let flight = flightToDone(id)
+            withAnimation(.timingCurve(0.45, 0, 0.25, 1, duration: 0.46)) {
+                finishing[id] = Finish(step: .leaving, flight: flight)
+            }
+            try? await Task.sleep(for: .milliseconds(460))
+            withAnimation(.timingCurve(0.2, 0.8, 0.3, 1, duration: 0.4)) { land(id, onDisk: onDisk) }
+            // Cleared only once the card is gone: clearing it while the card
+            // fades out would draw it back in its old place for a moment.
+            try? await Task.sleep(for: .milliseconds(450))
+            if finishing[id]?.step == .leaving { finishing[id] = nil }
+        }
+    }
+
+    private func land(_ id: String, onDisk: BoardTask?) {
+        guard let onDisk else { return complete(id) }
+        if let i = tasks.firstIndex(where: { $0.id == id }) { tasks[i] = onDisk }
+        held[id] = nil
+        playingIncoming = false
+        playNextIncoming()
+    }
+
+    /// From the card's centre to the Done number's. When Done is below what
+    /// you can see, the card aims for the bottom edge instead.
+    private func flightToDone(_ id: String) -> CGSize {
+        guard let card = drag.cardFrames[id], let done = doneTarget else { return CGSize(width: 0, height: 300) }
+        return CGSize(width: done.midX - card.midX, height: min(done.midY, visibleBottom - 24) - card.midY)
+    }
+
+    /// The board after a reload. Cards finished elsewhere keep their old
+    /// version until their finish animation has played.
+    private func absorb(_ loaded: [BoardTask]) -> [BoardTask] {
+        let fresh = finishedElsewhere(before: tasks, after: loaded).filter {
+            held[$0] == nil && finishing[$0] == nil && !completedHere.contains($0)
+        }
+        incoming += fresh
+        let before = Dictionary(tasks.map { ($0.id, $0) }, uniquingKeysWith: { a, _ in a })
+        var result = loaded
+        for i in result.indices where held[result[i].id] != nil || fresh.contains(result[i].id) {
+            let id = result[i].id
+            held[id] = result[i]
+            if let old = before[id] { result[i] = old }
+        }
+        // A waiting card whose file is gone is simply forgotten.
+        let present = Set(loaded.map(\.id))
+        for id in held.keys where !present.contains(id) { held[id] = nil }
+        incoming.removeAll { held[$0] == nil }
+        return result
+    }
+
+    private func playNextIncoming() {
+        guard !playingIncoming, !incoming.isEmpty else { return }
+        let id = incoming.removeFirst()
+        guard let disk = held[id] else { return playNextIncoming() }
+        playingIncoming = true
+        finish(id, onDisk: disk)
+    }
+
+    /// Marks a task done now and ends its focus, without the animation (see
+    /// `finish`). Only its own file is written.
     func complete(_ id: String) {
+        completedHere.insert(id)
         let now = TaskFormat.timestamp(.now)
         change({ all in
             if let i = all.firstIndex(where: { $0.id == id }) {
@@ -241,6 +327,8 @@ final class BoardStore {
 
     /// Undo: back to the top of Today, `done:` cleared.
     func reopen(_ id: String) {
+        finishing[id] = nil
+        completedHere.remove(id)
         moveToTop(id, of: .today)
     }
 

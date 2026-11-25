@@ -41,6 +41,35 @@ private func read(_ dir: URL, _ name: String) throws -> String {
     #expect(store.lists.doneToday.map(\.title) == ["Buy milk"])
 }
 
+@MainActor @Test func finishPlaysTheAnimationThenMarksDone() async throws {
+    let (store, dir) = try await makeStore(["A.md": "---\nstatus: today\norder: 1\n---\n"])
+    store.drag.cardFrames["A.md"] = CGRect(x: 0, y: 0, width: 200, height: 128)  // on screen
+    store.finish("A.md")
+    #expect(store.finishing["A.md"]?.step == .ticked)
+    #expect(store.task("A.md")?.status == .today)  // still on the board while it animates
+    try await Task.sleep(for: .milliseconds(1000))
+    await store.waitForWrites()
+    #expect(try read(dir, "A.md").contains("status: done"))
+}
+
+@Test func onlyOpenCardsThatAreNowDoneCountAsFinishedElsewhere() {
+    func t(_ id: String, _ s: TaskStatus) -> BoardTask { BoardTask(id: id, title: id, status: s, area: "work") }
+    let before = [t("a", .today), t("b", .backlog), t("c", .done), t("d", .today), t("e", .suggested)]
+    let after = [t("a", .done), t("b", .done), t("c", .done), t("d", .today), t("e", .done), t("new", .done)]
+    #expect(finishedElsewhere(before: before, after: after) == ["a", "b"])
+}
+
+@MainActor @Test func aTaskFinishedElsewhereLandsInDoneWithoutBeingWritten() async throws {
+    let (store, dir) = try await makeStore(["A.md": "---\nstatus: today\norder: 1\n---\n"])
+    let done = "---\nstatus: done\norder: 1\ndone: 2026-11-25T09:00\nnote: from obsidian\n---\n"
+    try done.write(to: dir.appendingPathComponent("A.md"), atomically: true, encoding: .utf8)
+    for _ in 0..<30 where store.task("A.md")?.status != .done {
+        try await Task.sleep(for: .milliseconds(100))
+    }
+    #expect(store.task("A.md")?.done == "2026-11-25T09:00")
+    #expect(try read(dir, "A.md") == done)
+}
+
 @MainActor @Test func reopenClearsDoneAndGoesToTheTopOfToday() async throws {
     let (store, dir) = try await makeStore([
         "A.md": "---\nstatus: today\norder: 10\n---\n",

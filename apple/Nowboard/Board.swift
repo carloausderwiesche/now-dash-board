@@ -25,6 +25,14 @@ func category(for area: String, in categories: [Category]) -> Category {
     categories.first { $0.id == area } ?? categories.first ?? Category.defaults[0]
 }
 
+/// Tasks someone else finished (Obsidian, an agent, the other device): on the
+/// board before (Today or Backlog), done in the folder now. They play the same
+/// finish animation as a card you tick (DESIGN.md, "Other writers exist").
+func finishedElsewhere(before: [BoardTask], after: [BoardTask]) -> [String] {
+    let was = Dictionary(before.map { ($0.id, $0.status) }, uniquingKeysWith: { a, _ in a })
+    return after.filter { $0.status == .done && (was[$0.id] == .today || was[$0.id] == .backlog) }.map(\.id)
+}
+
 // MARK: - Demo data
 
 /// The same sample board as the browser demo (src/api.ts), so both apps can be

@@ -262,7 +262,7 @@ struct DetailPanel: View {
             if task.status == .today || task.status == .backlog {
                 Button {
                     store.openID = nil
-                    store.complete(id)
+                    store.finish(id)
                 } label: {
                     Label("Mark done", systemImage: "checkmark")
                         .font(theme.font(15, .semibold))

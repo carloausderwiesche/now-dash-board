@@ -124,6 +124,8 @@ struct BoardContent: View {
 
     var body: some View {
         let lists = store.lists
+        // A card flying into Done must pass over the sections below its own.
+        let flying = { (list: [BoardTask]) in list.contains { store.finishing[$0.id] != nil } ? 1.0 : 0 }
         // .page: gap 28 between the header and the column of sections.
         VStack(alignment: .leading, spacing: 28) {
             HeaderView(narrow: narrow, pickFolder: pickFolder)
@@ -139,8 +141,10 @@ struct BoardContent: View {
                         SuggestedStrip(tasks: lists.suggested)
                     }
                 }
+                .zIndex(flying(lists.today))
                 CardSection(title: "Backlog", cards: lists.backlog, style: .backlog, narrow: narrow,
                             empty: ("Backlog is empty", "Ideas and later things go here"))
+                    .zIndex(flying(lists.backlog))
                 DoneSection(today: lists.doneToday, recent: lists.doneRecent)
             }
         }
@@ -152,6 +156,10 @@ struct BoardContent: View {
         .frame(maxWidth: 1400)
         .frame(maxWidth: .infinity)
         .coordinateSpace(name: boardSpace)
+        // The bottom of what the scroll view shows, in board coordinates.
+        .onGeometryChange(for: CGFloat.self) { $0.bounds(of: .scrollView)?.maxY ?? .infinity } action: { bottom in
+            store.visibleBottom = bottom
+        }
         // The copy of the card that follows the pointer while dragging.
         .overlay(alignment: .topLeading) {
             let drag = store.drag
@@ -391,7 +399,7 @@ struct CardSection: View {
                                 .measure(id, span: spanOf(task), in: drag)
                                 // Last: the grid reads span and layering from its direct child.
                                 .gridSpan(spanOf(task))
-                                .zIndex(store.hoveredID == id ? 3 : 0)
+                                .zIndex(store.finishing[id] != nil ? 4 : store.hoveredID == id ? 3 : 0)
                         }
                     }
                 }
@@ -610,6 +618,10 @@ struct DoneSection: View {
                         .padding(.vertical, theme.lineBoxTrim(56, lineHeight: 0.85))
                         .foregroundStyle(bump || over ? theme.accent : theme.ink)
                         .scaleEffect(bump ? 1.08 : 1, anchor: .bottomLeading)
+                        // Where finished cards fly to.
+                        .onGeometryChange(for: CGRect.self) { $0.frame(in: .named(boardSpace)) } action: { frame in
+                            store.doneTarget = frame
+                        }
                     VStack(alignment: .leading, spacing: 3) {
                         Text("Done today").fontWeight(.semibold)
                         Text(today.first.map { "Last: \($0.title)" } ?? "Nothing finished yet today")
@@ -636,7 +648,7 @@ struct DoneSection: View {
                 // Dropping a card on Done completes it.
                 .dropDestination(for: String.self) { ids, _ in
                     guard let id = ids.first, store.task(id)?.status != .done else { return false }
-                    store.complete(id)
+                    store.finish(id)
                     return true
                 } isTargeted: { targeted = $0 }
             #endif

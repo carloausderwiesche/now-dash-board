@@ -32,11 +32,13 @@ struct CardView: View {
     @State private var hovering = false
     /// The pointer is over the round check: shows a faint tick, hides Focus.
     @State private var overRing = false
-    /// The finishing animation, step by step (see `finish()`).
-    @State private var finishing: FinishStep = .idle
     @State private var confirmingDelete = false
     /// Going into focus, the card swells a little and settles (see `breathe()`).
     @State private var swelling = false
+
+    /// The finish animation, if this card is playing it (BoardStore.finish).
+    private var finish: Finish? { mode == .normal ? store.finishing[task.id] : nil }
+    private var finishing: FinishStep { finish?.step ?? .idle }
 
     var body: some View {
         let theme = store.theme
@@ -89,8 +91,9 @@ struct CardView: View {
         // that reacts to the pointer, so pointing at the bottom edge can't lift
         // the card off the pointer and drop it back in a loop.
         .visualEffect { content, _ in content.offset(y: lifted ? -3 : 0) }
-        // Focus: a short breath while it grows. Finishing: shrink and fade away.
-        .scaleEffect(finishing == .leaving ? 0.6 : (swelling ? 1.035 : 1))
+        // Focus: a short breath while it grows.
+        .scaleEffect(swelling ? 1.035 : 1)
+        .modifier(FlyIntoDone(progress: finishing == .leaving ? 1 : 0, to: finish?.flight ?? .zero))
         .onChange(of: task.focus) { _, on in
             if on && style == .today && mode == .normal { breathe() }
         }
@@ -110,15 +113,15 @@ struct CardView: View {
             }
         }
         .cursor(.openHand)
-        .allowsHitTesting(mode == .normal)
+        .allowsHitTesting(mode == .normal && finishing == .idle)
         .contextMenu { CardMenu(task: task, confirmingDelete: $confirmingDelete) }
         .confirmationDialog("Delete “\(task.title)”?", isPresented: $confirmingDelete) {
             Button("Delete file", role: .destructive) { store.delete(task.id) }
         } message: {
             Text("The task's .md file is deleted for good.")
         }
-        // A small tap on the phone when a task is finished.
-        .sensoryFeedback(.success, trigger: finishing == .done)
+        // A small tap on the phone as the finished card leaves for Done.
+        .sensoryFeedback(.success, trigger: finishing == .leaving) { _, leaving in leaving }
         .accessibilityElement(children: .contain)
     }
 
@@ -171,7 +174,10 @@ struct CardView: View {
                 .animation(.easeOut(duration: 0.15).delay(reveal ? 0.12 : 0), value: reveal)
                 .allowsHitTesting(reveal)
             if style == .today {
-                Button(action: finish) {
+                Button {
+                    guard !store.drag.swallowsClick else { return }
+                    store.finish(task.id)
+                } label: {
                     CheckRing(size: 22, step: finishing, hover: isOverRing, theme: theme)
                         .frame(width: 40, height: compact ? 34 : 40)
                         .contentShape(Rectangle())
@@ -186,7 +192,6 @@ struct CardView: View {
     }
 
     private func opacity(dragging: Bool) -> Double {
-        if finishing == .leaving { return 0 }
         switch mode {
         case .clone: return 0.96
         case .ghost: return 0.45
@@ -253,20 +258,34 @@ struct CardView: View {
             withAnimation(.spring(response: 0.5, dampingFraction: 0.6)) { swelling = false }
         }
     }
+}
 
-    /// Ring fills with the accent and the tick draws itself, the title is
-    /// struck through, then the card shrinks away and the task moves to Done.
-    /// About 900ms in total (DESIGN.md: every completion under a second).
-    private func finish() {
-        guard finishing == .idle, !store.drag.swallowsClick else { return }
-        withAnimation(.easeOut(duration: 0.25)) { finishing = .ticked }
-        Task {
-            try? await Task.sleep(for: .milliseconds(450))
-            withAnimation(.easeIn(duration: 0.35)) { finishing = .leaving }
-            try? await Task.sleep(for: .milliseconds(380))
-            finishing = .done
-            withAnimation(.timingCurve(0.2, 0.8, 0.3, 1, duration: 0.4)) { store.complete(task.id) }
-        }
+/// A finished card's way into the Done number: one smooth move on a gentle
+/// curve (down first, then across, like something dropped in), only ever
+/// shrinking and fading, with no lift or bounce.
+///
+/// Swift note: `Animatable` makes SwiftUI call `body` for every in-between
+/// `progress` (0 → 1), so the card can follow a curve instead of a straight line.
+struct FlyIntoDone: ViewModifier, @preconcurrency Animatable {
+    var progress: CGFloat
+    /// From the card's centre to the Done number's.
+    let to: CGSize
+
+    var animatableData: CGFloat {
+        get { progress }
+        set { progress = newValue }
+    }
+
+    func body(content: Content) -> some View {
+        let t = progress, u = 1 - progress
+        // A quadratic Bézier curve from the card to `to`, pulled towards a
+        // point below the card, so the path bends instead of cutting across.
+        let bend = CGPoint(x: to.width * 0.15, y: to.height * 0.8)
+        content
+            .scaleEffect(1 - 0.9 * t)
+            .offset(x: 2 * u * t * bend.x + t * t * to.width, y: 2 * u * t * bend.y + t * t * to.height)
+            // Mostly there for the first 60% of the way, then gone (the CSS `fly` keyframes).
+            .opacity(t < 0.6 ? 1 - 0.25 * t : 0.85 * (1 - t) / 0.4)
     }
 }
 
@@ -373,7 +392,13 @@ struct PauseIcon: Shape {
 }
 
 enum FinishStep {
-    case idle, ticked, leaving, done
+    case idle, ticked, leaving
+}
+
+/// One card's finish animation: the step it's at, and how far it flies.
+struct Finish: Equatable {
+    var step: FinishStep
+    var flight: CGSize = .zero
 }
 
 /// "Focus ◎": the text first, then the icon.
@@ -409,7 +434,7 @@ struct CardMenu: View {
         } else {
             Button("Move to Today", systemImage: "arrow.up") { store.moveToTop(task.id, of: .today) }
         }
-        Button("Mark done", systemImage: "checkmark") { store.complete(task.id) }
+        Button("Mark done", systemImage: "checkmark") { store.finish(task.id) }
         if let url = store.obsidianURL(task.id) {
             Button("Open in Obsidian", systemImage: "arrow.up.right") { openURL(url) }
         }
