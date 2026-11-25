@@ -39,6 +39,8 @@ struct BoardView: View {
             #endif
         }
         #if os(iOS)
+            // The Lock Screen banner and quick actions follow the focused task.
+            .task(id: FocusLive.now(in: store)) { await FocusLive.sync(FocusLive.now(in: store)) }
             .sensoryFeedback(.impact(weight: .light), trigger: store.drag.id) { old, new in old == nil && new != nil }
         #endif
         #if os(macOS)

@@ -164,7 +164,15 @@
                 // With `-open <file name>`: the detail panel instead of the board.
                 let panelID = argument("open")
                 let view = Group {
-                    if let panelID {
+                    // With `-banner true`: the Lock Screen banner, as the widget draws it.
+                    if argument("banner") == "true" {
+                        FocusBanner(focus: FocusInfo(title: "Review PR for alert thresholds", category: "Work",
+                                                     color: Palette.violet.strong(in: Theme.all[1]).resolve(in: EnvironmentValues()),
+                                                     done: 1, total: 3),
+                                    since: .now.addingTimeInterval(-754))
+                            .background(FocusBanner.ink, in: RoundedRectangle(cornerRadius: 24))
+                            .padding(24)
+                    } else if let panelID {
                         DetailPanel(id: panelID, scrolls: false).frame(height: 900)
                     } else {
                         BoardContent(narrow: width < 640)

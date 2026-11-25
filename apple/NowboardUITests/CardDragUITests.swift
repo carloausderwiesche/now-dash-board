@@ -38,6 +38,29 @@ final class CardDragUITests: XCTestCase {
     }
 
     @MainActor
+    func testTheAppIconOffersToFinishTheFocusedTask() {
+        let app = XCUIApplication()
+        app.launchArguments = ["-livedemo", "true"]
+        app.launch()
+        XCTAssertTrue(card("Review PR for alert thresholds", in: app).waitForExistence(timeout: 10))
+        // Twice: the second press leaves icon editing, if a run left it on.
+        XCUIDevice.shared.press(.home)
+        XCUIDevice.shared.press(.home)
+
+        let springboard = XCUIApplication(bundleIdentifier: "com.apple.springboard")
+        let icon = springboard.icons["Nowboard"]
+        for _ in 0..<3 where !icon.isHittable { springboard.swipeLeft() }
+        icon.press(forDuration: 0.8)
+        XCTAssertTrue(springboard.buttons["New task"].waitForExistence(timeout: 5))
+        springboard.buttons.matching(NSPredicate(format: "label BEGINSWITH 'Mark done'")).firstMatch.tap()
+
+        XCTAssertTrue(app.wait(for: .runningForeground, timeout: 5))
+        // Done's "Last:" names the task once it's finished.
+        let done = app.buttons.matching(NSPredicate(format: "label CONTAINS 'Last: Review PR for alert thresholds'")).firstMatch
+        XCTAssertTrue(done.waitForExistence(timeout: 5))
+    }
+
+    @MainActor
     private func launch() -> XCUIApplication {
         // A fresh install has no folder, so it shows the demo board.
         let app = XCUIApplication()

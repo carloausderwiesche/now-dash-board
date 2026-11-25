@@ -26,8 +26,12 @@ targets:
     supportedDestinations: [iOS, macOS]
     sources:
       - path: Nowboard
+      - path: Shared
     dependencies:
       - package: NowboardKit
+      # The Lock Screen banner (ADR 0013). iPhone only.
+      - target: NowboardWidgets
+        destinationFilters: [iOS]
     entitlements:
       path: Nowboard/Nowboard.entitlements
       properties:
@@ -48,16 +52,47 @@ targets:
         INFOPLIST_KEY_CFBundleDisplayName: Nowboard
         # Nowboard/Assets.xcassets, drawn by scripts/app-icon.swift.
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
-        # Nowboard/Assets.xcassets, drawn by scripts/app-icon.swift.
-        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         INFOPLIST_KEY_UILaunchScreen_Generation: YES
+        INFOPLIST_KEY_NSSupportsLiveActivities: YES
         INFOPLIST_KEY_UISupportedInterfaceOrientations: UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight
         INFOPLIST_KEY_LSApplicationCategoryType: public.app-category.productivity
         TARGETED_DEVICE_FAMILY: "1,2"
-        # No paid developer account yet: sign locally (simulator and this Mac).
+        # No paid developer account: the Mac and the simulator sign locally ("-");
+        # a real iPhone needs a development certificate, from the free Personal
+        # Team of the Apple ID added in Xcode → Settings → Accounts.
         CODE_SIGN_STYLE: Automatic
         CODE_SIGN_IDENTITY: "-"
+        "CODE_SIGN_IDENTITY[sdk=iphoneos*]": Apple Development
+        # Néstor Iriondo (Personal Team). Not a secret: it's in every app it signs.
+        "DEVELOPMENT_TEAM[sdk=iphoneos*]": PG7J2YC6L3
         ENABLE_PREVIEWS: YES
+
+  # The focus card on the Lock Screen and in the Dynamic Island (ADR 0013).
+  # The app starts and updates the Live Activity; this extension draws it.
+  NowboardWidgets:
+    type: app-extension
+    supportedDestinations: [iOS]
+    sources:
+      - path: NowboardWidgets
+      - path: Shared
+    info:
+      path: NowboardWidgets/Info.plist
+      properties:
+        CFBundleDisplayName: Nowboard
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.widgetkit-extension
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.nestoririondo.nowboard.swiftui.widgets
+        # Must match the app's.
+        MARKETING_VERSION: "0.1"
+        CURRENT_PROJECT_VERSION: "1"
+        SWIFT_VERSION: "6.0"
+        GENERATE_INFOPLIST_FILE: YES
+        CODE_SIGN_STYLE: Automatic
+        CODE_SIGN_IDENTITY: "-"
+        "CODE_SIGN_IDENTITY[sdk=iphoneos*]": Apple Development
+        "DEVELOPMENT_TEAM[sdk=iphoneos*]": PG7J2YC6L3
 
   # Tests for the app's store: every action against a temporary folder.
   # `xcodebuild test -scheme Nowboard -destination 'platform=macOS'`
