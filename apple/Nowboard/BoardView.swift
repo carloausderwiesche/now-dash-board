@@ -5,6 +5,7 @@
 
 import NowboardKit
 import SwiftUI
+import UniformTypeIdentifiers
 
 struct BoardView: View {
     @Environment(BoardStore.self) private var store
@@ -36,6 +37,13 @@ struct BoardView: View {
         .preferredColorScheme(theme.colorScheme)
         .animation(.easeOut(duration: 0.45), value: theme.id)
         .overlay(alignment: .bottom) { UndoPill() }
+        #if os(iOS)
+            .overlay(alignment: .bottomTrailing) {
+                PlusButton()
+                    .shadow(color: .black.opacity(0.25), radius: 12, y: 6)
+                    .padding(20)
+            }
+        #endif
         // Popovers are placed in this space (it's the whole window).
         .coordinateSpace(name: rootSpace)
         .refreshable { await store.reload() }
@@ -199,7 +207,8 @@ struct BoardContent: View {
         // buttons, since there's no title bar), 20/16 on a phone.
         .padding(.top, narrow ? 20 : 48)
         .padding(.horizontal, narrow ? 16 : 48)
-        .padding(.bottom, narrow ? 40 : 48)
+        // iPhone: room at the end so the floating + never covers the last row.
+        .padding(.bottom, narrow ? 96 : 48)
         .frame(maxWidth: 1400)
         .frame(maxWidth: .infinity)
         .coordinateSpace(name: boardSpace)
@@ -234,15 +243,25 @@ struct HeaderView: View {
         // CSS `.header { flex-wrap: wrap }`: date and tools on one line when
         // they fit (Mac), otherwise the tools wrap under the date, on the right
         // (phone). `ViewThatFits` uses the first layout that fits the width.
-        ViewThatFits(in: .horizontal) {
-            HStack(alignment: .bottom, spacing: 40) {
+        // A phone has no room for the dots up here: they sit on the Today
+        // heading instead, and settings stays at the top right.
+        if narrow {
+            HStack(alignment: .center) {
                 date
                 Spacer(minLength: 0)
-                tools
+                actions
             }
-            VStack(alignment: .trailing, spacing: 20) {
-                date.frame(maxWidth: .infinity, alignment: .leading)
-                tools
+        } else {
+            ViewThatFits(in: .horizontal) {
+                HStack(alignment: .bottom, spacing: 40) {
+                    date
+                    Spacer(minLength: 0)
+                    tools
+                }
+                VStack(alignment: .trailing, spacing: 20) {
+                    date.frame(maxWidth: .infinity, alignment: .leading)
+                    tools
+                }
             }
         }
     }
@@ -275,16 +294,37 @@ struct HeaderView: View {
     /// Category dots, a divider, settings and the + button.
     private var tools: some View {
         HStack(spacing: 6) {
-            ForEach(Array(store.settings.categories.enumerated()), id: \.element.id) { i, c in
-                FilterDot(category: c, key: i + 1)
-            }
+            FilterDots()
             Rectangle().fill(store.theme.line).frame(width: 1, height: 20).padding(.horizontal, 8)
+            actions
+        }
+        .fixedSize()
+    }
+
+    /// Settings and the + button.
+    private var actions: some View {
+        HStack(spacing: 10) {
             SettingsButton()
-            PlusButton()
-                .padding(.leading, 4)
+            // The iPhone's + floats at the bottom right instead, under the thumb.
+            #if os(macOS)
+                PlusButton()
+            #endif
         }
         .fixedSize()
         .onGeometryChange(for: CGRect.self) { $0.frame(in: .named(rootSpace)) } action: { store.settingsAnchor = $0 }
+    }
+}
+
+/// The header's category dots (on a phone, on the Today heading).
+struct FilterDots: View {
+    @Environment(BoardStore.self) private var store
+
+    var body: some View {
+        HStack(spacing: 6) {
+            ForEach(Array(store.settings.categories.enumerated()), id: \.element.id) { i, c in
+                FilterDot(category: c, key: i + 1)
+            }
+        }
     }
 }
 
@@ -419,7 +459,7 @@ struct CardSection: View {
         let shown = drag.displayed(cards.map(\.id), status: status)
         let over = drag.id != nil && drag.target?.status == status
         VStack(alignment: .leading, spacing: 16) {
-            SectionHeading(title: title, count: cards.count)
+            SectionHeading(title: title, count: cards.count, dots: narrow && style == .today)
             if shown.isEmpty {
                 EmptyBox(title: empty.0, hint: empty.1, small: style == .backlog)
             } else {
@@ -464,19 +504,18 @@ struct CardSection: View {
         }
         #if os(iOS)
             // iPhone: the system drag (long-press a card). Dropping on the section: at the end.
-            .dropDestination(for: String.self) { ids, _ in
-                guard let id = ids.first else { return false }
+            .onDrop(of: [.text], delegate: CardDrop(targeted: $targeted) { [status] id in
                 withAnimation(.timingCurve(0.2, 0.8, 0.3, 1, duration: 0.4)) { store.move(id, to: status) }
-                return true
-            } isTargeted: { targeted = $0 }
+            })
         #endif
     }
 
     private var status: TaskStatus { style == .today ? .today : .backlog }
 
-    /// The focus card is twice as wide in Today (not on a phone).
+    /// The focus card is twice as wide in Today; on a phone it takes the whole
+    /// row (the grid caps a span at the number of columns).
     private func spanOf(_ task: BoardTask) -> Int {
-        style == .today && task.focus && !narrow ? 2 : 1
+        style == .today && task.focus ? (narrow ? 6 : 2) : 1
     }
 
     /// A card with its drag gesture: the Mac's own drag (DragController), the
@@ -500,19 +539,41 @@ struct CardSection: View {
                 .draggable(task.id) {
                     CardView(task: task, style: style).frame(width: 180).environment(store)
                 }
-                .dropDestination(for: String.self) { ids, _ in
-                    guard let id = ids.first, id != task.id else { return false }
+                .onDrop(of: [.text], delegate: CardDrop { [status] id in
+                    guard id != task.id else { return }
                     withAnimation(.timingCurve(0.2, 0.8, 0.3, 1, duration: 0.4)) {
                         store.move(id, to: status, before: task.id)
                     }
-                    return true
-                }
+                })
         #endif
     }
 }
 
 /// The coordinate space the drag measures everything in: the board's content.
 let boardSpace = "board"
+
+#if os(iOS)
+    /// The iPhone's drop of a dragged card (its file name). It offers a move,
+    /// so the system doesn't badge the card with "+" as if copying it.
+    struct CardDrop: DropDelegate {
+        var targeted: Binding<Bool>?
+        let perform: @MainActor @Sendable (String) -> Void
+
+        func dropUpdated(info: DropInfo) -> DropProposal? { DropProposal(operation: .move) }
+        func dropEntered(info: DropInfo) { targeted?.wrappedValue = true }
+        func dropExited(info: DropInfo) { targeted?.wrappedValue = false }
+
+        func performDrop(info: DropInfo) -> Bool {
+            targeted?.wrappedValue = false
+            guard let item = info.itemProviders(for: [.text]).first else { return false }
+            // The id arrives in the background; the move happens on the main thread.
+            _ = item.loadTransferable(type: String.self) { result in
+                if case .success(let id) = result { Task { @MainActor in perform(id) } }
+            }
+            return true
+        }
+    }
+#endif
 
 extension View {
     /// Tells the drag controller where this card is (and how wide it spans).
@@ -530,20 +591,30 @@ struct SectionHeading: View {
     @Environment(BoardStore.self) private var store
     let title: String
     let count: Int
+    /// The category dots on the right (a phone has no room in the header).
+    var dots = false
 
     var body: some View {
         let theme = store.theme
         VStack(alignment: .leading, spacing: 10) {
-            HStack(alignment: .firstTextBaseline, spacing: 14) {
-                Text(title)
-                Text("\(count)").foregroundStyle(theme.muted).monospacedDigit()
+            HStack(spacing: 0) {
+                HStack(alignment: .firstTextBaseline, spacing: 14) {
+                    Text(title)
+                    Text("\(count)").foregroundStyle(theme.muted).monospacedDigit()
+                }
+                .font(theme.font(22, .semibold))
+                .tracking(Theme.tracking(-0.02, size: 22))
+                .accessibilityElement(children: .combine)
+                .accessibilityAddTraits(.isHeader)
+                if dots {
+                    Spacer(minLength: 12)
+                    // Each dot sits in a 32pt target: the last dot ends where the line does,
+                    // and the targets don't make the heading taller.
+                    FilterDots().padding(.trailing, -10).padding(.vertical, -6)
+                }
             }
-            .font(theme.font(22, .semibold))
-            .tracking(Theme.tracking(-0.02, size: 22))
             Rectangle().fill(theme.ink).frame(height: 2)
         }
-        .accessibilityElement(children: .combine)
-        .accessibilityAddTraits(.isHeader)
     }
 }
 
@@ -684,11 +755,9 @@ struct DoneSection: View {
             .accessibilityHint(open ? "Hides the list" : "Shows the last 7 days")
             #if os(iOS)
                 // Dropping a card on Done completes it.
-                .dropDestination(for: String.self) { ids, _ in
-                    guard let id = ids.first, store.task(id)?.status != .done else { return false }
-                    store.finish(id)
-                    return true
-                } isTargeted: { targeted = $0 }
+                .onDrop(of: [.text], delegate: CardDrop(targeted: $targeted) { id in
+                    if store.task(id)?.status != .done { store.finish(id) }
+                })
             #endif
             .onGeometryChange(for: CGRect.self) { $0.frame(in: .named(boardSpace)) } action: { frame in
                 store.drag.zones[.done] = DropZone(status: .done, frame: frame, grid: nil)
