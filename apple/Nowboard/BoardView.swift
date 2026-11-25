@@ -281,6 +281,8 @@ struct BoardContent: View {
     @Environment(BoardStore.self) private var store
     var narrow: Bool
     var pickFolder: () -> Void = {}
+    /// Shared by both lists, so a card moved between them flies across.
+    @Namespace private var flight
 
     var body: some View {
         let lists = store.lists
@@ -295,14 +297,14 @@ struct BoardContent: View {
             // .column: gap 48 between sections.
             VStack(alignment: .leading, spacing: 48) {
                 VStack(alignment: .leading, spacing: 28) {
-                    CardSection(title: "Today", cards: lists.today, style: .today, narrow: narrow,
+                    CardSection(title: "Today", cards: lists.today, style: .today, narrow: narrow, flight: flight,
                                 empty: ("Nothing planned for today", "Drag a card up from Backlog, or press +"))
                     if !lists.suggested.isEmpty {
                         SuggestedStrip(tasks: lists.suggested)
                     }
                 }
                 .zIndex(flying(lists.today))
-                CardSection(title: "Backlog", cards: lists.backlog, style: .backlog, narrow: narrow,
+                CardSection(title: "Backlog", cards: lists.backlog, style: .backlog, narrow: narrow, flight: flight,
                             empty: ("Backlog is empty", "Ideas and later things go here"))
                     .zIndex(flying(lists.backlog))
                 DoneSection(today: lists.doneToday, recent: lists.doneRecent)
@@ -546,6 +548,7 @@ struct CardSection: View {
     let cards: [BoardTask]
     let style: CardStyle
     let narrow: Bool
+    let flight: Namespace.ID
     let empty: (String, String)
 
     var body: some View {
@@ -580,6 +583,7 @@ struct CardSection: View {
                                 .gridSpan(spanOf(dragged))
                         } else if let task = byID[id] ?? store.task(id) {
                             card(task)
+                                .matchedGeometryEffect(id: id, in: flight)
                                 .measure(id, span: spanOf(task), in: drag)
                                 // Last: the grid reads span and layering from its direct child.
                                 .gridSpan(spanOf(task))

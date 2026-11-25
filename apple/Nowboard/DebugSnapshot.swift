@@ -104,6 +104,18 @@
                         }
                         exit(0)
                     }
+                    // `-todaydemo <file name>`: send that Backlog card to Today and
+                    // capture the window during its flight (0-name.png … 5-name.png).
+                    if let id = argument("todaydemo"), store.isDemo {
+                        let start = Date()
+                        store.moveToTop(id, of: .today)
+                        for (i, ms) in [30, 110, 200, 300, 420, 700].enumerated() {
+                            let wait = max(0.02, Double(ms) / 1000 - Date().timeIntervalSince(start))
+                            try? await Task.sleep(for: .seconds(wait))
+                            capture("\(i)-" + name)
+                        }
+                        exit(0)
+                    }
                     // `-cmdkey <1–6>`: press ⌘ and that digit first, through the
                     // same path as a real key press (menu shortcuts, then the views).
                     if let key = argument("cmdkey"), let n = Int(key), (1...6).contains(n),
