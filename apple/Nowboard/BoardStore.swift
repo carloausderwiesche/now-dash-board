@@ -300,10 +300,11 @@ final class BoardStore {
         save(BoardRules.planMove(tasks, id: id, to: status, before: before))
     }
 
-    /// Moves a card to the top of a list.
+    /// Moves a card to the top of a list. It flies there from where it was
+    /// (CardSection's matchedGeometryEffect) while the cards around it glide aside.
     func moveToTop(_ id: String, of status: TaskStatus) {
         let first = lists(for: status).first { $0.id != id }
-        move(id, to: status, before: first?.id)
+        withAnimation(.timingCurve(0.2, 0.8, 0.3, 1, duration: 0.55)) { move(id, to: status, before: first?.id) }
     }
 
     private func lists(for status: TaskStatus) -> [BoardTask] {

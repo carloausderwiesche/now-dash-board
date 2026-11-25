@@ -9,7 +9,7 @@ name: Nowboard
 options:
   bundleIdPrefix: com.nestoririondo
   deploymentTarget:
-    iOS: "17.0"
+    iOS: "18.0"
     macOS: "14.0"
   createIntermediateGroups: true
 
@@ -80,7 +80,31 @@ targets:
         "TEST_HOST[sdk=iphone*]": $(BUILT_PRODUCTS_DIR)/Nowboard.app/Nowboard
         BUNDLE_LOADER: $(TEST_HOST)
 
+  # Touch tests on the iPhone simulator (drag and drop needs real touches).
+  # `xcodebuild test -scheme NowboardUITests -destination 'platform=iOS Simulator,name=iPhone 16 Pro'`
+  NowboardUITests:
+    type: bundle.ui-testing
+    supportedDestinations: [iOS]
+    sources:
+      - path: NowboardUITests
+    dependencies:
+      - target: Nowboard
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES
+        SWIFT_VERSION: "6.0"
+        CODE_SIGN_IDENTITY: "-"
+        TEST_TARGET_NAME: Nowboard
+
 schemes:
+  NowboardUITests:
+    build:
+      targets:
+        Nowboard: all
+        NowboardUITests: [test]
+    test:
+      targets:
+        - NowboardUITests
   Nowboard:
     build:
       targets:

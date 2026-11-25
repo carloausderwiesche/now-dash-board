@@ -5,13 +5,16 @@
 
 import NowboardKit
 import SwiftUI
-import UniformTypeIdentifiers
 
 struct BoardView: View {
     @Environment(BoardStore.self) private var store
     /// Coming back to the front reloads, so edits made elsewhere show up.
     @Environment(\.scenePhase) private var scenePhase
     @State private var pickingFolder = false
+    #if os(iOS)
+        @State private var position = ScrollPosition()
+        @State private var scroll = ScrollState()
+    #endif
 
     var body: some View {
         let theme = store.theme
@@ -20,9 +23,24 @@ struct BoardView: View {
         GeometryReader { geo in
             ScrollView {
                 BoardContent(narrow: geo.size.width < 640, pickFolder: { pickingFolder = true })
+                #if os(iOS)
+                    .gesture(cardDrag)
+                #endif
             }
             .scrollIndicators(.hidden)
+            #if os(iOS)
+                .scrollPosition($position)
+                .scrollDisabled(store.drag.id != nil)
+                .onScrollGeometryChange(for: ScrollState.self) { g in
+                    ScrollState(y: g.contentOffset.y + g.contentInsets.top,
+                                max: max(0, g.contentSize.height + g.contentInsets.top + g.contentInsets.bottom - g.containerSize.height))
+                } action: { _, new in scroll = new }
+                .task(id: store.drag.id) { await autoscroll(height: geo.size.height) }
+            #endif
         }
+        #if os(iOS)
+            .sensoryFeedback(.impact(weight: .light), trigger: store.drag.id) { old, new in old == nil && new != nil }
+        #endif
         #if os(macOS)
             // No blue focus ring on whichever button happens to have keyboard
             // focus (the Tauri app only outlines things while you use the keyboard).
@@ -168,6 +186,93 @@ struct BoardView: View {
     }
 #endif
 
+#if os(iOS)
+    extension BoardView {
+        struct ScrollState: Equatable {
+            var y: CGFloat = 0
+            var max: CGFloat = 0
+        }
+
+        /// iPhone drag: a swipe that starts on a Today or Backlog card moves
+        /// it at once; anywhere else the board scrolls.
+        var cardDrag: CardPan {
+            CardPan(drag: store.drag) { [store] point in
+                guard let id = store.drag.card(at: point), let status = store.task(id)?.status, status != .done
+                else { return nil }
+                return (id, status)
+            }
+        }
+
+        /// A UIKit pan, because only it can turn down touches that don't start
+        /// on a card (SwiftUI's drag would block scrolling everywhere) and make
+        /// the scroll view wait for it on the ones that do.
+        struct CardPan: UIGestureRecognizerRepresentable {
+            let drag: DragController
+            /// The card under a point in rootSpace and its list, if it can be dragged.
+            let pick: Pick
+            typealias Pick = @MainActor (CGPoint) -> (id: String, status: TaskStatus)?
+
+            func makeCoordinator(converter: CoordinateSpaceConverter) -> Coordinator {
+                Coordinator(converter: converter, pick: pick)
+            }
+
+            func makeUIGestureRecognizer(context: Context) -> UIPanGestureRecognizer {
+                let pan = UIPanGestureRecognizer()
+                pan.maximumNumberOfTouches = 1
+                pan.delegate = context.coordinator
+                return pan
+            }
+
+            func handleUIGestureRecognizerAction(_ pan: UIPanGestureRecognizer, context: Context) {
+                switch pan.state {
+                case .began, .changed:
+                    guard let card = context.coordinator.card else { return }
+                    let at = context.converter.location(in: .named(rootSpace))
+                    let moved = context.converter.translation(in: .named(rootSpace)) ?? .zero
+                    drag.touched(card.id, start: CGPoint(x: at.x - moved.x, y: at.y - moved.y), location: at, status: card.status)
+                default:
+                    drag.released()
+                }
+            }
+
+            final class Coordinator: NSObject, UIGestureRecognizerDelegate {
+                let converter: CoordinateSpaceConverter
+                let pick: Pick
+                var card: (id: String, status: TaskStatus)?
+
+                init(converter: CoordinateSpaceConverter, pick: @escaping Pick) {
+                    self.converter = converter
+                    self.pick = pick
+                }
+
+                func gestureRecognizer(_ g: UIGestureRecognizer, shouldReceive touch: UITouch) -> Bool {
+                    card = pick(converter.convert(globalPoint: touch.location(in: nil), to: .named(rootSpace)))
+                    return card != nil
+                }
+
+                func gestureRecognizer(_ g: UIGestureRecognizer, shouldBeRequiredToFailBy other: UIGestureRecognizer) -> Bool {
+                    other.view is UIScrollView
+                }
+            }
+        }
+
+        /// While a card is dragged near the top or bottom 80pt, the board
+        /// scrolls that way, faster the closer the finger is to the edge.
+        func autoscroll(height: CGFloat) async {
+            guard store.drag.id != nil else { return }
+            let edge: CGFloat = 80
+            while !Task.isCancelled {
+                if let f = store.drag.finger {
+                    let push = f.y < edge ? f.y - edge : f.y > height - edge ? f.y - (height - edge) : 0
+                    let y = min(max(scroll.y + min(max(push / edge, -1), 1) * 12, 0), scroll.max)
+                    if push != 0, y != scroll.y { position.scrollTo(y: y) }
+                }
+                try? await Task.sleep(for: .milliseconds(16))
+            }
+        }
+    }
+#endif
+
 /// The window's coordinate space, for placing popovers and menus.
 let rootSpace = "root"
 
@@ -176,6 +281,8 @@ struct BoardContent: View {
     @Environment(BoardStore.self) private var store
     var narrow: Bool
     var pickFolder: () -> Void = {}
+    /// Shared by both lists, so a card moved between them flies across.
+    @Namespace private var flight
 
     var body: some View {
         let lists = store.lists
@@ -190,14 +297,14 @@ struct BoardContent: View {
             // .column: gap 48 between sections.
             VStack(alignment: .leading, spacing: 48) {
                 VStack(alignment: .leading, spacing: 28) {
-                    CardSection(title: "Today", cards: lists.today, style: .today, narrow: narrow,
+                    CardSection(title: "Today", cards: lists.today, style: .today, narrow: narrow, flight: flight,
                                 empty: ("Nothing planned for today", "Drag a card up from Backlog, or press +"))
                     if !lists.suggested.isEmpty {
                         SuggestedStrip(tasks: lists.suggested)
                     }
                 }
                 .zIndex(flying(lists.today))
-                CardSection(title: "Backlog", cards: lists.backlog, style: .backlog, narrow: narrow,
+                CardSection(title: "Backlog", cards: lists.backlog, style: .backlog, narrow: narrow, flight: flight,
                             empty: ("Backlog is empty", "Ideas and later things go here"))
                     .zIndex(flying(lists.backlog))
                 DoneSection(today: lists.doneToday, recent: lists.doneRecent)
@@ -212,6 +319,10 @@ struct BoardContent: View {
         .frame(maxWidth: 1400)
         .frame(maxWidth: .infinity)
         .coordinateSpace(name: boardSpace)
+        #if os(iOS)
+            // The iPhone drag tracks the finger on screen; this maps it onto the board as it scrolls.
+            .onGeometryChange(for: CGPoint.self) { $0.frame(in: .named(rootSpace)).origin } action: { store.drag.boardOrigin = $0 }
+        #endif
         // The bottom of what the scroll view shows, in board coordinates.
         .onGeometryChange(for: CGFloat.self) { $0.bounds(of: .scrollView)?.maxY ?? .infinity } action: { bottom in
             store.visibleBottom = bottom
@@ -437,9 +548,8 @@ struct CardSection: View {
     let cards: [BoardTask]
     let style: CardStyle
     let narrow: Bool
+    let flight: Namespace.ID
     let empty: (String, String)
-    /// iPhone: the system drag is over this section.
-    @State private var targeted = false
 
     var body: some View {
         let drag = store.drag
@@ -473,6 +583,7 @@ struct CardSection: View {
                                 .gridSpan(spanOf(dragged))
                         } else if let task = byID[id] ?? store.task(id) {
                             card(task)
+                                .matchedGeometryEffect(id: id, in: flight)
                                 .measure(id, span: spanOf(task), in: drag)
                                 // Last: the grid reads span and layering from its direct child.
                                 .gridSpan(spanOf(task))
@@ -499,15 +610,9 @@ struct CardSection: View {
             RoundedRectangle(cornerRadius: store.theme.radiusLarge)
                 .fill(store.theme.hover)
                 .padding(-14)
-                .opacity(over || targeted ? 1 : 0)
-                .animation(.easeOut(duration: 0.2), value: over || targeted)
+                .opacity(over ? 1 : 0)
+                .animation(.easeOut(duration: 0.2), value: over)
         }
-        #if os(iOS)
-            // iPhone: the system drag (long-press a card). Dropping on the section: at the end.
-            .onDrop(of: [.text], delegate: CardDrop(targeted: $targeted) { [status] id in
-                withAnimation(.timingCurve(0.2, 0.8, 0.3, 1, duration: 0.4)) { store.move(id, to: status) }
-            })
-        #endif
     }
 
     private var status: TaskStatus { style == .today ? .today : .backlog }
@@ -518,8 +623,8 @@ struct CardSection: View {
         style == .today && task.focus ? (narrow ? 6 : 2) : 1
     }
 
-    /// A card with its drag gesture: the Mac's own drag (DragController), the
-    /// iPhone's system drag.
+    /// A card with the Mac's drag gesture (DragController). The iPhone's drag
+    /// is one gesture on the whole board (BoardView.cardDrag).
     @ViewBuilder
     private func card(_ task: BoardTask) -> some View {
         #if os(macOS)
@@ -536,15 +641,6 @@ struct CardSection: View {
                 )
         #else
             CardView(task: task, style: style)
-                .draggable(task.id) {
-                    CardView(task: task, style: style).frame(width: 180).environment(store)
-                }
-                .onDrop(of: [.text], delegate: CardDrop { [status] id in
-                    guard id != task.id else { return }
-                    withAnimation(.timingCurve(0.2, 0.8, 0.3, 1, duration: 0.4)) {
-                        store.move(id, to: status, before: task.id)
-                    }
-                })
         #endif
     }
 }
@@ -552,37 +648,29 @@ struct CardSection: View {
 /// The coordinate space the drag measures everything in: the board's content.
 let boardSpace = "board"
 
-#if os(iOS)
-    /// The iPhone's drop of a dragged card (its file name). It offers a move,
-    /// so the system doesn't badge the card with "+" as if copying it.
-    struct CardDrop: DropDelegate {
-        var targeted: Binding<Bool>?
-        let perform: @MainActor @Sendable (String) -> Void
-
-        func dropUpdated(info: DropInfo) -> DropProposal? { DropProposal(operation: .move) }
-        func dropEntered(info: DropInfo) { targeted?.wrappedValue = true }
-        func dropExited(info: DropInfo) { targeted?.wrappedValue = false }
-
-        func performDrop(info: DropInfo) -> Bool {
-            targeted?.wrappedValue = false
-            guard let item = info.itemProviders(for: [.text]).first else { return false }
-            // The id arrives in the background; the move happens on the main thread.
-            _ = item.loadTransferable(type: String.self) { result in
-                if case .success(let id) = result { Task { @MainActor in perform(id) } }
-            }
-            return true
-        }
-    }
-#endif
-
 extension View {
     /// Tells the drag controller where this card is (and how wide it spans).
     func measure(_ id: String, span: Int, in drag: DragController) -> some View {
-        onGeometryChange(for: CGRect.self) { $0.frame(in: .named(boardSpace)) } action: { frame in
-            drag.cardFrames[id] = frame
-            drag.spans[id] = span
-        }
-        .onDisappear { drag.cardFrames[id] = nil }
+        modifier(Measure(id: id, span: span, drag: drag))
+    }
+}
+
+private struct Measure: ViewModifier {
+    let id: String
+    let span: Int
+    let drag: DragController
+    @State private var frame: CGRect?
+
+    func body(content: Content) -> some View {
+        content
+            .onGeometryChange(for: CGRect.self) { $0.frame(in: .named(boardSpace)) } action: { new in
+                frame = new
+                drag.cardFrames[id] = new
+                drag.spans[id] = span
+            }
+            // A card moved to the other list is a new view there, which can
+            // measure itself before this one disappears: leave its frame alone.
+            .onDisappear { if drag.cardFrames[id] == frame { drag.cardFrames[id] = nil } }
     }
 }
 
@@ -696,11 +784,8 @@ struct DoneSection: View {
     @State private var open = false
     /// The Done number's short nudge when a task arrives (.bump).
     @State private var bump = false
-    /// iPhone: the system drag is over Done.
-    @State private var targeted = false
-
-    /// A card is being dragged over Done (either kind of drag): the number turns accent.
-    private var over: Bool { targeted || (store.drag.id != nil && store.drag.target?.status == .done) }
+    /// A card is being dragged over Done: the number turns accent.
+    private var over: Bool { store.drag.id != nil && store.drag.target?.status == .done }
 
     private var todayString: String { String(TaskFormat.timestamp(.now).prefix(10)) }
 
@@ -753,12 +838,6 @@ struct DoneSection: View {
             }
             .buttonStyle(.pointer)
             .accessibilityHint(open ? "Hides the list" : "Shows the last 7 days")
-            #if os(iOS)
-                // Dropping a card on Done completes it.
-                .onDrop(of: [.text], delegate: CardDrop(targeted: $targeted) { id in
-                    if store.task(id)?.status != .done { store.finish(id) }
-                })
-            #endif
             .onGeometryChange(for: CGRect.self) { $0.frame(in: .named(boardSpace)) } action: { frame in
                 store.drag.zones[.done] = DropZone(status: .done, frame: frame, grid: nil)
             }

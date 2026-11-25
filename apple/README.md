@@ -20,6 +20,12 @@ open Nowboard.xcodeproj
 
 In Xcode, pick an iPhone simulator or "My Mac" and press ⌘R.
 
+To install the Mac app for everyday use (a Release build of the current checkout, replacing `/Applications/Nowboard.app`; tasks and settings are kept):
+
+```sh
+apple/scripts/install-mac.sh
+```
+
 Tests for the file format, from the terminal:
 
 ```sh
