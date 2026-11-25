@@ -330,7 +330,7 @@ struct DotButton: View {
     var body: some View {
         Button(action: action) {
             Circle().fill(color).frame(width: size, height: size)
-                .overlay(Circle().strokeBorder(color, lineWidth: 1.5).padding(-4.5).opacity(selected ? 1 : 0))
+                .selectionRing(color, on: selected)
                 .scaleEffect(hovering ? 1.4 : 1)
                 // cubic-bezier(0.2, 1.8, 0.4, 1) over 0.3s: a quick grow with a small overshoot.
                 .animation(.timingCurve(0.2, 1.8, 0.4, 1, duration: 0.3), value: hovering)

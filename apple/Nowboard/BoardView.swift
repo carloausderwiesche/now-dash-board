@@ -463,8 +463,7 @@ struct FilterDot: View {
                 .fill(color)
                 .frame(width: 12, height: 12)
                 .opacity(store.filter != nil && !on ? 0.35 : 1)
-                // The ring around the selected dot: 1.5pt, 3pt away from it.
-                .overlay(Circle().strokeBorder(color, lineWidth: 1.5).padding(-4.5).opacity(on ? 1 : 0))
+                .selectionRing(color, on: on)
                 // .dotbtn:hover: ×1.4 with a small overshoot.
                 .scaleEffect(hovering ? 1.4 : 1)
                 .animation(.timingCurve(0.2, 1.8, 0.4, 1, duration: 0.3), value: hovering)
@@ -651,6 +650,13 @@ struct CardSection: View {
 let boardSpace = "board"
 
 extension View {
+    /// The ring around a selected category dot: 1.5pt, 3.5pt out. A whole
+    /// number of points out, so on a non-Retina screen the ring and the dot
+    /// round to the same pixels and stay concentric (4.5 didn't).
+    func selectionRing(_ color: Color, on: Bool) -> some View {
+        overlay(Circle().strokeBorder(color, lineWidth: 1.5).padding(-5).opacity(on ? 1 : 0))
+    }
+
     /// Tells the drag controller where this card is (and how wide it spans).
     func measure(_ id: String, span: Int, in drag: DragController) -> some View {
         modifier(Measure(id: id, span: span, drag: drag))
