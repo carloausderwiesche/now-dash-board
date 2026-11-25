@@ -25,6 +25,15 @@ func category(for area: String, in categories: [Category]) -> Category {
     categories.first { $0.id == area } ?? categories.first ?? Category.defaults[0]
 }
 
+/// A deleted task that Undo can still bring back: the task, and its file's
+/// text as it was (nil on the demo board, or if it couldn't be read).
+struct Deleted: Equatable {
+    let task: BoardTask
+    let text: String?
+    /// Tells two deletes of the same task apart.
+    let token = UUID()
+}
+
 /// Tasks someone else finished (Obsidian, an agent, the other device): on the
 /// board before (Today or Backlog), done in the folder now. They play the same
 /// finish animation as a card you tick (DESIGN.md, "Other writers exist").

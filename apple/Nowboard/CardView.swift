@@ -32,13 +32,15 @@ struct CardView: View {
     @State private var hovering = false
     /// The pointer is over the round check: shows a faint tick, hides Focus.
     @State private var overRing = false
-    @State private var confirmingDelete = false
     /// Going into focus, the card swells a little and settles (see `breathe()`).
     @State private var swelling = false
 
     /// The finish animation, if this card is playing it (BoardStore.finish).
     private var finish: Finish? { mode == .normal ? store.finishing[task.id] : nil }
     private var finishing: FinishStep { finish?.step ?? .idle }
+    /// Being deleted: shrinks a little, blurs and fades where it stands, so it
+    /// never looks like finishing (which goes down into Done).
+    private var deleting: Bool { mode == .normal && store.deleting.contains(task.id) }
 
     var body: some View {
         let theme = store.theme
@@ -92,7 +94,8 @@ struct CardView: View {
         // the card off the pointer and drop it back in a loop.
         .visualEffect { content, _ in content.offset(y: lifted ? -3 : 0) }
         // Focus: a short breath while it grows.
-        .scaleEffect(swelling ? 1.035 : 1)
+        .scaleEffect(swelling ? 1.035 : deleting ? 0.88 : 1)
+        .blur(radius: deleting ? 6 : 0)
         .modifier(FlyIntoDone(progress: finishing == .leaving ? 1 : 0, to: finish?.flight ?? .zero))
         .onChange(of: task.focus) { _, on in
             if on && style == .today && mode == .normal { breathe() }
@@ -113,13 +116,8 @@ struct CardView: View {
             }
         }
         .cursor(.openHand)
-        .allowsHitTesting(mode == .normal && finishing == .idle)
-        .contextMenu { CardMenu(task: task, confirmingDelete: $confirmingDelete) }
-        .confirmationDialog("Delete “\(task.title)”?", isPresented: $confirmingDelete) {
-            Button("Delete file", role: .destructive) { store.delete(task.id) }
-        } message: {
-            Text("The task's .md file is deleted for good.")
-        }
+        .allowsHitTesting(mode == .normal && finishing == .idle && !deleting)
+        .contextMenu { CardMenu(task: task) }
         // A small tap on the phone as the finished card leaves for Done.
         .sensoryFeedback(.success, trigger: finishing == .leaving) { _, leaving in leaving }
         .accessibilityElement(children: .contain)
@@ -192,6 +190,7 @@ struct CardView: View {
     }
 
     private func opacity(dragging: Bool) -> Double {
+        if deleting { return 0 }
         switch mode {
         case .clone: return 0.96
         case .ghost: return 0.45
@@ -417,7 +416,6 @@ struct CardMenu: View {
     @Environment(BoardStore.self) private var store
     @Environment(\.openURL) private var openURL
     let task: BoardTask
-    @Binding var confirmingDelete: Bool
 
     var body: some View {
         Picker("Category", selection: Binding(get: { task.area }, set: { store.setCategory(task.id, to: $0) })) {
@@ -439,7 +437,7 @@ struct CardMenu: View {
             Button("Open in Obsidian", systemImage: "arrow.up.right") { openURL(url) }
         }
         Divider()
-        Button("Delete file", systemImage: "trash", role: .destructive) { confirmingDelete = true }
+        Button("Delete file", systemImage: "trash", role: .destructive) { store.delete(task.id) }
     }
 }
 

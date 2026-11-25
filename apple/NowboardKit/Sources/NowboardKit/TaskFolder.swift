@@ -205,6 +205,18 @@ public struct TaskFolder: Sendable {
         }
     }
 
+    /// Writes a deleted task's file back exactly as it was (Undo). If its name
+    /// was taken in the meantime, it gets a free one. Returns the name used.
+    @discardableResult
+    public func restore(_ id: String, text: String) throws(TaskFileError) -> String {
+        _ = try path(of: id)
+        try createFolder()
+        let taken = FileManager.default.fileExists(atPath: url.appendingPathComponent(id).path)
+        let name = taken ? freeName(for: String(id.dropLast(3)), current: nil) : id
+        try writeAtomically(text, to: try path(of: name))
+        return name
+    }
+
     // MARK: - Helpers
 
     /// A free file name for `title`: `Name.md`, else `Name (2).md`, `Name (3).md`…

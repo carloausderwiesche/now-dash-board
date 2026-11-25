@@ -143,6 +143,28 @@ private func read(_ dir: URL, _ name: String) throws -> String {
     #expect(!FileManager.default.fileExists(atPath: dir.appendingPathComponent("S2.md").path))
 }
 
+@MainActor @Test func undoWritesADeletedFileBackExactlyAsItWas() async throws {
+    let text = "---\nstatus: backlog\norder: 3\nmood: unknown field\n---\n- [ ] step\n\nnotes   kept as typed\n"
+    let (store, dir) = try await makeStore(["A.md": text])
+    store.delete("A.md")
+    await store.waitForWrites()
+    #expect(!FileManager.default.fileExists(atPath: dir.appendingPathComponent("A.md").path))
+    #expect(store.undoable?.task.id == "A.md")
+    store.undoDelete()
+    await store.waitForWrites()
+    #expect(try read(dir, "A.md") == text)
+    #expect(store.task("A.md")?.status == .backlog)
+}
+
+@MainActor @Test func undoWhileTheCardIsStillFadingKeepsTheFile() async throws {
+    let (store, dir) = try await makeStore(["A.md": "---\nstatus: today\norder: 1\n---\n"])
+    store.delete("A.md")
+    store.undoDelete()
+    await store.waitForWrites()
+    #expect(FileManager.default.fileExists(atPath: dir.appendingPathComponent("A.md").path))
+    #expect(store.task("A.md") != nil && store.deleting.isEmpty)
+}
+
 @MainActor @Test func aFailedWriteShowsAnError() async throws {
     let (store, _) = try await makeStore(["Broken.md": "---\nstatus: today\narea: [work\n---\n"])
     store.complete("Broken.md")

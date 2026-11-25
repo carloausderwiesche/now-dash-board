@@ -35,6 +35,7 @@ struct BoardView: View {
         .tint(theme.accent)
         .preferredColorScheme(theme.colorScheme)
         .animation(.easeOut(duration: 0.45), value: theme.id)
+        .overlay(alignment: .bottom) { UndoPill() }
         .refreshable { await store.reload() }
         .task { await store.reload() }
         .onChange(of: scenePhase) { _, phase in
@@ -573,6 +574,7 @@ struct SuggestedStrip: View {
                 }
                 .frame(minHeight: 40)
                 .overlay(alignment: .bottom) { Rectangle().fill(theme.line).frame(height: 1) }
+                .opacity(store.deleting.contains(t.id) ? 0 : 1)
             }
         }
     }
@@ -689,6 +691,41 @@ struct DoneSection: View {
                     }
                 }
                 .transition(.opacity)
+            }
+        }
+    }
+}
+
+/// "Deleted “…” · Undo": a small ink pill at the bottom for a few seconds
+/// after a delete (ADR 0010). ⌘Z does the same on the Mac.
+struct UndoPill: View {
+    @Environment(BoardStore.self) private var store
+
+    var body: some View {
+        let theme = store.theme
+        ZStack {
+            if let deleted = store.undoable {
+                HStack(spacing: 16) {
+                    Text("Deleted “\(deleted.task.title)”")
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                    Button("Undo") { store.undoDelete() }
+                        .buttonStyle(.plain)
+                        .fontWeight(.semibold)
+                        .underline()
+                        .keyboardShortcut("z", modifiers: .command)
+                        .cursor(.pointingHand)
+                }
+                .font(theme.font(13, .medium))
+                .foregroundStyle(theme.bg)
+                .padding(.horizontal, 20)
+                .frame(height: 44)
+                .frame(maxWidth: 420)
+                .background(theme.ink, in: Capsule())
+                .cssShadow(y: 14, blur: 34, spread: -14, opacity: 0.45, radius: 22)
+                .padding(.bottom, 24)
+                .padding(.horizontal, 16)
+                .transition(.move(edge: .bottom).combined(with: .opacity))
             }
         }
     }

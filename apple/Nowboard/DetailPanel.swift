@@ -21,8 +21,6 @@ struct DetailPanel: View {
     @State private var title = ""
     @State private var newStep = ""
     @State private var showFile = false
-    /// The bin's second step ("Delete file"), which turns back after 4 seconds.
-    @State private var confirmDelete = false
     @State private var notesSave: Task<Void, Never>?
     @FocusState private var titleFocused: Bool
 
@@ -85,29 +83,12 @@ struct DetailPanel: View {
             }
             Text(cat.name).font(theme.font(13)).foregroundStyle(theme.muted)
             Spacer(minLength: 0)
-            if confirmDelete {
-                Button("Delete file") {
-                    store.openID = nil
-                    store.delete(id)
-                }
-                .buttonStyle(.plain)
-                .font(theme.font(12, .semibold))
-                .foregroundStyle(theme.onAccent)
-                .padding(.horizontal, 12)
-                .frame(height: 30)
-                .background(theme.accent, in: Capsule())
-                .cursor(.pointingHand)
-                .transition(.opacity)
-            } else {
-                IconButton(icon: TrashIcon(), tip: "Delete") {
-                    withAnimation(.easeOut(duration: 0.15)) { confirmDelete = true }
-                    Task {
-                        try? await Task.sleep(for: .seconds(4))
-                        withAnimation { confirmDelete = false }
-                    }
-                }
-                .accessibilityLabel("Delete task")
+            // One click: the panel closes, the card fades away, Undo brings it back.
+            IconButton(icon: TrashIcon(), tip: "Delete file") {
+                store.openID = nil
+                store.delete(id)
             }
+            .accessibilityLabel("Delete task")
             IconButton(icon: CloseIcon(), width: 44, height: 44) {
                 store.openID = nil
             }

@@ -26,6 +26,7 @@ Read this before changing how something looks or behaves. These decisions came o
 ## Interactions
 
 - **Complete** (round check on a card, "Mark done" in the panel or the card menu, or dropping a card on Done): the ring fills with the accent (no swelling), the tick draws itself, the title strikes through, then the card glides in one smooth move into the Done number (the path is measured), only ever shrinking and fading, no lift or bounce. In the SwiftUI app the path is a gentle curve, down first and then across, like something dropped in; in the Tauri app it's straight. When Done is below the window, the card aims for the bottom edge. The Done number gives a small accent-coloured nudge and the remaining cards slide into the gap. About 900ms in total.
+- **Delete** (SwiftUI app; card menu, panel bin, or Dismiss on a suggestion): no "are you sure?". The card shrinks a little, blurs and fades where it stands (about 200ms; it never moves, so it can't be mistaken for finishing), its neighbours close the gap, and an ink pill at the bottom reads "Deleted “…” · Undo" for 5 seconds (⌘Z on the Mac). Undo writes the file back exactly as it was ([ADR 0010](docs/adr/0010-delete-with-undo.md)).
 - **Drag and drop everywhere**, built on pointer events (not HTML5 drag and drop: in the macOS app that flashes a "+ copy" cursor and leaves stale hover states). A press becomes a drag after 5px of movement, a copy of the card follows the pointer, the cursor stays a closed hand, the page scrolls near the window edges, Esc cancels. (`dragDropEnabled` is also off in `tauri.conf.json`.) Onto Today, Backlog or Done (dropping on Done completes the task). Keep it calm:
   - Picking a card up changes nothing; its own slot is the preview (the card fades).
   - The drop areas follow each other with no gaps: each list's area runs from its cards down to where the next list's cards start, so the space under Today, the Suggested strip and the Backlog heading all count as Today (a short drag up from Backlog is enough). Above the board, the preview stays where it was and dropping there uses that spot.
@@ -48,7 +49,7 @@ Read this before changing how something looks or behaves. These decisions came o
   - a checklist using the same round checks as the cards (hover a step for × to remove it)
   - notes
   - the file path (wraps when long), which expands to show the markdown
-  - a bin next to ×: one click turns it into "Delete file", a second click deletes the task's .md file for good (it turns back by itself after 4 seconds, or when you click elsewhere)
+  - a bin next to ×: in the SwiftUI app one click closes the panel and deletes the task (see **Delete**). In the Tauri app one click turns it into "Delete file" and a second click deletes the task's .md file for good (it turns back by itself after 4 seconds, or when you click elsewhere)
   - **a sticky footer** with "Mark done" (a solid button; on hover a tick slides in and draws itself) and "Open in Obsidian" (a soft filled button in the theme's well colour, same size and weight, with a ↗ that nudges on hover)
 
 ## Settings

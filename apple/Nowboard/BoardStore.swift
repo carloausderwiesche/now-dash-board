@@ -51,6 +51,11 @@ final class BoardStore {
     /// shows the old version until the card has landed.
     @ObservationIgnored private var held: [String: BoardTask] = [:]
     @ObservationIgnored private var playingIncoming = false
+    /// Cards playing the delete animation.
+    private(set) var deleting: Set<String> = []
+    /// The task deleted a moment ago, which Undo can still bring back.
+    private(set) var undoable: Deleted?
+    @ObservationIgnored private var pendingDelete: Task<Void, Never>?
     /// Finished in this app: a reload that still sees them as open (it started
     /// before our write) mustn't play the animation a second time.
     @ObservationIgnored private var completedHere: Set<String> = []
@@ -127,6 +132,7 @@ final class BoardStore {
 
     /// Waits until every pending write has finished (and the board reloaded).
     func waitForWrites() async {
+        await pendingDelete?.value
         await lastWrite?.value
     }
 
@@ -388,9 +394,44 @@ final class BoardStore {
         }) { folder in try folder.rename(id, to: title, order: order) }
     }
 
-    /// Deletes the task's file for good (also: dismissing a suggestion).
+    /// Deletes the task's file (also: dismissing a suggestion). The card
+    /// shrinks, blurs and fades where it stands, then the file goes. For a
+    /// few seconds Undo can bring it back (ADR 0010), so there's no "are you sure?".
     func delete(_ id: String) {
-        change({ all in all.removeAll { $0.id == id } }) { folder in try folder.delete(id) }
+        guard let t = task(id), !deleting.contains(id) else { return }
+        // Kept in memory, so Undo can write the file back byte for byte.
+        let deleted = Deleted(task: t, text: fileURL(id).flatMap { try? String(contentsOf: $0, encoding: .utf8) })
+        withAnimation(.easeOut(duration: 0.2)) { undoable = deleted }
+        withAnimation(.easeIn(duration: 0.2)) { _ = deleting.insert(id) }
+        pendingDelete = Task {
+            try? await Task.sleep(for: .milliseconds(200))
+            // Undo while it was still fading: nothing to delete.
+            guard deleting.remove(id) != nil else { return }
+            withAnimation(.timingCurve(0.2, 0.8, 0.3, 1, duration: 0.4)) {
+                change({ all in all.removeAll { $0.id == id } }) { folder in try folder.delete(id) }
+            }
+        }
+        Task {
+            try? await Task.sleep(for: .seconds(5))
+            if undoable == deleted { withAnimation(.easeOut(duration: 0.2)) { undoable = nil } }
+        }
+    }
+
+    /// Brings the last deleted task back, its file exactly as it was.
+    func undoDelete() {
+        guard let d = undoable else { return }
+        withAnimation(.easeOut(duration: 0.2)) { undoable = nil }
+        let id = d.task.id
+        if withAnimation(.easeOut(duration: 0.2), { deleting.remove(id) }) != nil { return }
+        withAnimation(.timingCurve(0.2, 0.8, 0.3, 1, duration: 0.4)) {
+            change({ all in if !all.contains(where: { $0.id == id }) { all.append(d.task) } }) { folder in
+                if let text = d.text {
+                    try folder.restore(id, text: text)
+                } else {
+                    try folder.save(d.task)
+                }
+            }
+        }
     }
 
     /// A new task on top of its list.
