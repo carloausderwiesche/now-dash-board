@@ -647,11 +647,26 @@ let boardSpace = "board"
 extension View {
     /// Tells the drag controller where this card is (and how wide it spans).
     func measure(_ id: String, span: Int, in drag: DragController) -> some View {
-        onGeometryChange(for: CGRect.self) { $0.frame(in: .named(boardSpace)) } action: { frame in
-            drag.cardFrames[id] = frame
-            drag.spans[id] = span
-        }
-        .onDisappear { drag.cardFrames[id] = nil }
+        modifier(Measure(id: id, span: span, drag: drag))
+    }
+}
+
+private struct Measure: ViewModifier {
+    let id: String
+    let span: Int
+    let drag: DragController
+    @State private var frame: CGRect?
+
+    func body(content: Content) -> some View {
+        content
+            .onGeometryChange(for: CGRect.self) { $0.frame(in: .named(boardSpace)) } action: { new in
+                frame = new
+                drag.cardFrames[id] = new
+                drag.spans[id] = span
+            }
+            // A card moved to the other list is a new view there, which can
+            // measure itself before this one disappears: leave its frame alone.
+            .onDisappear { if drag.cardFrames[id] == frame { drag.cardFrames[id] = nil } }
     }
 }
 
