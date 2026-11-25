@@ -20,15 +20,25 @@ final class BoardStore {
     private(set) var tasks: [BoardTask] = []
     private(set) var source: Source = .demo
     /// What's shown in the error bar: a failed save first, else a failed load.
-    var error: String? { writeError ?? loadError }
+    var error: String? { writeError ?? loadError ?? settingsError }
     /// A save that failed. Stays until the next save works, so a reload
     /// (from the watcher, say) can't hide it.
     private(set) var writeError: String?
     private(set) var loadError: String?
-    /// Theme, card size and categories; saved whenever they change.
+    /// `.nowboard.json` couldn't be read (it isn't valid JSON).
+    private(set) var settingsError: String?
+    /// Theme, card size and categories, remembered on this device. With a
+    /// Tasks folder, the categories come from its `.nowboard.json` (ADR 0011);
+    /// change them with `setCategories`, which writes that file.
     var settings: DeviceSettings {
-        didSet { settings.save() }
+        didSet { if remembersSettings { settings.save() } }
     }
+    /// Off in tests, so they never touch the app's real settings.
+    @ObservationIgnored private var remembersSettings = true
+    /// `.nowboard.json` was missing and we've started it from this device's
+    /// categories (once per folder, so a failing write can't loop).
+    @ObservationIgnored private var seededCategories = false
+    @ObservationIgnored private var categoriesSave: Task<Void, Never>?
     /// The highlighted category (tap a header dot), or nil for all.
     var filter: String?
     /// The card whose detail panel is open.
@@ -114,6 +124,7 @@ final class BoardStore {
     /// nothing remembered (the app's saved folder and settings stay untouched).
     init(testFolder: URL) {
         settings = DeviceSettings()
+        remembersSettings = false
         source = .folder(testFolder)
         defer { connectDrag() }
         watch(testFolder)
@@ -132,6 +143,7 @@ final class BoardStore {
 
     /// Waits until every pending write has finished (and the board reloaded).
     func waitForWrites() async {
+        await categoriesSave?.value
         await pendingDelete?.value
         await lastWrite?.value
     }
@@ -156,7 +168,49 @@ final class BoardStore {
             case .failure(let failure):
                 loadError = failure.localizedDescription
             }
+            useCategories(await Task.detached { FolderAccess.loadCategories(from: url) }.value)
         }
+    }
+
+    /// The categories from the Tasks folder. No file yet: start it from this
+    /// device's categories, so the other devices pick them up.
+    private func useCategories(_ result: Result<[CategoryRecord]?, Error>) {
+        // An edit that isn't saved yet wins over the file (it's about to replace it).
+        guard categoriesSave == nil else { return }
+        switch result {
+        case .success(let records?):
+            settingsError = nil
+            let cats = records.map(Category.init)
+            if cats != settings.categories { settings.categories = cats }
+        case .success(nil):
+            settingsError = nil
+            guard !seededCategories else { return }
+            seededCategories = true
+            writeCategories(settings.categories)
+        case .failure(let failure):
+            settingsError = failure.localizedDescription
+        }
+    }
+
+    /// Changes the categories (add, rename, colour, reorder, delete): on
+    /// screen at once, in `.nowboard.json` 0.4s after the last change, so
+    /// typing a name isn't a write per key.
+    func setCategories(_ cats: [Category]) {
+        guard !cats.isEmpty else { return }
+        settings.categories = cats
+        guard case .folder = source else { return }
+        categoriesSave?.cancel()
+        categoriesSave = Task {
+            try? await Task.sleep(for: .milliseconds(400))
+            guard !Task.isCancelled else { return }
+            categoriesSave = nil
+            writeCategories(cats)
+        }
+    }
+
+    private func writeCategories(_ cats: [Category]) {
+        let records = cats.map(\.record)
+        change({ _ in }) { folder in try folder.saveCategories(records) }
     }
 
     /// You picked a Tasks folder (from the folder picker).
@@ -164,6 +218,7 @@ final class BoardStore {
         do {
             try FolderAccess.remember(url)
             source = .folder(url)
+            seededCategories = false
             watch(url)
             await reload()
         } catch {

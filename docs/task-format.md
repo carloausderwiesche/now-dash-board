@@ -197,3 +197,22 @@ A task id is a file name. Implementations **must** refuse any id that isn't a si
 ## 6. Conflict copies
 
 Sync services can leave copies like `Buy milk 2.md` or `Buy milk (conflicted copy).md`. They're ordinary tasks under this spec. Readers must not delete them automatically.
+
+## 7. The board settings file
+
+Settings that every device should share live next to the tasks, in `.nowboard.json` in the Tasks folder ([ADR 0011](adr/0011-categories-in-the-tasks-folder.md)). It starts with a dot, so it's never a task (1). Today it holds the categories:
+
+```json
+{
+  "categories": [
+    { "color": "rose", "id": "personal", "name": "Personal" },
+    { "color": "blue", "id": "work", "name": "Work" }
+  ]
+}
+```
+
+- `categories` is the ordered list of categories: the order of the dots everywhere. `id` is what tasks store in `area:` (3), `name` is shown, `color` is a palette key (`rose`, `red`, `orange`, `amber`, `lime`, `green`, `teal`, `cyan`, `blue`, `indigo`, `violet`, `pink`, `brown`, `slate`). An unknown colour shows as `slate`.
+- No file, or no non-empty `categories` list in it: the reader uses its own categories, and **should** write them into the file so the other devices pick them up.
+- A file that isn't valid JSON **must not** be overwritten; the reader keeps its own categories and says so.
+- Writers **must** keep keys they don't know, and write atomically as in 5.6.
+- Device-only settings (theme, card size) are not in this file.

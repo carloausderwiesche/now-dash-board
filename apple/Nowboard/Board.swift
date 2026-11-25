@@ -19,6 +19,15 @@ struct Category: Identifiable, Equatable, Codable, Sendable {
     ]
 }
 
+/// To and from the way `.nowboard.json` stores a category (spec 7).
+extension Category {
+    init(_ record: CategoryRecord) {
+        self.init(id: record.id, name: record.name, color: Palette(rawValue: record.color) ?? .slate)
+    }
+
+    var record: CategoryRecord { CategoryRecord(id: id, name: name, color: color.rawValue) }
+}
+
 /// The category for an `area:` id. An unknown id shows as the first category
 /// (DESIGN.md: deleting a category doesn't touch task files).
 func category(for area: String, in categories: [Category]) -> Category {

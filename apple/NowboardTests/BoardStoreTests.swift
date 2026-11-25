@@ -165,6 +165,39 @@ private func read(_ dir: URL, _ name: String) throws -> String {
     #expect(store.task("A.md") != nil && store.deleting.isEmpty)
 }
 
+@MainActor @Test func categoriesComeFromTheTasksFolder() async throws {
+    let (store, _) = try await makeStore([
+        ".nowboard.json": #"{"categories": [{"id": "home", "name": "Home", "color": "teal"}, {"id": "work", "name": "Job", "color": "nope"}]}"#
+    ])
+    #expect(store.settings.categories == [
+        Category(id: "home", name: "Home", color: .teal), Category(id: "work", name: "Job", color: .slate),
+    ])
+}
+
+@MainActor @Test func aMissingSettingsFileIsStartedFromThisDevicesCategories() async throws {
+    let (store, dir) = try await makeStore()
+    await store.waitForWrites()
+    let text = try read(dir, ".nowboard.json")
+    #expect(text.contains("\"personal\"") && text.contains("\"freelance\""))
+    #expect(store.settings.categories == Category.defaults)
+}
+
+@MainActor @Test func editingCategoriesWritesTheFileAfterAPause() async throws {
+    let (store, dir) = try await makeStore([".nowboard.json": #"{"categories": [{"id": "a", "name": "A", "color": "red"}]}"#])
+    store.setCategories([Category(id: "a", name: "Al", color: .red)])
+    store.setCategories([Category(id: "a", name: "Alpha", color: .red), Category(id: "b", name: "B", color: .blue)])
+    await store.waitForWrites()
+    let saved = try TaskFolder(url: dir).loadCategories()
+    #expect(saved?.map(\.name) == ["Alpha", "B"])
+}
+
+@MainActor @Test func aBrokenSettingsFileIsReportedAndLeftAlone() async throws {
+    let (store, dir) = try await makeStore([".nowboard.json": "{ broken"])
+    await store.waitForWrites()
+    #expect(store.error?.contains(".nowboard.json") == true)
+    #expect(try read(dir, ".nowboard.json") == "{ broken")
+}
+
 @MainActor @Test func aFailedWriteShowsAnError() async throws {
     let (store, _) = try await makeStore(["Broken.md": "---\nstatus: today\narea: [work\n---\n"])
     store.complete("Broken.md")
