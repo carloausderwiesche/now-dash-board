@@ -257,6 +257,23 @@ final class BoardStore {
         return parts.url
     }
 
+    /// Where a `[[note]]` or `#tag` in the notes opens in Obsidian: the note,
+    /// or a search for the tag. Needs the vault, so nothing on the demo board.
+    func obsidianURL(_ link: ObsidianLink) -> URL? {
+        guard case .folder(let folder) = source, let vault = vaultRoot(of: folder)?.lastPathComponent else { return nil }
+        var parts = URLComponents()
+        parts.scheme = "obsidian"
+        switch link {
+        case .note(let name):
+            parts.host = "open"
+            parts.queryItems = [URLQueryItem(name: "vault", value: vault), URLQueryItem(name: "file", value: name)]
+        case .tag(let tag):
+            parts.host = "search"
+            parts.queryItems = [URLQueryItem(name: "vault", value: vault), URLQueryItem(name: "query", value: "tag:#\(tag)")]
+        }
+        return parts.url
+    }
+
     func task(_ id: String) -> BoardTask? {
         tasks.first { $0.id == id }
     }

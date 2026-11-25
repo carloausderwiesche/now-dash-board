@@ -29,12 +29,11 @@ struct Theme: Identifiable, Equatable {
     /// installed, so Rams and Pastel fall back to Helvetica Neue. Ive is the
     /// system font (SF), Eames is Avenir Next. All of these ship with iOS too.
     func font(_ size: CGFloat, _ weight: Font.Weight = .regular) -> Font {
-        switch style {
-        case .eames: .custom("Avenir Next", size: size).weight(weight)
-        case .rams, .pastel: .custom("Helvetica Neue", size: size).weight(weight)
-        case .ive: .system(size: size, weight: weight)
-        }
+        fontName.map { .custom($0, size: size).weight(weight) } ?? .system(size: size, weight: weight)
     }
+
+    /// The font's family name; nil for the system font.
+    var fontName: String? { [.eames: "Avenir Next", .rams: "Helvetica Neue", .pastel: "Helvetica Neue"][style] }
 
     /// How much to trim above and below a text line to get CSS's
     /// `line-height: <lineHeight>` (e.g. 0.8 for the big day number).
