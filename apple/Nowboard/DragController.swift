@@ -80,6 +80,36 @@ final class DragController {
         reset()
     }
 
+    #if os(iOS)
+        /// The finger, in the screen's coordinates (rootSpace): near an edge the
+        /// board scrolls under it, so its spot on the board changes without it moving.
+        @ObservationIgnored private(set) var finger: CGPoint?
+        /// Where the board's content is on screen; changes as it scrolls.
+        @ObservationIgnored var boardOrigin: CGPoint = .zero {
+            didSet { if id != nil, let finger { update(onBoard(finger)) } }
+        }
+
+        private func onBoard(_ p: CGPoint) -> CGPoint { CGPoint(x: p.x - boardOrigin.x, y: p.y - boardOrigin.y) }
+
+        /// The card under a point on screen.
+        func card(at point: CGPoint) -> String? {
+            cardFrames.first { $0.key != DropRules.ghostID && $0.value.contains(onBoard(point)) }?.key
+        }
+
+        /// The finger moved (screen coordinates).
+        func touched(_ id: String, start: CGPoint, location: CGPoint, status: TaskStatus) {
+            finger = location
+            moved(id, start: onBoard(start), location: onBoard(location), status: status)
+        }
+
+        /// The finger lifted, or the system took the touch over (the menu):
+        /// drop where it is (a card barely moved goes back to its own slot).
+        func released() {
+            finger = nil
+            if let d = ended() { onDrop?(d.id, d.target) }
+        }
+    #endif
+
     /// True for a moment after a drag ended: the release that ends a drag
     /// mustn't also open or tick the card under it (the Tauri app swallows that click).
     var swallowsClick: Bool {

@@ -9,7 +9,7 @@ name: Nowboard
 options:
   bundleIdPrefix: com.nestoririondo
   deploymentTarget:
-    iOS: "17.0"
+    iOS: "18.0"
     macOS: "14.0"
   createIntermediateGroups: true
 
