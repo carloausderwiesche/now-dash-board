@@ -9,6 +9,8 @@ struct QuickAdd: View {
     @Environment(BoardStore.self) private var store
     /// How to close: the board's quick add (nil) or the floating ⌥ Space panel.
     var onClose: (() -> Void)? = nil
+    /// The floating panel passes ⌘1–⌘6 in through this (see QuickKeys).
+    var keys: QuickKeys? = nil
     @State private var title = ""
     @State private var area = ""
     @State private var status: TaskStatus = .today
@@ -29,6 +31,16 @@ struct QuickAdd: View {
                     .focused($focused)
                     .onSubmit(add)
                     .submitLabel(.done)
+                    // Tab switches Today / Backlog (instead of moving the focus),
+                    // Esc closes, like the Tauri quick add.
+                    .onKeyPress(.tab) {
+                        withAnimation(.easeOut(duration: 0.2)) { status = status == .today ? .backlog : .today }
+                        return .handled
+                    }
+                    .onKeyPress(.escape) {
+                        close()
+                        return .handled
+                    }
             }
             .padding(.top, 22)
             .padding(.horizontal, 22)
@@ -71,7 +83,7 @@ struct QuickAdd: View {
             #if os(macOS)
                 // .quick-hint: the keys, split like the row above.
                 HStack {
-                    Text("⌘1–\(cats.count) category")
+                    Text("⌘1–\(cats.count) category · tab Today/Backlog")
                     Spacer()
                     Text(onClose == nil ? "↩ add · esc close" : "⌥ Space anywhere · ↩ add · esc close")
                 }
@@ -86,8 +98,22 @@ struct QuickAdd: View {
         .background(theme.surface)
         .onAppear {
             area = store.filter ?? cats.first?.id ?? "personal"
+            keys?.onCommandDigit = { n in
+                if n >= 1 && n <= cats.count { area = cats[n - 1].id }
+            }
+        }
+        // The cursor goes straight into the title. Set a moment after the view
+        // is in its window: in `onAppear` it's too early and gets lost.
+        .defaultFocus($focused, true)
+        .task {
+            try? await Task.sleep(for: .milliseconds(60))
             focused = true
         }
+        #if DEBUG
+            .onChange(of: focused) { _, f in
+                if ProcessInfo.processInfo.arguments.contains("-focusdebug") { print("QUICKADD focused:", f) }
+            }
+        #endif
         #if os(macOS)
             .onExitCommand { close() }  // Escape on the Mac
         #endif
@@ -107,4 +133,12 @@ struct QuickAdd: View {
             store.adding = false
         }
     }
+}
+
+/// Keys the floating panel catches itself. The app isn't active while you
+/// type into the ⌥ Space panel, so ⌘-shortcuts never reach SwiftUI's
+/// `keyboardShortcut`; the panel sees them first and passes ⌘1–⌘6 on here.
+@MainActor
+final class QuickKeys {
+    var onCommandDigit: ((Int) -> Void)?
 }

@@ -29,14 +29,6 @@ struct BoardView: View {
             // The board runs up under the (hidden) title bar: .page's 48pt top
             // padding already leaves room for the window buttons.
             .ignoresSafeArea(edges: .top)
-            // Esc while dragging puts the card back.
-            .background {
-                if store.drag.id != nil {
-                    Button("Cancel drag") { store.drag.cancel() }
-                        .keyboardShortcut(.cancelAction)
-                        .opacity(0)
-                }
-            }
         #endif
         .background(theme.bg.ignoresSafeArea())
         .foregroundStyle(theme.ink)
@@ -397,7 +389,9 @@ struct CardSection: View {
                         } else if let task = byID[id] ?? store.task(id) {
                             card(task)
                                 .measure(id, span: spanOf(task), in: drag)
+                                // Last: the grid reads span and layering from its direct child.
                                 .gridSpan(spanOf(task))
+                                .zIndex(store.hoveredID == id ? 3 : 0)
                         }
                     }
                 }
@@ -453,16 +447,8 @@ struct CardSection: View {
                         .onChanged { v in
                             store.drag.moved(task.id, start: v.startLocation, location: v.location, status: status)
                         }
-                        .onEnded { _ in
-                            guard let (id, target) = store.drag.ended() else { return }
-                            withAnimation(.timingCurve(0.2, 0.8, 0.3, 1, duration: 0.4)) {
-                                if target.status == .done {
-                                    store.complete(id)
-                                } else {
-                                    store.move(id, to: target.status, before: target.beforeID)
-                                }
-                            }
-                        }
+                        // The release (and Esc) is handled by DragController's
+                        // event monitor, which outlives this card's view.
                 )
         #else
             CardView(task: task, style: style)

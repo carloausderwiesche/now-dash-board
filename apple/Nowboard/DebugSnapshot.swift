@@ -25,10 +25,16 @@
         static func applyLaunchState(store: BoardStore) {
             guard argument("snapshot") == nil else { return }
             if let theme = argument("theme") { store.settings.theme = theme }
+            // `-demo true`: the demo board in memory; the saved folder is kept.
+            if argument("demo") == "true" { store.useDemoForSnapshot() }
             Task {
                 try? await Task.sleep(for: .milliseconds(600))
                 if let id = argument("open") { store.openID = id }
                 if argument("adding") == "true" { store.adding = true }
+                #if os(macOS)
+                    // `-panel true`: open the ⌥ Space panel, as if the shortcut was pressed.
+                    if argument("panel") == "true" { GlobalQuickAdd.shared.toggle() }
+                #endif
             }
         }
 
@@ -39,11 +45,17 @@
             /// permission needed: it's the app's own pixels.
             /// `-dragdemo <file name>` first drags that card a little, so the
             /// shot shows the drag (ghost, clone, cards moved aside).
+            @MainActor
             static func windowShotIfAsked(store: BoardStore) {
                 guard let name = argument("windowshot") else { return }
+                // Window shots always use the demo board (in memory, the saved
+                // folder is kept), so a scripted drag or drop can never touch
+                // real task files.
+                store.useDemoForSnapshot()
                 Task { @MainActor in
+                    await store.reload()
                     try? await Task.sleep(for: .seconds(2))
-                    if let id = argument("dragdemo"), let frame = store.drag.cardFrames[id] {
+                    if let id = argument("dragdemo"), store.isDemo, let frame = store.drag.cardFrames[id] {
                         let start = CGPoint(x: frame.midX, y: frame.midY)
                         let dx = argument("dx").flatMap { Double($0) } ?? 0
                         let dy = argument("dy").flatMap { Double($0) } ?? 0
@@ -55,6 +67,11 @@
                             try? await Task.sleep(for: .milliseconds(30))
                         }
                         try? await Task.sleep(for: .milliseconds(700))  // settle + slide animation
+                        // `-drop true`: let go, like the mouse-up the event monitor handles.
+                        if argument("drop") == "true", let d = store.drag.ended() {
+                            store.drag.onDrop?(d.id, d.target)
+                            try? await Task.sleep(for: .milliseconds(900))
+                        }
                     }
                     guard let window = NSApp.windows.first(where: { $0.isVisible && $0.contentView != nil }),
                         let view = window.contentView?.superview ?? window.contentView,

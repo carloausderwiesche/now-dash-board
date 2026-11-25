@@ -67,3 +67,11 @@ private func spot(_ x: CGFloat, _ y: CGFloat, dragged: String = "x", cards: [Pla
     #expect(DropRules.columns(width: 784, minWidth: 180, spacing: 10) == 4)
     #expect(DropRules.columns(width: 150, minWidth: 200, spacing: 12) == 1)
 }
+
+@Test func cardsMustBeInReadingOrder() {
+    // The rule relies on reading order: the app sorts its measured frames first.
+    // With the cards shuffled, the same pointer would pick a different neighbour.
+    let shuffled = [cards[3], cards[1], cards[0], cards[2]]
+    #expect(spot(50, 150, cards: shuffled) != DropTarget(status: .today, beforeID: "a"))
+    #expect(spot(50, 150) == DropTarget(status: .today, beforeID: "a"))
+}

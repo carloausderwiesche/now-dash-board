@@ -82,17 +82,26 @@ struct CardView: View {
         .cssShadow(y: 14, blur: 30, spread: -16, opacity: 0.35, radius: theme.radiusCard,
                    visible: lifted && !focus)
         .cssShadow(y: 18, blur: 40, spread: -14, opacity: 0.4, radius: theme.radiusCard, visible: mode == .clone)
-        .offset(y: lifted ? -3 : 0)
+        // The 3pt lift. `visualEffect` moves only what's drawn, not the area
+        // that reacts to the pointer, so pointing at the bottom edge can't lift
+        // the card off the pointer and drop it back in a loop.
+        .visualEffect { content, _ in content.offset(y: lifted ? -3 : 0) }
         // Finishing: shrink and fade away (the list then closes the gap).
         .scaleEffect(finishing == .leaving ? 0.6 : 1)
         .opacity(opacity(dragging: dragging))
         .animation(.timingCurve(0.2, 0.8, 0.3, 1, duration: 0.25), value: lifted)
-        // Hover is read on an outer frame that doesn't move with the 3pt lift,
-        // so pointing at the bottom edge can't lift and drop it in a loop
-        // (the CSS uses an invisible strip for the same reason).
-        .background(Color.clear.contentShape(Rectangle()).onHover { hovering = $0 })
+        .contentShape(Rectangle())
+        .onHover { inside in
+            hovering = inside
+            // The section brings the hovered card to the front, so its tooltips
+            // aren't hidden under the neighbouring cards.
+            if inside {
+                store.hoveredID = task.id
+            } else if store.hoveredID == task.id {
+                store.hoveredID = nil
+            }
+        }
         .cursor(.openHand)
-        .zIndex(isHovered ? 3 : 0)
         .allowsHitTesting(mode == .normal)
         .contextMenu { CardMenu(task: task, confirmingDelete: $confirmingDelete) }
         .confirmationDialog("Delete “\(task.title)”?", isPresented: $confirmingDelete) {
@@ -108,6 +117,7 @@ struct CardView: View {
     /// The title (opens the panel) and the checklist count under it.
     private func title(_ m: Metrics, compact: Bool, theme: Theme) -> some View {
         Button {
+            guard !store.drag.swallowsClick else { return }
             store.openID = task.id
         } label: {
             VStack(alignment: .leading, spacing: compact ? 4 : 6) {
@@ -132,6 +142,7 @@ struct CardView: View {
     private func footer(_ m: Metrics, cat: Category, focus: Bool, compact: Bool, theme: Theme, reveal: Bool, overRing isOverRing: Bool) -> some View {
         HStack(spacing: 2) {
             DotButton(color: cat.color.strong(in: theme), name: cat.name, box: m.dotBox, inverted: focus) {
+                guard !store.drag.swallowsClick else { return }
                 store.cycleCategory(task.id)
             }
             .padding(.leading, style == .today ? -8 : -7)
@@ -225,7 +236,7 @@ struct CardView: View {
     /// struck through, then the card shrinks away and the task moves to Done.
     /// About 900ms in total (DESIGN.md: every completion under a second).
     private func finish() {
-        guard finishing == .idle else { return }
+        guard finishing == .idle, !store.drag.swallowsClick else { return }
         withAnimation(.easeOut(duration: 0.25)) { finishing = .ticked }
         Task {
             try? await Task.sleep(for: .milliseconds(450))
@@ -244,18 +255,22 @@ struct DotButton: View {
     let color: Color
     let name: String
     var box: CGFloat = 32
+    var boxHeight: CGFloat? = nil
     var size: CGFloat = 10
     var inverted = false
+    /// The selected category gets a ring: 1.5pt, 3pt away from the dot.
+    var selected = false
     let action: () -> Void
     @State private var hovering = false
 
     var body: some View {
         Button(action: action) {
             Circle().fill(color).frame(width: size, height: size)
+                .overlay(Circle().strokeBorder(color, lineWidth: 1.5).padding(-4.5).opacity(selected ? 1 : 0))
                 .scaleEffect(hovering ? 1.4 : 1)
                 // cubic-bezier(0.2, 1.8, 0.4, 1) over 0.3s: a quick grow with a small overshoot.
                 .animation(.timingCurve(0.2, 1.8, 0.4, 1, duration: 0.3), value: hovering)
-                .frame(width: box, height: box)
+                .frame(width: box, height: boxHeight ?? box)
                 .contentShape(Rectangle())
         }
         .buttonStyle(PressScale(pressed: 0.8))

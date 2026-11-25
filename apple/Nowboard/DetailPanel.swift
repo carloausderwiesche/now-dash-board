@@ -73,20 +73,15 @@ struct DetailPanel: View {
     /// Category dots and name; the bin and the close button on the right.
     private func top(_ task: BoardTask, cat: Category, theme: Theme) -> some View {
         HStack(spacing: 10) {
-            ForEach(store.settings.categories) { c in
-                let on = c.id == task.area
-                Button {
-                    edit { $0.area = c.id }
-                } label: {
-                    Circle().fill(c.color.strong(in: theme)).frame(width: 14, height: 14)
-                        .overlay(Circle().strokeBorder(c.color.strong(in: theme), lineWidth: 1.5).padding(-4).opacity(on ? 1 : 0))
-                        .frame(width: 28, height: 28)
-                        .contentShape(Rectangle())
+            // Category dots (14pt in 32×36 targets), the chosen one ringed.
+            HStack(spacing: 0) {
+                ForEach(store.settings.categories) { c in
+                    DotButton(color: c.color.strong(in: theme), name: c.name, box: 32, boxHeight: 36, size: 14,
+                              selected: c.id == task.area) {
+                        edit { $0.area = c.id }
+                    }
+                    .accessibilityAddTraits(c.id == task.area ? .isSelected : [])
                 }
-                .buttonStyle(.plain)
-                .help(c.name)
-                .accessibilityLabel(c.name)
-                .accessibilityAddTraits(on ? .isSelected : [])
             }
             Text(cat.name).font(theme.font(13)).foregroundStyle(theme.muted)
             Spacer(minLength: 0)
@@ -101,28 +96,22 @@ struct DetailPanel: View {
                 .padding(.horizontal, 12)
                 .frame(height: 30)
                 .background(theme.accent, in: Capsule())
+                .cursor(.pointingHand)
                 .transition(.opacity)
             } else {
-                Button {
+                IconButton(icon: TrashIcon(), tip: "Delete") {
                     withAnimation(.easeOut(duration: 0.15)) { confirmDelete = true }
                     Task {
                         try? await Task.sleep(for: .seconds(4))
                         withAnimation { confirmDelete = false }
                     }
-                } label: {
-                    Image(systemName: "trash").frame(width: 36, height: 44).contentShape(Rectangle())
                 }
-                .buttonStyle(.plain)
-                .foregroundStyle(theme.muted)
-                .accessibilityLabel("Delete")
+                .accessibilityLabel("Delete task")
             }
-            Button {
+            IconButton(icon: CloseIcon(), width: 44, height: 44) {
                 store.openID = nil
-            } label: {
-                Image(systemName: "xmark").frame(width: 36, height: 44).contentShape(Rectangle())
             }
-            .buttonStyle(.plain)
-            .foregroundStyle(theme.muted)
+            .padding(.trailing, -12)
             .keyboardShortcut(.cancelAction)
             .accessibilityLabel("Close")
         }
@@ -209,18 +198,33 @@ struct DetailPanel: View {
     private func notes(_ task: BoardTask, theme: Theme) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             Text("Notes").font(theme.font(15, .semibold))
-            TextField("Anything worth remembering", text: Binding(
+            // A real text editor: Return starts a new line, like the Tauri
+            // textarea. (A TextField would treat Return as "done".)
+            let text = Binding(
                 get: { draft?.notes ?? "" },
                 set: { value in
                     draft?.notes = value
                     scheduleNotesSave()
-                }), axis: .vertical)
-                .textFieldStyle(.plain)
+                })
+            TextEditor(text: text)
+                .scrollContentBackground(.hidden)  // our background, not the system's white
                 .font(theme.font(15))
                 .lineSpacing(4)
-                .lineLimit(4...)
+                .foregroundStyle(theme.ink)
+                // At least 4 lines (textarea rows=4), growing with the text.
+                .frame(minHeight: 4 * 22.5)
+                .fixedSize(horizontal: false, vertical: true)
+                .overlay(alignment: .topLeading) {
+                    if text.wrappedValue.isEmpty {
+                        Text("Anything worth remembering")
+                            .font(theme.font(15))
+                            .foregroundStyle(theme.muted)
+                            .padding(.leading, 5)  // the editor's own line padding
+                            .allowsHitTesting(false)
+                    }
+                }
                 .padding(.vertical, 12)
-                .padding(.horizontal, 14)
+                .padding(.horizontal, 9)
                 .background(theme.bg, in: RoundedRectangle(cornerRadius: theme.radiusSmall))
         }
     }

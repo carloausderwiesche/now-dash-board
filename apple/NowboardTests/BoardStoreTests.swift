@@ -130,3 +130,25 @@ private func read(_ dir: URL, _ name: String) throws -> String {
     }
     #expect(store.task("From Obsidian.md")?.status == .backlog)
 }
+
+#if os(macOS)
+    import AppKit
+
+    /// The ⌥ Space panel catches ⌘1–⌘6 itself (the app isn't active while you
+    /// type into it, so SwiftUI's keyboard shortcuts wouldn't fire).
+    @MainActor @Test func thePanelPassesCommandDigitsToQuickAdd() throws {
+        let panel = QuickPanel()
+        var picked: Int?
+        panel.keys.onCommandDigit = { picked = $0 }
+        let key = { (chars: String, flags: NSEvent.ModifierFlags) in
+            NSEvent.keyEvent(with: .keyDown, location: .zero, modifierFlags: flags, timestamp: 0, windowNumber: 0,
+                             context: nil, characters: chars, charactersIgnoringModifiers: chars, isARepeat: false, keyCode: 19)!
+        }
+        #expect(panel.performKeyEquivalent(with: key("2", .command)))
+        #expect(picked == 2)
+        picked = nil
+        #expect(!panel.performKeyEquivalent(with: key("9", .command)))  // only 1–6
+        #expect(!panel.performKeyEquivalent(with: key("2", [.command, .shift])))
+        #expect(picked == nil)
+    }
+#endif

@@ -55,7 +55,7 @@
             guard let store else { return }
             let panel = self.panel ?? QuickPanel()
             self.panel = panel
-            let view = QuickAdd(onClose: { [weak self] in self?.close() })
+            let view = QuickAdd(onClose: { [weak self] in self?.close() }, keys: panel.keys)
                 .environment(store)
                 .frame(width: 600)
                 .clipShape(RoundedRectangle(cornerRadius: store.theme.radiusLarge))
@@ -78,6 +78,11 @@
             // Fades in from slightly smaller, about 250ms, no bounce.
             panel.alphaValue = 0
             panel.makeKeyAndOrderFront(nil)
+            #if DEBUG
+                if ProcessInfo.processInfo.arguments.contains("-focusdebug") {
+                    print("PANEL shown", panel.frame, "key:", panel.isKeyWindow, "visible:", panel.isVisible)
+                }
+            #endif
             NSAnimationContext.runAnimationGroup { ctx in
                 ctx.duration = 0.25
                 panel.animator().alphaValue = 1
@@ -103,8 +108,22 @@
             collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .transient]
         }
 
+        /// Where ⌘1–⌘6 go (the quick-add view listens here).
+        let keys = QuickKeys()
+
         // A borderless panel can't become "key" (take typing) unless it says so.
         override var canBecomeKey: Bool { true }
+
+        /// ⌘-keys arrive here first ("key equivalents"). ⌘1–⌘6 pick a category.
+        override func performKeyEquivalent(with event: NSEvent) -> Bool {
+            if event.modifierFlags.intersection(.deviceIndependentFlagsMask) == .command,
+                let ch = event.charactersIgnoringModifiers, let n = Int(ch), (1...6).contains(n)
+            {
+                keys.onCommandDigit?(n)
+                return true
+            }
+            return super.performKeyEquivalent(with: event)
+        }
 
         // A click anywhere else takes the focus away: close, like the Tauri panel.
         override func resignKey() {

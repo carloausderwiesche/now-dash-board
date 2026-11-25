@@ -4,6 +4,7 @@
 import Foundation
 import NowboardKit
 import Observation
+import SwiftUI
 
 /// Swift note: `@Observable` makes SwiftUI redraw any view that read a property
 /// when that property changes. `@MainActor` keeps all of this on the main
@@ -36,6 +37,8 @@ final class BoardStore {
     var adding = false
     /// Dragging cards (Mac).
     let drag = DragController()
+    /// The card under the pointer (Mac): drawn above its neighbours.
+    var hoveredID: String?
 
     var theme: Theme { Theme.named(settings.theme) }
 
@@ -46,8 +49,23 @@ final class BoardStore {
         return BoardLists(tasks: tasks, today: day(.now), recentSince: day(weekAgo))
     }
 
+    /// What dropping a dragged card does: Done completes it, a list moves it.
+    private func connectDrag() {
+        drag.onDrop = { [weak self] id, target in
+            guard let self else { return }
+            withAnimation(.timingCurve(0.2, 0.8, 0.3, 1, duration: 0.4)) {
+                if target.status == .done {
+                    self.complete(id)
+                } else {
+                    self.move(id, to: target.status, before: target.beforeID)
+                }
+            }
+        }
+    }
+
     init() {
         settings = DeviceSettings.load()
+        defer { connectDrag() }
         if let url = FolderAccess.restore() {
             source = .folder(url)
             watch(url)
@@ -77,14 +95,19 @@ final class BoardStore {
     init(testFolder: URL) {
         settings = DeviceSettings()
         source = .folder(testFolder)
+        defer { connectDrag() }
         watch(testFolder)
     }
 
     #if DEBUG
         /// Snapshots of the demo board without forgetting the saved folder.
         func useDemoForSnapshot() {
+            watch(nil)
             source = .demo
+            tasks = []
         }
+
+        var isDemo: Bool { source == .demo }
     #endif
 
     /// Waits until every pending write has finished (and the board reloaded).
