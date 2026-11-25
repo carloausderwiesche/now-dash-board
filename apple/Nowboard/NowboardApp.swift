@@ -12,6 +12,8 @@ struct NowboardApp: App {
         #if os(macOS)
             // ⌥ Space from any app opens quick add in a floating panel.
             GlobalQuickAdd.shared.start(store: store)
+            // Right-click on a card opens the themed card menu.
+            CardMenuMonitor.shared.start(store: store)
         #endif
         #if DEBUG
             DebugSnapshot.runIfAsked(store: store)

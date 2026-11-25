@@ -70,6 +70,17 @@ func doneQuery(tasksFolder: String) -> String {
     """
 }
 
+/// Top-left corner for a menu opened at the pointer: down and right of it,
+/// flipped up or left when it wouldn't fit, never closer than 8pt to the
+/// window's edges (placeMenu in cardMenu.ts).
+func placeMenu(at p: CGPoint, size: CGSize, in window: CGSize) -> CGPoint {
+    let edge: CGFloat = 8
+    let x = p.x + size.width + edge <= window.width ? p.x : p.x - size.width
+    let y = p.y + size.height + edge <= window.height ? p.y : p.y - size.height
+    return CGPoint(x: max(edge, min(x, window.width - size.width - edge)),
+                   y: max(edge, min(y, window.height - size.height - edge)))
+}
+
 /// The category for an `area:` id. An unknown id shows as the first category
 /// (DESIGN.md: deleting a category doesn't touch task files).
 func category(for area: String, in categories: [Category]) -> Category {

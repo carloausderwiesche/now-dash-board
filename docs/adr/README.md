@@ -39,3 +39,4 @@ ADRs aren't edited after they're accepted, except for their status. To change a 
 | [0009](0009-mac-app-without-sandbox.md) | The Mac app runs without the App Sandbox, for now | Accepted |
 | [0010](0010-delete-with-undo.md) | The SwiftUI app deletes at once and offers Undo, instead of asking first | Accepted |
 | [0011](0011-categories-in-the-tasks-folder.md) | Categories live in `.nowboard.json` in the Tasks folder | Accepted |
+| [0012](0012-swiftui-card-menu.md) | The SwiftUI card menu is drawn by the app on the Mac and native on the iPhone | Accepted |

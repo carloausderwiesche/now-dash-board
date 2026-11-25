@@ -29,6 +29,32 @@ struct CloseIcon: Shape {
     }
 }
 
+/// `M12 19V5M6 11l6-6 6 6` up, `M12 5v14M6 13l6 6 6-6` down (ArrowIcon).
+struct ArrowIcon: Shape {
+    var up: Bool
+
+    func path(in rect: CGRect) -> Path {
+        let s = rect.width / 24
+        func pt(_ x: CGFloat, _ y: CGFloat) -> CGPoint { CGPoint(x: rect.minX + x * s, y: rect.minY + y * s) }
+        var p = Path()
+        p.move(to: pt(12, up ? 19 : 5)); p.addLine(to: pt(12, up ? 5 : 19))
+        p.move(to: pt(6, up ? 11 : 13)); p.addLine(to: pt(12, up ? 5 : 19)); p.addLine(to: pt(18, up ? 11 : 13))
+        return p
+    }
+}
+
+/// `M8 16L16 8M9 8h7v7`: opens somewhere else (ExternalIcon).
+struct ExternalIcon: Shape {
+    func path(in rect: CGRect) -> Path {
+        let s = rect.width / 24
+        func pt(_ x: CGFloat, _ y: CGFloat) -> CGPoint { CGPoint(x: rect.minX + x * s, y: rect.minY + y * s) }
+        var p = Path()
+        p.move(to: pt(8, 16)); p.addLine(to: pt(16, 8))
+        p.move(to: pt(9, 8)); p.addLine(to: pt(16, 8)); p.addLine(to: pt(16, 15))
+        return p
+    }
+}
+
 /// .iconbtn: an icon in the muted colour that turns ink on hover (0.2s),
 /// with a hand cursor and an optional tooltip.
 struct IconButton<Icon: Shape>: View {

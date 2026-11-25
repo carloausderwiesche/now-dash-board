@@ -214,6 +214,14 @@ private func read(_ dir: URL, _ name: String) throws -> String {
     #expect(doneQuery(tasksFolder: "Notes/Tasks").contains(#"LIST FROM "Notes/Tasks""#))
 }
 
+@Test func theCardMenuOpensAtThePointerAndFlipsNearTheEdges() {
+    let menu = CGSize(width: 232, height: 300), window = CGSize(width: 1000, height: 800)
+    #expect(placeMenu(at: CGPoint(x: 100, y: 100), size: menu, in: window) == CGPoint(x: 100, y: 100))
+    #expect(placeMenu(at: CGPoint(x: 900, y: 700), size: menu, in: window) == CGPoint(x: 668, y: 400))
+    // Too big either way: pinned 8pt from the edge.
+    #expect(placeMenu(at: CGPoint(x: 100, y: 150), size: CGSize(width: 232, height: 790), in: window).y == 8)
+}
+
 @MainActor @Test func aFailedWriteShowsAnError() async throws {
     let (store, _) = try await makeStore(["Broken.md": "---\nstatus: today\narea: [work\n---\n"])
     store.complete("Broken.md")

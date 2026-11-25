@@ -48,6 +48,7 @@ struct BoardView: View {
             // top, both over a scrim (a soft shade over the board).
             .overlay { macOverlays }
             .overlay { settingsPopover }
+            .overlay { CardMenuLayer() }
         #else
             // iPhone: both are sheets from below.
             .sheet(isPresented: Binding(get: { store.openID != nil }, set: { if !$0 { store.openID = nil } })) {

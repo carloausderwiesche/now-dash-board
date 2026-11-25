@@ -45,6 +45,8 @@ final class BoardStore {
     var openID: String?
     /// Quick add is showing.
     var adding = false
+    /// The Mac's card menu: which card, and where you right-clicked (window coordinates).
+    var menu: (id: String, at: CGPoint)?
     /// The settings popover (Mac) or sheet (iPhone) is showing.
     var showingSettings = false
     /// The header's tools, in window coordinates: the Mac's settings popover hangs under them.

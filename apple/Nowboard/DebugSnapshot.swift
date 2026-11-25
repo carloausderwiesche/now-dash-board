@@ -35,6 +35,8 @@
                 // that card (demo only), so the Undo pill shows.
                 if argument("settings") == "true" { store.showingSettings = true }
                 if let id = argument("delete"), store.isDemo { store.delete(id) }
+                // `-menu <file name>`: that card's menu, as if right-clicked at its middle.
+                if let id = argument("menu"), let f = store.drag.cardFrames[id] { store.menu = (id, CGPoint(x: f.midX, y: f.midY)) }
                 #if os(macOS)
                     // `-panel true`: open the ⌥ Space panel, as if the shortcut was pressed.
                     if argument("panel") == "true" { GlobalQuickAdd.shared.toggle() }
@@ -83,8 +85,9 @@
                         let start = Date()
                         store.finish(id)
                         for (i, ms) in [300, 520, 640, 760, 1300].enumerated() {
-                            let wait = Double(ms) / 1000 - Date().timeIntervalSince(start)
-                            if wait > 0 { try? await Task.sleep(for: .seconds(wait)) }
+                            // At least a frame's wait, so the window redraws between shots.
+                            let wait = max(0.02, Double(ms) / 1000 - Date().timeIntervalSince(start))
+                            try? await Task.sleep(for: .seconds(wait))
                             capture("\(i)-" + name)
                         }
                         exit(0)

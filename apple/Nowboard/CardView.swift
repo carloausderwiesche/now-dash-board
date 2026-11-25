@@ -117,7 +117,11 @@ struct CardView: View {
         }
         .cursor(.openHand)
         .allowsHitTesting(mode == .normal && finishing == .idle && !deleting)
-        .contextMenu { CardMenu(task: task) }
+        #if os(iOS)
+            // Long-press: the system menu, which lifts the card (ADR 0012).
+            // The Mac draws its own on a right-click (CardMenuPopup.swift).
+            .contextMenu { CardMenu(task: task) }
+        #endif
         // A small tap on the phone as the finished card leaves for Done.
         .sensoryFeedback(.success, trigger: finishing == .leaving) { _, leaving in leaving }
         .accessibilityElement(children: .contain)
@@ -410,8 +414,9 @@ private struct TrailingIcon: LabelStyle {
     }
 }
 
-/// The card menu (right-click or long-press), like the Tauri app's: category
-/// first, then Open, Move, Focus, Mark done, Open in Obsidian, Delete.
+/// The iPhone's card menu (long-press), with the same items as the Mac's
+/// themed one: category first, then Open, Move, Focus, Mark done, Open in
+/// Obsidian, Delete.
 struct CardMenu: View {
     @Environment(BoardStore.self) private var store
     @Environment(\.openURL) private var openURL
