@@ -63,6 +63,8 @@ struct SettingsPanel: View {
             Field(label: "Categories") {
                 CategoryEditor()
             }
+            // An open colour palette hangs over the sections below.
+            .zIndex(1)
             Field(label: "Tasks folder") {
                 folder(theme: theme)
             }
@@ -189,7 +191,11 @@ struct SmallButton: View {
 private struct CategoryEditor: View {
     @Environment(BoardStore.self) private var store
     /// The category whose colour palette is open.
-    @State private var picking: String?
+    #if DEBUG
+        @State private var picking = DebugSnapshot.argument("palette")  // `-palette <id>`, for screenshots
+    #else
+        @State private var picking: String?
+    #endif
     /// The row being dragged by its grip: where it started and how far it moved.
     @State private var drag: (id: String, from: Int, dy: CGFloat)?
     /// One row plus the gap between rows: how far a row moves per slot.
