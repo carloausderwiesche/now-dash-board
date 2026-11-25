@@ -241,40 +241,20 @@ struct DetailPanel: View {
     private func footer(_ task: BoardTask, theme: Theme) -> some View {
         HStack(spacing: 10) {
             if task.status == .today || task.status == .backlog {
-                Button {
+                MarkDoneButton(theme: theme) {
                     store.openID = nil
                     store.finish(id)
-                } label: {
-                    Label("Mark done", systemImage: "checkmark")
-                        .font(theme.font(15, .semibold))
-                        .frame(maxWidth: .infinity, minHeight: 52)
-                        .foregroundStyle(theme.bg)
-                        .background(theme.ink, in: Capsule())
                 }
-                .buttonStyle(.pointer)
             }
             // On the demo board there's no file to open: the button stays,
             // greyed out, and says why.
             let url = store.obsidianURL(task.id)
-            do {
-                Button {
-                    if let url { openURL(url) }
-                } label: {
-                    HStack(spacing: 6) {
-                        Text("Open in Obsidian")
-                        Image(systemName: "arrow.up.right").imageScale(.small).opacity(0.6)
-                    }
-                    .font(theme.font(15, .semibold))
-                    .padding(.horizontal, 22)
-                    .frame(minHeight: 52)
-                    .frame(maxWidth: task.status == .done || task.status == .suggested ? .infinity : nil)
-                    .background(theme.well, in: Capsule())
-                }
-                .buttonStyle(.pointer)
-                .disabled(url == nil)
-                .opacity(url == nil ? 0.5 : 1)
-                .help(url == nil ? "Demo board: choose a Tasks folder in Settings first" : "Open this file in Obsidian")
+            ObsidianButton(theme: theme, fills: task.status == .done || task.status == .suggested) {
+                if let url { openURL(url) }
             }
+            .disabled(url == nil)
+            .opacity(url == nil ? 0.5 : 1)
+            .help(url == nil ? "Demo board: choose a Tasks folder in Settings first" : "Open this file in Obsidian")
         }
         .padding(.top, 16)
         .padding(.horizontal, 28)
@@ -325,6 +305,93 @@ struct DetailPanel: View {
         let ok = folder.startAccessingSecurityScopedResource()
         defer { if ok { folder.stopAccessingSecurityScopedResource() } }
         return try String(contentsOf: url, encoding: .utf8)
+    }
+}
+
+/// .btn-primary: on hover a tick slides in and draws itself in front of
+/// "Mark done" (.done-tick); pressing shrinks it a little.
+private struct MarkDoneButton: View {
+    let theme: Theme
+    let action: () -> Void
+    @State private var hovering = false
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 0) {
+                Tick()
+                    .trim(from: 0, to: hovering ? 1 : 0)
+                    .stroke(theme.bg, style: StrokeStyle(lineWidth: 3.2 * 16 / 24, lineCap: .round, lineJoin: .round))
+                    .frame(width: 16, height: 16)
+                    // stroke-dashoffset 0.24s after 0.06s.
+                    .animation(.easeOut(duration: 0.24).delay(hovering ? 0.06 : 0), value: hovering)
+                    .frame(width: hovering ? 22 : 0, alignment: .leading)
+                    .opacity(hovering ? 1 : 0)
+                    .clipped()
+                Text("Mark done")
+            }
+            .font(theme.font(15, .semibold))
+            .tracking(Theme.tracking(-0.01, size: 15))
+            .foregroundStyle(theme.bg)
+            .frame(maxWidth: .infinity, minHeight: 52)
+            .background(theme.ink, in: Capsule())
+            .contentShape(Capsule())
+        }
+        .buttonStyle(FooterPress())
+        .onHover { h in withAnimation(.easeOut(duration: 0.2)) { hovering = h } }
+    }
+}
+
+/// .btn-secondary: the well a shade darker on hover, and the ↗ nudges up
+/// and right with a small overshoot (.ext).
+private struct ObsidianButton: View {
+    let theme: Theme
+    /// A done or suggested task has no Mark done: this one takes the width.
+    let fills: Bool
+    let action: () -> Void
+    @Environment(\.isEnabled) private var enabled
+    @State private var pointedAt = false
+    /// No hover effect while greyed out (demo board).
+    private var hovering: Bool { pointedAt && enabled }
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 6) {
+                Text("Open in Obsidian")
+                ExternalIcon()
+                    .stroke(theme.ink, style: StrokeStyle(lineWidth: 2.2 * 14 / 24, lineCap: .round, lineJoin: .round))
+                    .frame(width: 14, height: 14)
+                    .opacity(hovering ? 1 : 0.6)
+                    .offset(x: hovering ? 2 : 0, y: hovering ? -2 : 0)
+                    .animation(.timingCurve(0.2, 1.4, 0.4, 1, duration: 0.2), value: hovering)
+            }
+            .font(theme.font(15, .semibold))
+            .tracking(Theme.tracking(-0.01, size: 15))
+            .foregroundStyle(theme.ink)
+            .padding(.leading, 22)
+            .padding(.trailing, 20)
+            .frame(minHeight: 52)
+            .frame(maxWidth: fills ? .infinity : nil)
+            // color-mix(ink 7%, well): ink at 7% laid over the well.
+            .background {
+                ZStack {
+                    Capsule().fill(theme.well)
+                    Capsule().fill(theme.ink.opacity(hovering ? 0.07 : 0))
+                }
+            }
+            .contentShape(Capsule())
+        }
+        .buttonStyle(FooterPress())
+        .onHover { h in withAnimation(.easeOut(duration: 0.2)) { pointedAt = h } }
+    }
+}
+
+/// `:active { transform: scale(0.98) }` with the hand cursor.
+private struct FooterPress: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .scaleEffect(configuration.isPressed ? 0.98 : 1)
+            .animation(.easeOut(duration: 0.2), value: configuration.isPressed)
+            .cursor(.pointingHand)
     }
 }
 
