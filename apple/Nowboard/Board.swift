@@ -47,15 +47,19 @@ func newCategory(after cats: [Category]) -> Category {
 /// (the nearest folder above it with an `.obsidian` folder), e.g.
 /// `Notes/Tasks`. Without a vault in sight, just the folder's own name.
 func vaultRelativePath(of folder: URL) -> String {
-    let parts = folder.standardizedFileURL.pathComponents
+    let folder = folder.standardizedFileURL
+    guard let root = vaultRoot(of: folder) else { return folder.lastPathComponent }
+    return folder.pathComponents.dropFirst(root.pathComponents.count).joined(separator: "/")
+}
+
+/// The vault a folder is in: the nearest folder above it with an `.obsidian` folder.
+func vaultRoot(of folder: URL) -> URL? {
     var root = folder.standardizedFileURL
-    for depth in stride(from: parts.count - 1, through: 1, by: -1) {
+    while root.pathComponents.count > 1 {
         root.deleteLastPathComponent()
-        if FileManager.default.fileExists(atPath: root.appendingPathComponent(".obsidian").path) {
-            return parts.suffix(parts.count - depth).joined(separator: "/")
-        }
+        if FileManager.default.fileExists(atPath: root.appendingPathComponent(".obsidian").path) { return root }
     }
-    return folder.lastPathComponent
+    return nil
 }
 
 /// Where a folder or file is, as Finder and Files name it: "iCloud Drive ›
@@ -158,7 +162,7 @@ enum Demo {
         return [
             t("Review PR for alert thresholds", "work", .today, 1024, focus: true,
               items: [.init(text: "Read the diff", done: true), .init(text: "Run it locally", done: false), .init(text: "Leave comments", done: false)],
-              notes: "Check the hysteresis values against the old dashboard before approving."),
+              notes: "Check the **hysteresis values** against the old dashboard before approving.\n\n- Thresholds come from `alerts.yaml`\n- Compare with [[Dashboard v1]] #review"),
             t("Homepage copy review", "freelance", .today, 2048),
             t("Piano practice", "personal", .today, 3072, isPrivate: true),
             t("Prep notes for 1-on-1", "work", .today, 4096),

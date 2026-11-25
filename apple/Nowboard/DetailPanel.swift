@@ -6,6 +6,7 @@
 // away, notes a moment after you stop typing, the title when you leave it
 // (that renames the file).
 
+import MarkdownUI
 import NowboardKit
 import SwiftUI
 
@@ -23,6 +24,8 @@ struct DetailPanel: View {
     @State private var showFile = false
     @State private var notesSave: Task<Void, Never>?
     @FocusState private var titleFocused: Bool
+    @State private var editingNotes = false
+    @FocusState private var notesFocused: Bool
 
     var body: some View {
         let theme = store.theme
@@ -42,6 +45,9 @@ struct DetailPanel: View {
                 .padding(.top, 20)
                 .padding(.horizontal, 28)
                 .padding(.bottom, 28)
+                // A click on empty space leaves the notes, so they show rendered.
+                .contentShape(Rectangle())
+                .onTapGesture { notesFocused = false }
                 if scrolls {
                     ScrollView { content }
                 } else {
@@ -177,6 +183,8 @@ struct DetailPanel: View {
         }
     }
 
+    /// Notes as Obsidian's Reading view shows them (ADR 0014); a tap edits the
+    /// markdown as stored, and leaving the editor shows it rendered again.
     private func notes(_ task: BoardTask, theme: Theme) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             Text("Notes").font(theme.font(15, .semibold))
@@ -188,27 +196,56 @@ struct DetailPanel: View {
                     draft?.notes = value
                     scheduleNotesSave()
                 })
-            TextEditor(text: text)
-                .scrollContentBackground(.hidden)  // our background, not the system's white
-                .font(theme.font(15))
-                .lineSpacing(4)
-                .foregroundStyle(theme.ink)
-                // At least 4 lines (textarea rows=4), growing with the text.
-                .frame(minHeight: 4 * 22.5)
-                .fixedSize(horizontal: false, vertical: true)
-                .overlay(alignment: .topLeading) {
-                    if text.wrappedValue.isEmpty {
-                        Text("Anything worth remembering")
-                            .font(theme.font(15))
-                            .foregroundStyle(theme.muted)
-                            .padding(.leading, 5)  // the editor's own line padding
-                            .allowsHitTesting(false)
+            if editingNotes || text.wrappedValue.allSatisfy(\.isWhitespace) {
+                editor(text, theme: theme)
+            } else {
+                Markdown(obsidianToMarkdown(text.wrappedValue, link: store.obsidianURL))
+                    .markdownTextStyle {
+                        if let name = theme.fontName { FontFamily(.custom(name)) }
+                        FontSize(15)
+                        ForegroundColor(theme.ink)
                     }
-                }
-                .padding(.vertical, 12)
-                .padding(.horizontal, 9)
-                .background(theme.bg, in: RoundedRectangle(cornerRadius: theme.radiusSmall))
+                    .markdownTextStyle(\.link) { ForegroundColor(theme.accent) }
+                    .markdownTextStyle(\.code) {
+                        FontFamilyVariant(.monospaced)
+                        FontSize(.em(0.88))
+                        BackgroundColor(theme.well)
+                    }
+                    .frame(maxWidth: .infinity, minHeight: 4 * 22.5 - 24, alignment: .topLeading)
+                    .padding(.vertical, 12)
+                    .padding(.horizontal, 14)
+                    .background(theme.bg, in: RoundedRectangle(cornerRadius: theme.radiusSmall))
+                    .contentShape(Rectangle())
+                    .onTapGesture { editingNotes = true }
+                    .accessibilityAction(named: "Edit notes") { editingNotes = true }
+            }
         }
+    }
+
+    private func editor(_ text: Binding<String>, theme: Theme) -> some View {
+        TextEditor(text: text)
+            .scrollContentBackground(.hidden)  // our background, not the system's white
+            .font(theme.font(15))
+            .lineSpacing(4)
+            .foregroundStyle(theme.ink)
+            .focused($notesFocused)
+            .onAppear { if editingNotes { notesFocused = true } }
+            .onChange(of: notesFocused) { _, focused in editingNotes = focused }
+            // At least 4 lines (textarea rows=4), growing with the text.
+            .frame(minHeight: 4 * 22.5)
+            .fixedSize(horizontal: false, vertical: true)
+            .overlay(alignment: .topLeading) {
+                if text.wrappedValue.isEmpty {
+                    Text("Anything worth remembering")
+                        .font(theme.font(15))
+                        .foregroundStyle(theme.muted)
+                        .padding(.leading, 5)  // the editor's own line padding
+                        .allowsHitTesting(false)
+                }
+            }
+            .padding(.vertical, 12)
+            .padding(.horizontal, 9)
+            .background(theme.bg, in: RoundedRectangle(cornerRadius: theme.radiusSmall))
     }
 
     /// The file name; tap to see the markdown as it's stored.

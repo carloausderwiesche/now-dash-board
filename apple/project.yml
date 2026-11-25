@@ -17,6 +17,10 @@ packages:
   # The task file format, shared by both platforms (local package, same repo).
   NowboardKit:
     path: NowboardKit
+  # Shows task notes as Markdown in the card panel (ADR 0014).
+  MarkdownUI:
+    url: https://github.com/gonzalezreal/swift-markdown-ui
+    from: "2.4.0"
 
 targets:
   Nowboard:
@@ -29,6 +33,7 @@ targets:
       - path: Shared
     dependencies:
       - package: NowboardKit
+      - package: MarkdownUI
       # The Lock Screen banner (ADR 0013). iPhone only.
       - target: NowboardWidgets
         destinationFilters: [iOS]

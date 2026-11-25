@@ -50,7 +50,7 @@ Read this before changing how something looks or behaves. These decisions came o
   - an editable title that grows to fit (never a scrollbar, never cut off)
   - a Today / Backlog switch, the same one as in quick add (a suggested task shows "Accept to Backlog" instead)
   - a checklist using the same round checks as the cards (hover a step for × to remove it)
-  - notes
+  - notes. In the SwiftUI app they show rendered, like Obsidian's Reading view: headings, lists, quotes, code, tables and links, with `[[wikilinks]]` opening the note in Obsidian and `#tags` opening Obsidian's search for them. A tap edits the Markdown as stored; a click anywhere else in the panel shows it rendered again. Empty notes show the editor ([ADR 0014](docs/adr/0014-markdown-notes-with-markdownui.md))
   - the file path (wraps when long), which expands to show the markdown
   - a bin next to ×: in the SwiftUI app one click closes the panel and deletes the task (see **Delete**). In the Tauri app one click turns it into "Delete file" and a second click deletes the task's .md file for good (it turns back by itself after 4 seconds, or when you click elsewhere)
   - **a sticky footer** with "Mark done" (a solid button; on hover a tick slides in and draws itself) and "Open in Obsidian" (a soft filled button in the theme's well colour, same size and weight, with a ↗ that nudges on hover)
