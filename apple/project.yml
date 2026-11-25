@@ -1,0 +1,61 @@
+# The Xcode project, as text. XcodeGen turns this into Nowboard.xcodeproj:
+#
+#   cd apple && xcodegen
+#
+# The .xcodeproj is generated, so it isn't in git (see .gitignore). Change
+# this file instead, and run `xcodegen` again. Docs: https://github.com/yonaskolb/XcodeGen
+
+name: Nowboard
+options:
+  bundleIdPrefix: com.nestoririondo
+  deploymentTarget:
+    iOS: "17.0"
+    macOS: "14.0"
+  createIntermediateGroups: true
+
+packages:
+  # The task file format, shared by both platforms (local package, same repo).
+  NowboardKit:
+    path: NowboardKit
+
+targets:
+  Nowboard:
+    type: application
+    # One target for both platforms: the same SwiftUI code builds an iPhone
+    # app and a Mac app. Platform-only code sits behind `#if os(...)`.
+    supportedDestinations: [iOS, macOS]
+    sources:
+      - path: Nowboard
+    dependencies:
+      - package: NowboardKit
+    entitlements:
+      path: Nowboard/Nowboard.entitlements
+      properties:
+        # macOS only (iOS ignores these): the app runs in the sandbox and may
+        # read and write only folders the user picked.
+        com.apple.security.app-sandbox: true
+        com.apple.security.files.user-selected.read-write: true
+        com.apple.security.files.bookmarks.app-scope: true
+        # Read the Tauri app's settings once, to start with the same theme
+        # and categories (Settings.swift). Only that folder, only reading.
+        com.apple.security.temporary-exception.files.home-relative-path.read-only:
+          - /Library/Application Support/com.nestoririondo.nowboard/
+    settings:
+      base:
+        # Not the Tauri app's id (com.nestoririondo.nowboard), so both apps
+        # can be installed side by side until the Tauri one is archived.
+        PRODUCT_BUNDLE_IDENTIFIER: com.nestoririondo.nowboard.swiftui
+        PRODUCT_NAME: Nowboard
+        MARKETING_VERSION: "0.1"
+        CURRENT_PROJECT_VERSION: "1"
+        SWIFT_VERSION: "6.0"
+        GENERATE_INFOPLIST_FILE: YES
+        INFOPLIST_KEY_CFBundleDisplayName: Nowboard
+        INFOPLIST_KEY_UILaunchScreen_Generation: YES
+        INFOPLIST_KEY_UISupportedInterfaceOrientations: UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight
+        INFOPLIST_KEY_LSApplicationCategoryType: public.app-category.productivity
+        TARGETED_DEVICE_FAMILY: "1,2"
+        # No paid developer account yet: sign locally (simulator and this Mac).
+        CODE_SIGN_STYLE: Automatic
+        CODE_SIGN_IDENTITY: "-"
+        ENABLE_PREVIEWS: YES

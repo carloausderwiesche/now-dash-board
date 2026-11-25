@@ -6,3 +6,4 @@ src-tauri/gen
 apple/**/.build
 .swiftpm
 xcuserdata
+apple/*.xcodeproj
