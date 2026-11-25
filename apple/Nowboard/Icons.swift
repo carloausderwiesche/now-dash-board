@@ -79,9 +79,8 @@ struct IconButton<Icon: Shape>: View {
                 .contentShape(Rectangle())
                 .animation(.easeOut(duration: 0.2), value: hovering)
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.pointer)
         .onHover { hovering = $0 }
-        .cursor(.pointingHand)
         .modifier(OptionalTip(text: tip))
     }
 }

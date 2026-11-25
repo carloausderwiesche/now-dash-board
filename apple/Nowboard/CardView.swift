@@ -135,7 +135,9 @@ struct CardView: View {
         } label: {
             VStack(alignment: .leading, spacing: compact ? 4 : 6) {
                 TitleText(task: task, size: m.titleSize, weight: m.titleWeight, lines: m.lines, theme: theme,
-                          struck: finishing != .idle)
+                          struck: finishing != .idle,
+                          tips: mode == .normal && store.drag.id == nil && finishing == .idle,
+                          inverted: style == .today && task.focus, debugHover: debugHover)
                 if style == .today && !task.items.isEmpty {
                     Text("\(task.items.filter(\.done).count) / \(task.items.count)")
                         .font(.system(size: 11, design: .monospaced))
@@ -145,8 +147,7 @@ struct CardView: View {
             }
             .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
-        .cursor(.pointingHand)
+        .buttonStyle(.pointer)
         .accessibilityLabel(task.title)
         .accessibilityHint("Opens the task")
     }
@@ -184,9 +185,8 @@ struct CardView: View {
                         .frame(width: 40, height: compact ? 34 : 40)
                         .contentShape(Rectangle())
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.pointer)
                 .onHover { h in withAnimation(.easeOut(duration: 0.2)) { overRing = h } }
-                .cursor(.pointingHand)
                 .padding(.trailing, -8)
                 .accessibilityLabel("Mark done")
             }
@@ -363,9 +363,8 @@ private struct RevealButton: View {
             .padding(.horizontal, padding)
             .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.pointer)
         .onHover { hovering = $0 }
-        .cursor(.pointingHand)
     }
 }
 
@@ -454,6 +453,17 @@ private struct TitleText: View {
     let lines: Int
     let theme: Theme
     var struck = false
+    /// The full-title tooltip may show (not while dragging or finishing).
+    var tips = false
+    /// On the ink focus card the tooltip is light (.is-focus .opener::after).
+    var inverted = false
+    /// Debug screenshots (`-hover`): shown as if hovered.
+    var debugHover = false
+
+    /// Heights of the title as shown (clamped) and as it would be in full.
+    @State private var shownHeight: CGFloat = 0
+    @State private var fullHeight: CGFloat = 0
+    @State private var hovering = false
 
     var body: some View {
         // Text pieces joined with `+` flow as one paragraph, so the lock sits
@@ -462,17 +472,60 @@ private struct TitleText: View {
         if task.isPrivate {
             text = text + Text("  ") + Text(Image(systemName: "lock")).font(.system(size: size * 0.62, weight: .semibold)).foregroundStyle(.secondary)
         }
-        return
-            text
+        return styled(text)
+            .lineLimit(lines)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .fixedSize(horizontal: false, vertical: true)
+            .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { shownHeight = $0 }
+            // The same text with no line limit, unseen: if it's taller, the
+            // title is cut off ("…") and the tooltip has something to show.
+            .background(alignment: .top) {
+                styled(text)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .hidden()
+                    .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { fullHeight = $0 }
+            }
+        #if os(macOS)
+            .onHover { h in
+                // Shows after half a second of hovering, hides at once (as the CSS).
+                withAnimation(h ? .easeOut(duration: 0.15).delay(0.5) : .easeOut(duration: 0.12)) { hovering = h }
+            }
+            .overlay(alignment: .bottom) {
+                if tips && fullHeight > shownHeight + 1 {
+                    fullTitle
+                }
+            }
+        #endif
+    }
+
+    private func styled(_ text: Text) -> some View {
+        text
             // The size is animated (17 → 24pt into focus): a plain font change
             // would jump, `GrowingFont` passes every size in between.
             .modifier(GrowingFont(size: size, weight: weight, theme: theme))
             .strikethrough(struck)
             .lineSpacing(1)
-            .lineLimit(lines)
             .multilineTextAlignment(.leading)
+    }
+
+    /// `.opener[data-clipped]::after`: the whole title in a small ink label
+    /// 6pt under the title, as wide as it.
+    private var fullTitle: some View {
+        Text(task.title)
+            .font(theme.font(12, .medium))
+            .lineSpacing(3)
+            .multilineTextAlignment(.leading)
+            .foregroundStyle(inverted ? theme.ink : theme.bg)
             .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 8)
+            .background(inverted ? theme.bg : theme.ink, in: RoundedRectangle(cornerRadius: theme.radiusSmall))
             .fixedSize(horizontal: false, vertical: true)
+            .alignmentGuide(.bottom) { d in d[.top] - 6 }
+            .offset(y: hovering || debugHover ? 0 : -3)
+            .opacity(hovering || debugHover ? 1 : 0)
+            .allowsHitTesting(false)
+            .accessibilityHidden(true)
     }
 }
 

@@ -120,6 +120,19 @@ private func read(_ dir: URL, _ name: String) throws -> String {
     #expect(store.tasks.map(\.title) == ["Fix: token"])
 }
 
+@MainActor @Test func renamingTheOpenTaskKeepsItsPanelOpen() async throws {
+    let (store, _) = try await makeStore([
+        "Old.md": "---\nstatus: today\norder: 1\n---\n",
+        "Taken.md": "---\nstatus: today\norder: 2\n---\n",
+    ])
+    store.openID = "Old.md"
+    store.rename("Old.md", to: "Taken")
+    #expect(store.openID == "Taken (2).md")
+    await store.waitForWrites()
+    #expect(store.task("Taken (2).md") != nil)
+    #expect(store.openID == "Taken (2).md")
+}
+
 @MainActor @Test func checklistAndNotesEditsAreSaved() async throws {
     let (store, dir) = try await makeStore(["A.md": "---\nstatus: today\norder: 1\n---\n"])
     var t = try #require(store.task("A.md"))

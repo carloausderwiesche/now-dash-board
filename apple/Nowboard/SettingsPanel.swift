@@ -289,20 +289,27 @@ private struct CategoryRow<G: Gesture>: View {
                 }
                 .accessibilityLabel("Category name")
             if canRemove {
-                IconButton(icon: CloseIcon(), width: 28, height: 28, tip: "Delete \(category.name)", action: remove)
+                // The system tooltip (like the CSS `title`): the popover would cut ours off.
+                IconButton(icon: CloseIcon(), width: 28, height: 28, action: remove)
+                    .help("Delete \(category.name)")
                     .opacity(showControls && !sorting ? 1 : 0)
                     .allowsHitTesting(!sorting)
                     .accessibilityLabel("Delete \(category.name)")
+                    .padding(.leading, -6)
             }
         }
+        // The × reaches into the popover's padding, so its glyph lines up with
+        // the panel's right edge and doesn't float away from the name.
+        .padding(.trailing, canRemove ? -7 : 0)
         .overlay(alignment: .leading) {
             if canRemove {
+                // Centred in the gap between the popover's edge and the dot.
                 GripIcon()
                     .fill(theme.muted)
                     .frame(width: 10, height: 14)
                     .frame(width: 14, height: 28)
                     .contentShape(Rectangle())
-                    .offset(x: -15)
+                    .offset(x: -10)
                     .opacity(showControls || lifted ? 1 : 0)
                     .gesture(grip)
                     .cursor(.openHand)
@@ -315,7 +322,7 @@ private struct CategoryRow<G: Gesture>: View {
                 .fill(theme.surface)
                 .overlay(RoundedRectangle(cornerRadius: theme.radiusSmall).strokeBorder(theme.line, lineWidth: 1))
                 .shadow(color: .black.opacity(0.2), radius: 10, y: 6)
-                .padding(EdgeInsets(top: -3, leading: -17, bottom: -3, trailing: 30))
+                .padding(EdgeInsets(top: -3, leading: -17, bottom: -3, trailing: 24))
                 .opacity(lifted ? 1 : 0)
         }
         .overlay(alignment: .topLeading) {
@@ -328,6 +335,8 @@ private struct CategoryRow<G: Gesture>: View {
     private var showControls: Bool {
         #if os(iOS)
             true
+        #elseif DEBUG
+            hovering || DebugSnapshot.argument("hover") == category.id  // debug screenshots
         #else
             hovering
         #endif

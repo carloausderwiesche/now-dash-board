@@ -119,7 +119,7 @@ struct DetailPanel: View {
                     store.accept(id)
                     draft?.status = .backlog
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.pointer)
                 .underline()
             }
             .font(theme.font(13))
@@ -133,7 +133,7 @@ struct DetailPanel: View {
                     store.reopen(id)
                     draft?.status = .today
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.pointer)
                 .underline()
             }
             .font(theme.font(13))
@@ -225,7 +225,7 @@ struct DetailPanel: View {
                 .font(.system(size: 12, design: .monospaced))
                 .foregroundStyle(theme.muted)
             }
-            .buttonStyle(.plain)
+            .buttonStyle(.pointer)
             if showFile, let url = store.fileURL(task.id), let text = try? readFile(url) {
                 Text(text)
                     .font(.system(size: 12, design: .monospaced))
@@ -251,7 +251,7 @@ struct DetailPanel: View {
                         .foregroundStyle(theme.bg)
                         .background(theme.ink, in: Capsule())
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.pointer)
             }
             // On the demo board there's no file to open: the button stays,
             // greyed out, and says why.
@@ -270,11 +270,10 @@ struct DetailPanel: View {
                     .frame(maxWidth: task.status == .done || task.status == .suggested ? .infinity : nil)
                     .background(theme.well, in: Capsule())
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.pointer)
                 .disabled(url == nil)
                 .opacity(url == nil ? 0.5 : 1)
                 .help(url == nil ? "Demo board: choose a Tasks folder in Settings first" : "Open this file in Obsidian")
-                .cursor(.pointingHand)
             }
         }
         .padding(.top, 16)
@@ -315,9 +314,10 @@ struct DetailPanel: View {
     private func commitTitle() {
         let new = title.trimmingCharacters(in: .whitespacesAndNewlines)
         guard let stored = store.task(id), !new.isEmpty, new != stored.title else { return }
+        flushNotes()
         store.rename(id, to: new)
-        // The file has a new name now: close, so the panel doesn't follow an old id.
-        store.openID = nil
+        // The panel follows the new file name (the store moved `openID`).
+        draft = store.openID.flatMap(store.task) ?? draft
     }
 
     private func readFile(_ url: URL) throws -> String {
@@ -350,7 +350,7 @@ private struct StepRow: View {
                 .scaleEffect(item.done ? 1.08 : 1)
                 .animation(.easeOut(duration: 0.2), value: item.done)
             }
-            .buttonStyle(.plain)
+            .buttonStyle(.pointer)
             .accessibilityLabel(item.done ? "Done" : "Not done")
             Text(item.text)
                 .font(theme.font(15))
@@ -362,7 +362,7 @@ private struct StepRow: View {
             Button(action: remove) {
                 Image(systemName: "xmark").font(.system(size: 11, weight: .semibold)).frame(width: 32, height: 32)
             }
-            .buttonStyle(.plain)
+            .buttonStyle(.pointer)
             .foregroundStyle(theme.muted)
             .opacity(showRemove ? 1 : 0)
             .accessibilityLabel("Remove step: \(item.text)")
@@ -406,7 +406,7 @@ struct Segmented<Value: Hashable>: View {
                         }
                         .contentShape(Capsule())
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.pointer)
                 .accessibilityAddTraits(on ? .isSelected : [])
             }
         }

@@ -577,18 +577,18 @@ struct SuggestedStrip: View {
                     Button { store.openID = t.id } label: {
                         Text(t.title).font(theme.font(14)).lineLimit(1).frame(maxWidth: .infinity, alignment: .leading).contentShape(Rectangle())
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(.pointer)
                     if let from = t.from {
                         Text(from).font(.system(size: 11, design: .monospaced)).foregroundStyle(theme.muted).lineLimit(1)
                     }
                     Button("Accept") { store.accept(t.id) }
-                        .buttonStyle(.plain)
+                        .buttonStyle(.pointer)
                         .font(theme.font(12, .medium))
                         .foregroundStyle(theme.ink)
                         .padding(.horizontal, 8)
                         .frame(height: 32)
                     Button("Dismiss") { store.delete(t.id) }
-                        .buttonStyle(.plain)
+                        .buttonStyle(.pointer)
                         .font(theme.font(12, .medium))
                         .foregroundStyle(theme.muted)
                         .padding(.horizontal, 8)
@@ -667,7 +667,7 @@ struct DoneSection: View {
                 .overlay(alignment: .top) { Rectangle().fill(theme.ink).frame(height: 2) }
                 .contentShape(Rectangle())
             }
-            .buttonStyle(.plain)
+            .buttonStyle(.pointer)
             .accessibilityHint(open ? "Hides the list" : "Shows the last 7 days")
             #if os(iOS)
                 // Dropping a card on Done completes it.
@@ -704,7 +704,7 @@ struct DoneSection: View {
                                 Text(dayLabel(done)).font(theme.font(12)).foregroundStyle(theme.muted).padding(.horizontal, 8)
                             }
                             Button("Undo") { store.reopen(t.id) }
-                                .buttonStyle(.plain)
+                                .buttonStyle(.pointer)
                                 .font(theme.font(12, .medium))
                                 .padding(.horizontal, 8)
                                 .frame(height: 32)
@@ -733,11 +733,10 @@ struct UndoPill: View {
                         .lineLimit(1)
                         .truncationMode(.middle)
                     Button("Undo") { store.undoDelete() }
-                        .buttonStyle(.plain)
+                        .buttonStyle(.pointer)
                         .fontWeight(.semibold)
                         .underline()
                         .keyboardShortcut("z", modifiers: .command)
-                        .cursor(.pointingHand)
                 }
                 .font(theme.font(13, .medium))
                 .foregroundStyle(theme.bg)

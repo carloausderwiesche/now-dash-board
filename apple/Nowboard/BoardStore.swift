@@ -442,17 +442,26 @@ final class BoardStore {
         moveToTop(id, of: .backlog)
     }
 
-    /// Renames the file to fit a new title.
+    /// Renames the file to fit a new title. The card (and an open panel) moves
+    /// to the new file name right away, so nothing has to wait for the disk.
     func rename(_ id: String, to title: String) {
         let title = title.trimmingCharacters(in: .whitespacesAndNewlines)
         guard let t = task(id), !title.isEmpty, title != t.title else { return }
         let order = t.order
+        // The same free name the folder will pick (spec 5.7), from the files we know.
+        // ponytail: a non-task file with that name makes the disk pick another one;
+        // the reload then shows it, and an open panel closes.
+        let taken = Set(tasks.filter { $0.id != id }.map { $0.id.lowercased() })
+        let stem = TaskFormat.stem(for: title)
+        let newID = (1...).lazy.map { $0 == 1 ? "\(stem).md" : "\(stem) (\($0)).md" }
+            .first { !taken.contains($0.lowercased()) }!
         change({ all in
             if let i = all.firstIndex(where: { $0.id == id }) {
                 all[i].title = title
-                if case .demo = source { all[i].id = TaskFormat.stem(for: title) + ".md" }
+                all[i].id = newID
             }
         }) { folder in try folder.rename(id, to: title, order: order) }
+        if openID == id { openID = newID }
     }
 
     /// Deletes the task's file (also: dismissing a suggestion). The card
