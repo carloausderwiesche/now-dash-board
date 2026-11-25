@@ -139,7 +139,7 @@
                 if let i = highlighted, rows[i].enabled { run(rows[i]) }
                 return .handled
             }
-            // 1–6 pick a category, in the order of the dots.
+            // 1–6 (or ⌘1–⌘6) pick a category, in the order of the dots.
             .onKeyPress(characters: .decimalDigits) { press in
                 let cats = store.settings.categories
                 guard let n = Int(press.characters), (1...cats.count).contains(n) else { return .ignored }

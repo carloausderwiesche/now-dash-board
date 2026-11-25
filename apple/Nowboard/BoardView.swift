@@ -275,8 +275,8 @@ struct HeaderView: View {
     /// Category dots, a divider, settings and the + button.
     private var tools: some View {
         HStack(spacing: 6) {
-            ForEach(store.settings.categories) { c in
-                FilterDot(category: c)
+            ForEach(Array(store.settings.categories.enumerated()), id: \.element.id) { i, c in
+                FilterDot(category: c, key: i + 1)
             }
             Rectangle().fill(store.theme.line).frame(width: 1, height: 20).padding(.horizontal, 8)
             SettingsButton()
@@ -292,11 +292,16 @@ struct HeaderView: View {
 struct FilterDot: View {
     @Environment(BoardStore.self) private var store
     let category: Category
+    /// ⌘1–⌘6, in the order of the dots.
+    let key: Int
     @State private var hovering = false
 
     var body: some View {
         let theme = store.theme
         let on = store.filter == category.id
+        // While the panel, quick add or the card menu is open, ⌘1–⌘6 set that card's category instead.
+        let shortcut = store.openID == nil && !store.adding && store.menu == nil
+            ? KeyboardShortcut(KeyEquivalent(Character("\(key)")), modifiers: .command) : nil
         let color = category.color.strong(in: theme)
         Button {
             store.filter = on ? nil : category.id
@@ -316,7 +321,8 @@ struct FilterDot: View {
         }
         .buttonStyle(PressScale(pressed: 0.8))
         .onHover { hovering = $0 }
-        .tip(category.name)
+        .keyboardShortcut(shortcut)
+        .tip("\(category.name)  ⌘\(key)")
         .cursor(.pointingHand)
         .accessibilityLabel("Highlight \(category.name)")
         .accessibilityAddTraits(on ? .isSelected : [])

@@ -73,12 +73,13 @@ struct DetailPanel: View {
         HStack(spacing: 10) {
             // Category dots (14pt in 32×36 targets), the chosen one ringed.
             HStack(spacing: 0) {
-                ForEach(store.settings.categories) { c in
+                ForEach(Array(store.settings.categories.enumerated()), id: \.element.id) { i, c in
                     DotButton(color: c.color.strong(in: theme), name: c.name, box: 32, boxHeight: 36, size: 14,
                               selected: c.id == task.area) {
                         edit { $0.area = c.id }
                     }
                     .accessibilityAddTraits(c.id == task.area ? .isSelected : [])
+                    .keyboardShortcut(KeyEquivalent(Character("\(i + 1)")), modifiers: .command)
                 }
             }
             Text(cat.name).font(theme.font(13)).foregroundStyle(theme.muted)

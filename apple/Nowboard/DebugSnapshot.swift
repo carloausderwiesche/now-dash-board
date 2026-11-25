@@ -104,6 +104,19 @@
                         }
                         exit(0)
                     }
+                    // `-cmdkey <1–6>`: press ⌘ and that digit first, through the
+                    // same path as a real key press (menu shortcuts, then the views).
+                    if let key = argument("cmdkey"), let n = Int(key), (1...6).contains(n),
+                        let window = NSApp.windows.first(where: { $0.isVisible && !($0 is QuickPanel) }),
+                        let down = NSEvent.keyEvent(
+                            with: .keyDown, location: .zero, modifierFlags: .command, timestamp: 0,
+                            windowNumber: window.windowNumber, context: nil, characters: key,
+                            charactersIgnoringModifiers: key, isARepeat: false, keyCode: [18, 19, 20, 21, 23, 22][n - 1])
+                    {
+                        window.makeKeyAndOrderFront(nil)
+                        NSApp.sendEvent(down)
+                        try? await Task.sleep(for: .milliseconds(600))
+                    }
                     capture(name)
                     exit(0)
                 }
