@@ -139,6 +139,14 @@
                 if let i = highlighted, rows[i].enabled { run(rows[i]) }
                 return .handled
             }
+            // 1–6 pick a category, in the order of the dots.
+            .onKeyPress(characters: .decimalDigits) { press in
+                let cats = store.settings.categories
+                guard let n = Int(press.characters), (1...cats.count).contains(n) else { return .ignored }
+                store.menu = nil
+                store.setCategory(task.id, to: cats[n - 1].id)
+                return .handled
+            }
             .accessibilityElement(children: .contain)
             .accessibilityLabel("Card")
         }
@@ -208,10 +216,13 @@
                         if inside { hoverCategory = c.id } else if hoverCategory == c.id { hoverCategory = nil }
                     }
                     .accessibilityLabel(c.name)
+                    .accessibilityHint("Key \((cats.firstIndex { $0.id == c.id } ?? 0) + 1)")
                     .accessibilityAddTraits(c.id == current.id ? .isSelected : [])
                 }
                 Spacer(minLength: 8)
-                Text(shown.name)
+                // The name of the hovered (or current) category and its key.
+                let key = (cats.firstIndex { $0.id == shown.id } ?? 0) + 1
+                (Text(shown.name) + Text("  \(key)").font(.system(size: 11, design: .monospaced)))
                     .font(theme.font(12))
                     .foregroundStyle(theme.muted)
                     .lineLimit(1)

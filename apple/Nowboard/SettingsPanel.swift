@@ -22,18 +22,39 @@ struct SettingsPanel: View {
         let theme = store.theme
         VStack(alignment: .leading, spacing: 18) {
             Field(label: "Theme") {
-                Picker("Theme", selection: $store.settings.theme) {
-                    ForEach(["Rams", "Ive", "Pastel", "Eames"], id: \.self) { group in
-                        Section(group) {
-                            ForEach(Theme.all.filter { $0.group == group }) { t in
-                                Text(t.name).tag(t.id)
+                // .select-wrap: a themed field with the down arrow; the list
+                // itself is the system's, like the Tauri app's <select>.
+                Menu {
+                    Picker("Theme", selection: $store.settings.theme) {
+                        ForEach(["Rams", "Ive", "Pastel", "Eames"], id: \.self) { group in
+                            Section(group) {
+                                ForEach(Theme.all.filter { $0.group == group }) { t in
+                                    Text(t.name).tag(t.id)
+                                }
                             }
                         }
                     }
+                    .pickerStyle(.inline)
+                    .labelsHidden()
+                } label: {
+                    HStack {
+                        Text(theme.name).font(theme.font(14))
+                        Spacer(minLength: 8)
+                        DownIcon()
+                            .stroke(theme.ink, style: StrokeStyle(lineWidth: 2.4 * 10 / 24, lineCap: .round, lineJoin: .round))
+                            .frame(width: 10, height: 10)
+                    }
+                    .foregroundStyle(theme.ink)
+                    .padding(.horizontal, 12)
+                    .frame(height: 40)
+                    .background(theme.bg, in: RoundedRectangle(cornerRadius: theme.radiusSmall))
+                    .overlay(RoundedRectangle(cornerRadius: theme.radiusSmall).strokeBorder(theme.line, lineWidth: 1))
+                    .contentShape(Rectangle())
                 }
-                .labelsHidden()
-                .pickerStyle(.menu)
-                .fixedSize()
+                .menuStyle(.button)
+                .buttonStyle(.pointer)
+                .menuIndicator(.hidden)
+                .accessibilityLabel("Theme")
             }
             Field(label: "Cards") {
                 Segmented(selection: $store.settings.compact, options: [(false, "Roomy"), (true, "Compact")], theme: theme)

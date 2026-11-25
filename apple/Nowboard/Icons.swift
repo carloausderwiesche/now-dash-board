@@ -18,6 +18,16 @@ struct TrashIcon: Shape {
     }
 }
 
+/// `M6 9l6 6 6-6` (DownIcon): the arrow on a select.
+struct DownIcon: Shape {
+    func path(in rect: CGRect) -> Path {
+        let s = rect.width / 24
+        var p = Path()
+        p.move(to: CGPoint(x: 6 * s, y: 9 * s)); p.addLine(to: CGPoint(x: 12 * s, y: 15 * s)); p.addLine(to: CGPoint(x: 18 * s, y: 9 * s))
+        return p.offsetBy(dx: rect.minX, dy: rect.minY)
+    }
+}
+
 /// `M6 6l12 12M18 6L6 18` (CloseIcon).
 struct CloseIcon: Shape {
     func path(in rect: CGRect) -> Path {
