@@ -4,6 +4,7 @@
 import Foundation
 import NowboardKit
 import Observation
+import SwiftUI
 
 /// Swift note: `@Observable` makes SwiftUI redraw any view that read a property
 /// when that property changes. `@MainActor` keeps all of this on the main
@@ -18,13 +19,26 @@ final class BoardStore {
 
     private(set) var tasks: [BoardTask] = []
     private(set) var source: Source = .demo
-    private(set) var error: String?
+    /// What's shown in the error bar: a failed save first, else a failed load.
+    var error: String? { writeError ?? loadError }
+    /// A save that failed. Stays until the next save works, so a reload
+    /// (from the watcher, say) can't hide it.
+    private(set) var writeError: String?
+    private(set) var loadError: String?
     /// Theme, card size and categories; saved whenever they change.
     var settings: DeviceSettings {
         didSet { settings.save() }
     }
     /// The highlighted category (tap a header dot), or nil for all.
     var filter: String?
+    /// The card whose detail panel is open.
+    var openID: String?
+    /// Quick add is showing.
+    var adding = false
+    /// Dragging cards (Mac).
+    let drag = DragController()
+    /// The card under the pointer (Mac): drawn above its neighbours.
+    var hoveredID: String?
 
     var theme: Theme { Theme.named(settings.theme) }
 
@@ -35,11 +49,70 @@ final class BoardStore {
         return BoardLists(tasks: tasks, today: day(.now), recentSince: day(weekAgo))
     }
 
+    /// What dropping a dragged card does: Done completes it, a list moves it.
+    private func connectDrag() {
+        drag.onDrop = { [weak self] id, target in
+            guard let self else { return }
+            withAnimation(.timingCurve(0.2, 0.8, 0.3, 1, duration: 0.4)) {
+                if target.status == .done {
+                    self.complete(id)
+                } else {
+                    self.move(id, to: target.status, before: target.beforeID)
+                }
+            }
+        }
+    }
+
     init() {
         settings = DeviceSettings.load()
+        defer { connectDrag() }
         if let url = FolderAccess.restore() {
             source = .folder(url)
+            watch(url)
+        } else if FolderAccess.lostFolder {
+            loadError = "Nowboard lost access to your Tasks folder. Choose it again: Settings → Choose Tasks folder…"
         }
+    }
+
+    /// Watching the folder needs its access switched on for as long as we watch.
+    @ObservationIgnored private var watcher: FolderWatcher?
+    @ObservationIgnored private var watchedURL: URL?
+
+    private func watch(_ url: URL?) {
+        watcher?.stop()
+        watchedURL?.stopAccessingSecurityScopedResource()
+        watcher = nil
+        watchedURL = nil
+        guard let url else { return }
+        if url.startAccessingSecurityScopedResource() { watchedURL = url }
+        watcher = FolderWatcher(url: url) { [weak self] in
+            Task { await self?.reload() }
+        }
+    }
+
+    /// For tests: a store on a given folder, with default settings and
+    /// nothing remembered (the app's saved folder and settings stay untouched).
+    init(testFolder: URL) {
+        settings = DeviceSettings()
+        source = .folder(testFolder)
+        defer { connectDrag() }
+        watch(testFolder)
+    }
+
+    #if DEBUG
+        /// Snapshots of the demo board without forgetting the saved folder.
+        func useDemoForSnapshot() {
+            watch(nil)
+            source = .demo
+            tasks = []
+        }
+
+        var isDemo: Bool { source == .demo }
+    #endif
+
+    /// Waits until every pending write has finished (and the board reloaded).
+    func waitForWrites() async {
+        await lastWrite?.value
     }
 
     /// Reads the tasks again: on launch, when the app comes back to the
@@ -47,8 +120,8 @@ final class BoardStore {
     func reload() async {
         switch source {
         case .demo:
-            tasks = Demo.tasks()
-            error = nil
+            // The demo lives in memory: load it once, then keep your edits.
+            if tasks.isEmpty { tasks = Demo.tasks() }
         case .folder(let url):
             // Reading many files is slow work; do it away from the main
             // thread (`Task.detached`), then come back with the result.
@@ -57,9 +130,9 @@ final class BoardStore {
             switch result {
             case .success(let loaded):
                 tasks = loaded
-                error = nil
+                loadError = nil
             case .failure(let failure):
-                error = failure.localizedDescription
+                loadError = failure.localizedDescription
             }
         }
     }
@@ -69,9 +142,10 @@ final class BoardStore {
         do {
             try FolderAccess.remember(url)
             source = .folder(url)
+            watch(url)
             await reload()
         } catch {
-            self.error = "Couldn't open that folder: \(error.localizedDescription)"
+            loadError = "Couldn't open that folder: \(error.localizedDescription)"
         }
     }
 
@@ -79,6 +153,171 @@ final class BoardStore {
     func useDemo() async {
         FolderAccess.forget()
         source = .demo
+        watch(nil)
+        tasks = []
         await reload()
+    }
+
+    /// The task's file, for "Open in Obsidian". Nil on the demo board.
+    func fileURL(_ id: String) -> URL? {
+        guard case .folder(let url) = source else { return nil }
+        return url.appendingPathComponent(id)
+    }
+
+    /// `obsidian://open?path=…` opens a file in Obsidian by its full path.
+    func obsidianURL(_ id: String) -> URL? {
+        guard let file = fileURL(id) else { return nil }
+        var parts = URLComponents()
+        parts.scheme = "obsidian"
+        parts.host = "open"
+        parts.queryItems = [URLQueryItem(name: "path", value: file.path)]
+        return parts.url
+    }
+
+    func task(_ id: String) -> BoardTask? {
+        tasks.first { $0.id == id }
+    }
+
+    // MARK: - Changing tasks
+    //
+    // Every change works the same way (like useBoard.ts): update `tasks` right
+    // away so the screen reacts instantly, then write the file in the
+    // background. Writes run one after another (`lastWrite` chains them), so
+    // two quick changes can't overtake each other. After a write the folder is
+    // read again, which picks up new file names (new tasks, renames). If a
+    // write fails, the error shows and the board is reloaded from disk.
+
+    private var lastWrite: Task<Void, Never>?
+
+    /// Updates the screen with `local`, then (for a real folder) runs `disk`.
+    private func change(_ local: (inout [BoardTask]) -> Void, disk: @escaping @Sendable (TaskFolder) throws -> Void) {
+        local(&tasks)
+        guard case .folder(let url) = source else { return }
+        let previous = lastWrite
+        lastWrite = Task {
+            await previous?.value
+            let presenter = watcher
+            let failure = await Task.detached { FolderAccess.write(in: url, presenter: presenter, disk) }.value
+            writeError = failure?.localizedDescription
+            await reload()
+        }
+    }
+
+    /// Saves changed copies of tasks (they keep their ids).
+    private func save(_ changed: [BoardTask]) {
+        guard !changed.isEmpty else { return }
+        let byID = Dictionary(changed.map { ($0.id, $0) }, uniquingKeysWith: { _, b in b })
+        change({ all in all = all.map { byID[$0.id] ?? $0 } }) { folder in
+            for t in changed { try folder.save(t) }
+        }
+    }
+
+    /// Moves a card into a list, before another card or at the end.
+    func move(_ id: String, to status: TaskStatus, before: String? = nil) {
+        save(BoardRules.planMove(tasks, id: id, to: status, before: before))
+    }
+
+    /// Moves a card to the top of a list.
+    func moveToTop(_ id: String, of status: TaskStatus) {
+        let first = lists(for: status).first { $0.id != id }
+        move(id, to: status, before: first?.id)
+    }
+
+    private func lists(for status: TaskStatus) -> [BoardTask] {
+        BoardLists.sorted(tasks.filter { $0.status == status })
+    }
+
+    /// Marks a task done now and ends its focus. Only its own file is written.
+    func complete(_ id: String) {
+        let now = TaskFormat.timestamp(.now)
+        change({ all in
+            if let i = all.firstIndex(where: { $0.id == id }) {
+                all[i].status = .done
+                all[i].focus = false
+                all[i].done = now
+            }
+        }) { folder in try folder.complete(id, now: now) }
+    }
+
+    /// Undo: back to the top of Today, `done:` cleared.
+    func reopen(_ id: String) {
+        moveToTop(id, of: .today)
+    }
+
+    /// Any edit from the detail panel (checklist, notes, list, category).
+    func update(_ task: BoardTask) {
+        save([task])
+    }
+
+    /// The next category (tapping a card's dot).
+    func cycleCategory(_ id: String) {
+        guard var t = task(id) else { return }
+        t.area = BoardRules.nextArea(after: t.area, in: settings.categories.map(\.id))
+        save([t])
+    }
+
+    func setCategory(_ id: String, to area: String) {
+        guard var t = task(id), t.area != area else { return }
+        t.area = area
+        save([t])
+    }
+
+    /// Focus on this card (only one at a time), or stop focusing.
+    func toggleFocus(_ id: String) {
+        guard let target = task(id) else { return }
+        let on = !target.focus
+        var changed: [BoardTask] = []
+        for var t in tasks where t.id == id || (on && t.focus) {
+            t.focus = t.id == id ? on : false
+            changed.append(t)
+        }
+        // The card grows into focus on a soft spring with a little overshoot,
+        // like something growing; the cards around it glide aside on the same
+        // spring. Pausing settles back calmly, without the overshoot.
+        withAnimation(on ? Self.focusSpring : Self.pauseSpring) {
+            save(changed)
+        }
+    }
+
+    static let focusSpring = Animation.spring(response: 0.55, dampingFraction: 0.72)
+    static let pauseSpring = Animation.spring(response: 0.45, dampingFraction: 0.92)
+
+    /// A suggested task: accept → top of Backlog (keeps `from:`).
+    func accept(_ id: String) {
+        moveToTop(id, of: .backlog)
+    }
+
+    /// Renames the file to fit a new title.
+    func rename(_ id: String, to title: String) {
+        let title = title.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let t = task(id), !title.isEmpty, title != t.title else { return }
+        let order = t.order
+        change({ all in
+            if let i = all.firstIndex(where: { $0.id == id }) {
+                all[i].title = title
+                if case .demo = source { all[i].id = TaskFormat.stem(for: title) + ".md" }
+            }
+        }) { folder in try folder.rename(id, to: title, order: order) }
+    }
+
+    /// Deletes the task's file for good (also: dismissing a suggestion).
+    func delete(_ id: String) {
+        change({ all in all.removeAll { $0.id == id } }) { folder in try folder.delete(id) }
+    }
+
+    /// A new task on top of its list.
+    func add(title: String, area: String, status: TaskStatus) {
+        let title = title.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !title.isEmpty else { return }
+        let new = BoardTask(
+            title: title, status: status, area: area,
+            order: BoardRules.topOrder(tasks, status), created: TaskFormat.timestamp(.now))
+        change({ all in
+            var shown = new
+            // Until the file exists, a temporary id; the reload brings the real one.
+            shown.id = "new-\(UUID().uuidString).md"
+            if case .demo = source { shown.id = TaskFormat.stem(for: title) + ".md" }
+            all.append(shown)
+        }) { folder in try folder.save(new) }
     }
 }

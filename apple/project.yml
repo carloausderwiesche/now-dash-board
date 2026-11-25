@@ -31,15 +31,10 @@ targets:
     entitlements:
       path: Nowboard/Nowboard.entitlements
       properties:
-        # macOS only (iOS ignores these): the app runs in the sandbox and may
-        # read and write only folders the user picked.
-        com.apple.security.app-sandbox: true
-        com.apple.security.files.user-selected.read-write: true
-        com.apple.security.files.bookmarks.app-scope: true
-        # Read the Tauri app's settings once, to start with the same theme
-        # and categories (Settings.swift). Only that folder, only reading.
-        com.apple.security.temporary-exception.files.home-relative-path.read-only:
-          - /Library/Application Support/com.nestoririondo.nowboard/
+        # macOS: no App Sandbox, like the Tauri app (ADR 0009). With the
+        # sandbox, every rebuild (signed ad hoc, no developer account) loses
+        # access to the picked folder. iOS ignores this key: it always sandboxes.
+        com.apple.security.app-sandbox: false
     settings:
       base:
         # Not the Tauri app's id (com.nestoririondo.nowboard), so both apps
@@ -59,3 +54,34 @@ targets:
         CODE_SIGN_STYLE: Automatic
         CODE_SIGN_IDENTITY: "-"
         ENABLE_PREVIEWS: YES
+
+  # Tests for the app's store: every action against a temporary folder.
+  # `xcodebuild test -scheme Nowboard -destination 'platform=macOS'`
+  NowboardTests:
+    type: bundle.unit-test
+    supportedDestinations: [macOS, iOS]
+    sources:
+      - path: NowboardTests
+    dependencies:
+      - target: Nowboard
+      - package: NowboardKit
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES
+        SWIFT_VERSION: "6.0"
+        CODE_SIGN_IDENTITY: "-"
+        # The app the tests run inside. A Mac app keeps its program in
+        # Contents/MacOS, an iPhone app at the top, so each platform gets its own path.
+        "TEST_HOST[sdk=macosx*]": $(BUILT_PRODUCTS_DIR)/Nowboard.app/Contents/MacOS/Nowboard
+        "TEST_HOST[sdk=iphone*]": $(BUILT_PRODUCTS_DIR)/Nowboard.app/Nowboard
+        BUNDLE_LOADER: $(TEST_HOST)
+
+schemes:
+  Nowboard:
+    build:
+      targets:
+        Nowboard: all
+        NowboardTests: [test]
+    test:
+      targets:
+        - NowboardTests

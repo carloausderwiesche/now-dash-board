@@ -20,12 +20,7 @@ public struct BoardLists: Equatable, Sendable {
     /// `today` is "YYYY-MM-DD", the day to count Done for; `recentSince` the
     /// first day of the Done list (defaults to `today`).
     public init(tasks: [BoardTask], today day: String, recentSince: String? = nil) {
-        // Sorted by order, then title (spec 4.4). `sorted(by:)` takes a closure:
-        // a small function written inline, `{ a, b in … }`.
-        let sorted = tasks.sorted { a, b in
-            let (x, y) = (a.order ?? 0, b.order ?? 0)
-            return x != y ? x < y : a.title.localizedStandardCompare(b.title) == .orderedAscending
-        }
+        let sorted = BoardLists.sorted(tasks)
         today = sorted.filter { $0.status == .today }
         suggested = sorted.filter { $0.status == .suggested }
         backlog = sorted.filter { $0.status == .backlog }
@@ -34,5 +29,14 @@ public struct BoardLists: Equatable, Sendable {
         doneToday = done.filter { ($0.done ?? "").hasPrefix(day) }
         let since = recentSince ?? day
         doneRecent = done.filter { ($0.done ?? "") >= since }
+    }
+
+    /// Sorted by order, then title (spec 4.4). `sorted(by:)` takes a closure:
+    /// a small function written inline, `{ a, b in … }`.
+    public static func sorted(_ tasks: [BoardTask]) -> [BoardTask] {
+        tasks.sorted { a, b in
+            let (x, y) = (a.order ?? 0, b.order ?? 0)
+            return x != y ? x < y : a.title.localizedStandardCompare(b.title) == .orderedAscending
+        }
     }
 }

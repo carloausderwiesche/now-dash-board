@@ -9,8 +9,16 @@ struct NowboardApp: App {
     @State private var store = BoardStore()
 
     init() {
+        #if os(macOS)
+            // ⌥ Space from any app opens quick add in a floating panel.
+            GlobalQuickAdd.shared.start(store: store)
+        #endif
         #if DEBUG
             DebugSnapshot.runIfAsked(store: store)
+            DebugSnapshot.applyLaunchState(store: store)
+            #if os(macOS)
+                DebugSnapshot.windowShotIfAsked(store: store)
+            #endif
         #endif
     }
 

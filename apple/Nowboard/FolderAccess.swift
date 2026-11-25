@@ -13,16 +13,18 @@ import NowboardKit
 enum FolderAccess {
     private static let key = "tasksFolderBookmark"
 
-    // On macOS a bookmark has to say "security scope" to work after a relaunch;
-    // on iOS that option doesn't exist. `#if os(...)` picks the right one when
-    // compiling, so each platform only sees its own line.
-    #if os(macOS)
-        private static let createOptions: URL.BookmarkCreationOptions = [.withSecurityScope]
-        private static let resolveOptions: URL.BookmarkResolutionOptions = [.withSecurityScope]
-    #else
-        private static let createOptions: URL.BookmarkCreationOptions = []
-        private static let resolveOptions: URL.BookmarkResolutionOptions = []
-    #endif
+    // A plain bookmark on both platforms. The Mac app isn't sandboxed (ADR
+    // 0009), so it needs no "security scope", and a plain bookmark keeps
+    // working after a rebuild. On iOS the system grants access to a folder
+    // picked in Files through the bookmark itself.
+    private static let createOptions: URL.BookmarkCreationOptions = []
+    private static let resolveOptions: URL.BookmarkResolutionOptions = []
+
+    /// True if a folder was saved but can't be found any more (moved, deleted,
+    /// or access lost). The board then says so instead of quietly showing the demo.
+    static var lostFolder: Bool {
+        UserDefaults.standard.data(forKey: key) != nil && restore() == nil
+    }
 
     /// Saves a bookmark for a folder you just picked.
     static func remember(_ url: URL) throws {
@@ -64,5 +66,26 @@ enum FolderAccess {
         }
         if let coordinationError { return .failure(coordinationError) }
         return result
+    }
+
+    /// Runs `change` on the Tasks folder with access switched on and the
+    /// write coordinated with other apps (Obsidian, iCloud), so nobody reads
+    /// a file while we write it.
+    /// `presenter`: our own folder watcher. Telling the coordinator who's
+    /// writing means the watcher isn't notified about our own writes.
+    nonisolated static func write(in url: URL, presenter: NSFilePresenter? = nil, _ change: @Sendable (TaskFolder) throws -> Void) -> Error? {
+        let ok = url.startAccessingSecurityScopedResource()
+        defer { if ok { url.stopAccessingSecurityScopedResource() } }
+
+        var failure: Error?
+        var coordinationError: NSError?
+        NSFileCoordinator(filePresenter: presenter).coordinate(writingItemAt: url, options: [], error: &coordinationError) { folder in
+            do {
+                try change(TaskFolder(url: folder))
+            } catch {
+                failure = error
+            }
+        }
+        return coordinationError ?? failure
     }
 }

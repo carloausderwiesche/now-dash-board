@@ -22,6 +22,14 @@ struct BoardView: View {
             }
             .scrollIndicators(.hidden)
         }
+        #if os(macOS)
+            // No blue focus ring on whichever button happens to have keyboard
+            // focus (the Tauri app only outlines things while you use the keyboard).
+            .focusEffectDisabled()
+            // The board runs up under the (hidden) title bar: .page's 48pt top
+            // padding already leaves room for the window buttons.
+            .ignoresSafeArea(edges: .top)
+        #endif
         .background(theme.bg.ignoresSafeArea())
         .foregroundStyle(theme.ink)
         .tint(theme.accent)
@@ -32,6 +40,26 @@ struct BoardView: View {
         .onChange(of: scenePhase) { _, phase in
             if phase == .active { Task { await store.reload() } }
         }
+        #if os(macOS)
+            // Mac: the panel slides in from the right, quick add drops in at the
+            // top, both over a scrim (a soft shade over the board).
+            .overlay { macOverlays }
+        #else
+            // iPhone: both are sheets from below.
+            .sheet(isPresented: Binding(get: { store.openID != nil }, set: { if !$0 { store.openID = nil } })) {
+                if let id = store.openID {
+                    DetailPanel(id: id)
+                        .presentationDetents([.large])
+                        .presentationCornerRadius(store.theme.radiusLarge)
+                }
+            }
+            .sheet(isPresented: Binding(get: { store.adding }, set: { store.adding = $0 })) {
+                QuickAdd()
+                    .presentationDetents([.height(150)])
+                    .presentationCornerRadius(store.theme.radiusLarge)
+                    .presentationBackground(store.theme.surface)
+            }
+        #endif
         // The system's folder picker (Files on iOS, Finder's panel on the Mac).
         .fileImporter(isPresented: $pickingFolder, allowedContentTypes: [.folder]) { result in
             if case .success(let url) = result {
@@ -40,6 +68,53 @@ struct BoardView: View {
         }
     }
 }
+
+#if os(macOS)
+    extension BoardView {
+        /// The detail panel and quick add, over a scrim. Clicking the scrim closes them.
+        @ViewBuilder
+        var macOverlays: some View {
+            let theme = store.theme
+            ZStack {
+                if store.openID != nil || store.adding {
+                    theme.scrim
+                        .ignoresSafeArea()
+                        .onTapGesture {
+                            store.openID = nil
+                            store.adding = false
+                        }
+                        .transition(.opacity)
+                }
+                if let id = store.openID {
+                    HStack {
+                        Spacer(minLength: 0)
+                        DetailPanel(id: id)
+                            .id(id)
+                            .frame(width: 460)
+                            .clipShape(RoundedRectangle(cornerRadius: theme.radiusLarge))
+                            .overlay(RoundedRectangle(cornerRadius: theme.radiusLarge).strokeBorder(theme.line, lineWidth: 1))
+                            .shadow(color: .black.opacity(0.45), radius: 35, y: 30)
+                    }
+                    .padding(12)
+                    .transition(.move(edge: .trailing).combined(with: .opacity))
+                }
+                if store.adding {
+                    VStack {
+                        QuickAdd()
+                            .frame(width: 600)
+                            .clipShape(RoundedRectangle(cornerRadius: theme.radiusLarge))
+                            .shadow(color: .black.opacity(0.45), radius: 40, y: 30)
+                            .padding(.top, 150)
+                        Spacer()
+                    }
+                    .transition(.opacity.combined(with: .scale(scale: 0.97, anchor: .top)))
+                }
+            }
+            .animation(.timingCurve(0.2, 0.8, 0.3, 1, duration: 0.3), value: store.openID)
+            .animation(.easeOut(duration: 0.25), value: store.adding)
+        }
+    }
+#endif
 
 /// Everything inside the scroll view. Separate, so a snapshot can render it.
 struct BoardContent: View {
@@ -76,6 +151,18 @@ struct BoardContent: View {
         .padding(.bottom, narrow ? 40 : 48)
         .frame(maxWidth: 1400)
         .frame(maxWidth: .infinity)
+        .coordinateSpace(name: boardSpace)
+        // The copy of the card that follows the pointer while dragging.
+        .overlay(alignment: .topLeading) {
+            let drag = store.drag
+            if let id = drag.id, let task = store.task(id) {
+                CardView(task: task, style: task.status == .today ? .today : .backlog, mode: .clone)
+                    .frame(width: drag.cloneSize.width, height: drag.cloneSize.height)
+                    .offset(x: drag.cloneOrigin.x, y: drag.cloneOrigin.y)
+                    .allowsHitTesting(false)
+                    .transaction { $0.animation = nil }  // follows the pointer exactly
+            }
+        }
     }
 }
 
@@ -149,6 +236,7 @@ struct HeaderView: View {
 struct FilterDot: View {
     @Environment(BoardStore.self) private var store
     let category: Category
+    @State private var hovering = false
 
     var body: some View {
         let theme = store.theme
@@ -163,12 +251,17 @@ struct FilterDot: View {
                 .opacity(store.filter != nil && !on ? 0.35 : 1)
                 // The ring around the selected dot: 1.5pt, 3pt away from it.
                 .overlay(Circle().strokeBorder(color, lineWidth: 1.5).padding(-4.5).opacity(on ? 1 : 0))
+                // .dotbtn:hover: ×1.4 with a small overshoot.
+                .scaleEffect(hovering ? 1.4 : 1)
+                .animation(.timingCurve(0.2, 1.8, 0.4, 1, duration: 0.3), value: hovering)
                 // A 32pt target: the dots sit ~38pt apart, as in the Tauri app.
                 .frame(width: 32, height: 32)
                 .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
-        .help(category.name)
+        .buttonStyle(PressScale(pressed: 0.8))
+        .onHover { hovering = $0 }
+        .tip(category.name)
+        .cursor(.pointingHand)
         .accessibilityLabel("Highlight \(category.name)")
         .accessibilityAddTraits(on ? .isSelected : [])
     }
@@ -179,6 +272,7 @@ struct FilterDot: View {
 struct SettingsMenu: View {
     @Environment(BoardStore.self) private var store
     var pickFolder: () -> Void
+    @State private var hovering = false
 
     var body: some View {
         // `@Bindable` lets a view write to an @Observable object's property
@@ -205,8 +299,10 @@ struct SettingsMenu: View {
                 Button("Show the demo board") { Task { await store.useDemo() } }
             }
         } label: {
+            // .iconbtn: muted, ink on hover.
             SlidersIcon()
-                .stroke(store.theme.muted, style: StrokeStyle(lineWidth: 1.7, lineCap: .round, lineJoin: .round))
+                .stroke(hovering ? store.theme.ink : store.theme.muted, style: StrokeStyle(lineWidth: 1.7 * 18 / 24, lineCap: .round, lineJoin: .round))
+                .animation(.easeOut(duration: 0.2), value: hovering)
                 .frame(width: 18, height: 18)
                 .frame(width: 44, height: 44)
                 .contentShape(Rectangle())
@@ -215,23 +311,41 @@ struct SettingsMenu: View {
         .buttonStyle(.plain)
         .menuIndicator(.hidden)
         .fixedSize()
+        .onHover { hovering = $0 }
+        .cursor(.pointingHand)
         .accessibilityLabel("Settings")
     }
 }
 
-/// The round + button. Quick add arrives with editing (next milestone).
+/// The round + button: opens quick add (also the N key on the Mac).
 struct PlusButton: View {
     @Environment(BoardStore.self) private var store
+    @State private var hovering = false
 
     var body: some View {
         let theme = store.theme
-        ZStack {
-            Circle().fill(theme.ink)
-            PlusIcon()
-                .stroke(theme.bg, style: StrokeStyle(lineWidth: 2.2, lineCap: .round))
-                .frame(width: 20, height: 20)
+        Button {
+            store.adding = true
+        } label: {
+            ZStack {
+                Circle().fill(theme.ink)
+                PlusIcon()
+                    .stroke(theme.bg, style: StrokeStyle(lineWidth: 2.2 * 20 / 24, lineCap: .round))
+                    .frame(width: 20, height: 20)
+                    // .plus:hover turns the + a quarter and grows it a little.
+                    .rotationEffect(.degrees(hovering ? 90 : 0))
+            }
+            .frame(width: 48, height: 48)
+            .scaleEffect(hovering ? 1.05 : 1)
+            .contentShape(Circle())
         }
-        .frame(width: 48, height: 48)
+        // .plus:active shrinks to 0.9; hover turns the + a quarter and grows
+        // it a little, with the CSS's overshoot (cubic-bezier(0.2, 1.6, 0.4, 1)).
+        .buttonStyle(PressScale(pressed: 0.9))
+        .keyboardShortcut("n", modifiers: [])
+        .onHover { h in withAnimation(.timingCurve(0.2, 1.6, 0.4, 1, duration: 0.3)) { hovering = h } }
+        .cursor(.pointingHand)
+        .help("Add task  N")
         .accessibilityLabel("Add task")
     }
 }
@@ -246,28 +360,123 @@ struct CardSection: View {
     let style: CardStyle
     let narrow: Bool
     let empty: (String, String)
+    /// iPhone: the system drag is over this section.
+    @State private var targeted = false
 
     var body: some View {
         let compact = store.settings.compact
+        let drag = store.drag
         let (minWidth, gap): (CGFloat, CGFloat) =
             style == .today ? (compact ? 160 : 200, compact ? 8 : 12) : (compact ? 150 : 180, compact ? 6 : 10)
+        // The list as drawn: while dragging, with the preview ("ghost") where
+        // the card will land and the dragged card's slot closed if it moved.
+        let byID = Dictionary(cards.map { ($0.id, $0) }, uniquingKeysWith: { a, _ in a })
+        let shown = drag.displayed(cards.map(\.id), status: status)
+        let over = drag.id != nil && drag.target?.status == status
         VStack(alignment: .leading, spacing: 16) {
             SectionHeading(title: title, count: cards.count)
-            if cards.isEmpty {
+            if shown.isEmpty {
                 EmptyBox(title: empty.0, hint: empty.1, small: style == .backlog)
             } else {
                 CardGridLayout(minWidth: minWidth, spacing: gap) {
-                    ForEach(cards, id: \.id) { task in
-                        CardView(task: task, style: style)
-                            // The focus card is twice as wide (not on a phone).
-                            .gridSpan(style == .today && task.focus && !narrow ? 2 : 1)
-                            // Highlighting a category fades the others to 22%.
-                            .opacity(store.filter.map { $0 == task.area ? 1 : 0.22 } ?? 1)
+                    ForEach(shown, id: \.self) { id in
+                        if id == DropRules.ghostID, let dragID = drag.id, let dragged = store.task(dragID) {
+                            CardView(task: dragged, style: style, mode: .ghost)
+                                .transition(.opacity.animation(.easeOut(duration: 0.3)))
+                                .measure(id, span: spanOf(dragged), in: drag)
+                                // Last: the grid reads the span from its direct child.
+                                .gridSpan(spanOf(dragged))
+                        } else if let task = byID[id] ?? store.task(id) {
+                            card(task)
+                                .measure(id, span: spanOf(task), in: drag)
+                                // Last: the grid reads span and layering from its direct child.
+                                .gridSpan(spanOf(task))
+                                .zIndex(store.hoveredID == id ? 3 : 0)
+                        }
                     }
+                }
+                .onGeometryChange(for: CGRect.self) { $0.frame(in: .named(boardSpace)) } action: { grid in
+                    drag.zones[status, default: DropZone(status: status, frame: grid, grid: grid)].grid = grid
+                    drag.gridColumns[status] = DropRules.columns(width: grid.width, minWidth: minWidth, spacing: gap)
+                    drag.gridSpacing[status] = gap
                 }
             }
         }
+        .onGeometryChange(for: CGRect.self) { $0.frame(in: .named(boardSpace)) } action: { frame in
+            drag.zones[status, default: DropZone(status: status, frame: frame, grid: nil)].frame = frame
+        }
+        .onChange(of: shown.isEmpty) { _, empty in
+            if empty { drag.zones[status]?.grid = nil }
+        }
         .animation(.easeOut(duration: 0.3), value: store.filter)
+        // .zone.over: the target section takes a soft tint that spills a little past its edges.
+        .background {
+            RoundedRectangle(cornerRadius: store.theme.radiusLarge)
+                .fill(store.theme.hover)
+                .padding(-14)
+                .opacity(over || targeted ? 1 : 0)
+                .animation(.easeOut(duration: 0.2), value: over || targeted)
+        }
+        #if os(iOS)
+            // iPhone: the system drag (long-press a card). Dropping on the section: at the end.
+            .dropDestination(for: String.self) { ids, _ in
+                guard let id = ids.first else { return false }
+                withAnimation(.timingCurve(0.2, 0.8, 0.3, 1, duration: 0.4)) { store.move(id, to: status) }
+                return true
+            } isTargeted: { targeted = $0 }
+        #endif
+    }
+
+    private var status: TaskStatus { style == .today ? .today : .backlog }
+
+    /// The focus card is twice as wide in Today (not on a phone).
+    private func spanOf(_ task: BoardTask) -> Int {
+        style == .today && task.focus && !narrow ? 2 : 1
+    }
+
+    /// A card with its drag gesture: the Mac's own drag (DragController), the
+    /// iPhone's system drag.
+    @ViewBuilder
+    private func card(_ task: BoardTask) -> some View {
+        #if os(macOS)
+            CardView(task: task, style: style)
+                // `simultaneousGesture` so the card's buttons still get their clicks:
+                // the drag only starts after 5pt of movement.
+                .simultaneousGesture(
+                    DragGesture(minimumDistance: 5, coordinateSpace: .named(boardSpace))
+                        .onChanged { v in
+                            store.drag.moved(task.id, start: v.startLocation, location: v.location, status: status)
+                        }
+                        // The release (and Esc) is handled by DragController's
+                        // event monitor, which outlives this card's view.
+                )
+        #else
+            CardView(task: task, style: style)
+                .draggable(task.id) {
+                    CardView(task: task, style: style).frame(width: 180).environment(store)
+                }
+                .dropDestination(for: String.self) { ids, _ in
+                    guard let id = ids.first, id != task.id else { return false }
+                    withAnimation(.timingCurve(0.2, 0.8, 0.3, 1, duration: 0.4)) {
+                        store.move(id, to: status, before: task.id)
+                    }
+                    return true
+                }
+        #endif
+    }
+}
+
+/// The coordinate space the drag measures everything in: the board's content.
+let boardSpace = "board"
+
+extension View {
+    /// Tells the drag controller where this card is (and how wide it spans).
+    func measure(_ id: String, span: Int, in drag: DragController) -> some View {
+        onGeometryChange(for: CGRect.self) { $0.frame(in: .named(boardSpace)) } action: { frame in
+            drag.cardFrames[id] = frame
+            drag.spans[id] = span
+        }
+        .onDisappear { drag.cardFrames[id] = nil }
     }
 }
 
@@ -333,10 +542,26 @@ struct SuggestedStrip: View {
             ForEach(tasks, id: \.id) { t in
                 HStack(spacing: 10) {
                     CategoryDot(color: category(for: t.area, in: store.settings.categories).color.strong(in: theme), size: 8)
-                    Text(t.title).font(theme.font(14)).lineLimit(1).frame(maxWidth: .infinity, alignment: .leading)
+                    Button { store.openID = t.id } label: {
+                        Text(t.title).font(theme.font(14)).lineLimit(1).frame(maxWidth: .infinity, alignment: .leading).contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
                     if let from = t.from {
                         Text(from).font(.system(size: 11, design: .monospaced)).foregroundStyle(theme.muted).lineLimit(1)
                     }
+                    Button("Accept") { store.accept(t.id) }
+                        .buttonStyle(.plain)
+                        .font(theme.font(12, .medium))
+                        .foregroundStyle(theme.ink)
+                        .padding(.horizontal, 8)
+                        .frame(height: 32)
+                    Button("Dismiss") { store.delete(t.id) }
+                        .buttonStyle(.plain)
+                        .font(theme.font(12, .medium))
+                        .foregroundStyle(theme.muted)
+                        .padding(.horizontal, 8)
+                        .frame(height: 32)
+                        .help("Dismiss (deletes the file)")
                 }
                 .frame(minHeight: 40)
                 .overlay(alignment: .bottom) { Rectangle().fill(theme.line).frame(height: 1) }
@@ -352,6 +577,24 @@ struct DoneSection: View {
     let today: [BoardTask]
     let recent: [BoardTask]
     @State private var open = false
+    /// The Done number's short nudge when a task arrives (.bump).
+    @State private var bump = false
+    /// iPhone: the system drag is over Done.
+    @State private var targeted = false
+
+    /// A card is being dragged over Done (either kind of drag): the number turns accent.
+    private var over: Bool { targeted || (store.drag.id != nil && store.drag.target?.status == .done) }
+
+    private var todayString: String { String(TaskFormat.timestamp(.now).prefix(10)) }
+
+    /// "Mon 23" for a task finished on another day.
+    private func dayLabel(_ stamp: String) -> String {
+        let f = DateFormatter()
+        f.locale = Locale(identifier: "en_US_POSIX")
+        f.dateFormat = "yyyy-MM-dd"
+        guard let d = f.date(from: String(stamp.prefix(10))) else { return "" }
+        return d.formatted(.dateTime.weekday(.abbreviated).day())
+    }
 
     var body: some View {
         let theme = store.theme
@@ -365,6 +608,8 @@ struct DoneSection: View {
                         .tracking(Theme.tracking(-0.04, size: 56))
                         .monospacedDigit()
                         .padding(.vertical, theme.lineBoxTrim(56, lineHeight: 0.85))
+                        .foregroundStyle(bump || over ? theme.accent : theme.ink)
+                        .scaleEffect(bump ? 1.08 : 1, anchor: .bottomLeading)
                     VStack(alignment: .leading, spacing: 3) {
                         Text("Done today").fontWeight(.semibold)
                         Text(today.first.map { "Last: \($0.title)" } ?? "Nothing finished yet today")
@@ -387,6 +632,22 @@ struct DoneSection: View {
             }
             .buttonStyle(.plain)
             .accessibilityHint(open ? "Hides the list" : "Shows the last 7 days")
+            #if os(iOS)
+                // Dropping a card on Done completes it.
+                .dropDestination(for: String.self) { ids, _ in
+                    guard let id = ids.first, store.task(id)?.status != .done else { return false }
+                    store.complete(id)
+                    return true
+                } isTargeted: { targeted = $0 }
+            #endif
+            .onGeometryChange(for: CGRect.self) { $0.frame(in: .named(boardSpace)) } action: { frame in
+                store.drag.zones[.done] = DropZone(status: .done, frame: frame, grid: nil)
+            }
+            .onChange(of: today.count) { old, new in
+                guard new > old else { return }
+                withAnimation(.easeOut(duration: 0.15)) { bump = true }
+                withAnimation(.easeOut(duration: 0.35).delay(0.15)) { bump = false }
+            }
 
             if open {
                 VStack(spacing: 0) {
@@ -402,6 +663,14 @@ struct DoneSection: View {
                                 .padding(.leading, 11)
                             Text(t.title).font(theme.font(14)).strikethrough().foregroundStyle(theme.muted)
                                 .frame(maxWidth: .infinity, alignment: .leading)
+                            if let done = t.done, !done.hasPrefix(todayString) {
+                                Text(dayLabel(done)).font(theme.font(12)).foregroundStyle(theme.muted).padding(.horizontal, 8)
+                            }
+                            Button("Undo") { store.reopen(t.id) }
+                                .buttonStyle(.plain)
+                                .font(theme.font(12, .medium))
+                                .padding(.horizontal, 8)
+                                .frame(height: 32)
                         }
                         .frame(minHeight: 40)
                         .overlay(alignment: .bottom) { Rectangle().fill(theme.line).frame(height: 1) }
