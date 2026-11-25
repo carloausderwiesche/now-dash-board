@@ -232,6 +232,21 @@ private func read(_ dir: URL, _ name: String) throws -> String {
     #expect(try JSONDecoder().decode(DeviceSettings.self, from: saved).density == .minimal)
 }
 
+@Test func foldersAreShownAsPlacesNotSystemPaths() {
+    let home = FileManager.default.homeDirectoryForCurrentUser.path
+    let shown = { (path: String) in displayLocation(of: URL(fileURLWithPath: path)) }
+    #expect(shown("/private/var/mobile/Library/Mobile Documents/com~apple~CloudDocs/vault/Tasks")
+        == "iCloud Drive › vault › Tasks")
+    #expect(shown("\(home)/Library/Mobile Documents/com~apple~CloudDocs/obsidian-vault/Tasks")
+        == "iCloud Drive › obsidian-vault › Tasks")
+    #expect(shown("/private/var/mobile/Library/Mobile Documents/iCloud~md~obsidian/Documents/Notes/Tasks")
+        == "iCloud Drive › Obsidian › Notes › Tasks")
+    #expect(shown("/private/var/mobile/Containers/Shared/AppGroup/6F1E/File Provider Storage/Notes/Tasks")
+        == "On My iPhone › Notes › Tasks")
+    #expect(shown("\(home)/Documents/Notes/Tasks") == "Home › Documents › Notes › Tasks")
+    #expect(shown("/Volumes/Backup/Notes/Tasks") == "Backup › Notes › Tasks")
+}
+
 @Test func aNewCategoryGetsAFreeIdAndAnUnusedColour() {
     let cats = [Category(id: "category", name: "A", color: .rose), Category(id: "category-2", name: "B", color: .red)]
     let new = newCategory(after: cats)

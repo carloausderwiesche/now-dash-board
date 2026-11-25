@@ -220,13 +220,14 @@ struct DetailPanel: View {
                 HStack(alignment: .firstTextBaseline, spacing: 8) {
                     Image(systemName: "chevron.right").font(.system(size: 10, weight: .semibold))
                         .rotationEffect(.degrees(showFile ? 90 : 0))
-                    Text(store.fileURL(task.id)?.path ?? "Demo board: \(task.id)")
+                    Text(store.fileURL(task.id).map(displayLocation) ?? "Demo board: \(task.id)")
                         .multilineTextAlignment(.leading)
                 }
                 .font(.system(size: 12, design: .monospaced))
                 .foregroundStyle(theme.muted)
             }
             .buttonStyle(.pointer)
+            .help(store.fileURL(task.id)?.path ?? "")
             if showFile, let url = store.fileURL(task.id), let text = try? readFile(url) {
                 Text(text)
                     .font(.system(size: 12, design: .monospaced))
