@@ -14,8 +14,6 @@ struct BoardView: View {
     #if os(iOS)
         @State private var position = ScrollPosition()
         @State private var scroll = ScrollState()
-        /// A finger has held still long enough to pick a card up.
-        @GestureState private var pressing = false
     #endif
 
     var body: some View {
@@ -26,13 +24,13 @@ struct BoardView: View {
             ScrollView {
                 BoardContent(narrow: geo.size.width < 640, pickFolder: { pickingFolder = true })
                 #if os(iOS)
-                    .simultaneousGesture(cardDrag)
+                    .gesture(cardDrag)
                 #endif
             }
             .scrollIndicators(.hidden)
             #if os(iOS)
                 .scrollPosition($position)
-                .scrollDisabled(pressing || store.drag.id != nil)
+                .scrollDisabled(store.drag.id != nil)
                 .onScrollGeometryChange(for: ScrollState.self) { g in
                     ScrollState(y: g.contentOffset.y + g.contentInsets.top,
                                 max: max(0, g.contentSize.height + g.contentInsets.top + g.contentInsets.bottom - g.containerSize.height))
@@ -41,7 +39,6 @@ struct BoardView: View {
             #endif
         }
         #if os(iOS)
-            .onChange(of: pressing) { _, held in if !held { store.drag.released() } }
             .sensoryFeedback(.impact(weight: .light), trigger: store.drag.id) { old, new in old == nil && new != nil }
         #endif
         #if os(macOS)
@@ -196,22 +193,67 @@ struct BoardView: View {
             var max: CGFloat = 0
         }
 
-        /// iPhone drag: hold a card for 0.2s, then move. A still hold (0.5s)
-        /// opens its menu instead, which cancels this gesture.
-        var cardDrag: some Gesture {
-            LongPressGesture(minimumDuration: 0.2)
-                .sequenced(before: DragGesture(minimumDistance: 8, coordinateSpace: .named(rootSpace)))
-                .updating($pressing) { value, state, _ in
-                    if case .second(true, _) = value { state = true }
+        /// iPhone drag: a swipe that starts on a Today or Backlog card moves
+        /// it at once; anywhere else the board scrolls.
+        var cardDrag: CardPan {
+            CardPan(drag: store.drag) { [store] point in
+                guard let id = store.drag.card(at: point), let status = store.task(id)?.status, status != .done
+                else { return nil }
+                return (id, status)
+            }
+        }
+
+        /// A UIKit pan, because only it can turn down touches that don't start
+        /// on a card (SwiftUI's drag would block scrolling everywhere) and make
+        /// the scroll view wait for it on the ones that do.
+        struct CardPan: UIGestureRecognizerRepresentable {
+            let drag: DragController
+            /// The card under a point in rootSpace and its list, if it can be dragged.
+            let pick: Pick
+            typealias Pick = @MainActor (CGPoint) -> (id: String, status: TaskStatus)?
+
+            func makeCoordinator(converter: CoordinateSpaceConverter) -> Coordinator {
+                Coordinator(converter: converter, pick: pick)
+            }
+
+            func makeUIGestureRecognizer(context: Context) -> UIPanGestureRecognizer {
+                let pan = UIPanGestureRecognizer()
+                pan.maximumNumberOfTouches = 1
+                pan.delegate = context.coordinator
+                return pan
+            }
+
+            func handleUIGestureRecognizerAction(_ pan: UIPanGestureRecognizer, context: Context) {
+                switch pan.state {
+                case .began, .changed:
+                    guard let card = context.coordinator.card else { return }
+                    let at = context.converter.location(in: .named(rootSpace))
+                    let moved = context.converter.translation(in: .named(rootSpace)) ?? .zero
+                    drag.touched(card.id, start: CGPoint(x: at.x - moved.x, y: at.y - moved.y), location: at, status: card.status)
+                default:
+                    drag.released()
                 }
-                .onChanged { value in
-                    guard case .second(true, let d?) = value else { return }
-                    let drag = store.drag
-                    guard let id = drag.id ?? drag.card(at: d.startLocation),
-                        let status = store.task(id)?.status, status != .done
-                    else { return }
-                    drag.touched(id, start: d.startLocation, location: d.location, status: status)
+            }
+
+            final class Coordinator: NSObject, UIGestureRecognizerDelegate {
+                let converter: CoordinateSpaceConverter
+                let pick: Pick
+                var card: (id: String, status: TaskStatus)?
+
+                init(converter: CoordinateSpaceConverter, pick: @escaping Pick) {
+                    self.converter = converter
+                    self.pick = pick
                 }
+
+                func gestureRecognizer(_ g: UIGestureRecognizer, shouldReceive touch: UITouch) -> Bool {
+                    card = pick(converter.convert(globalPoint: touch.location(in: nil), to: .named(rootSpace)))
+                    return card != nil
+                }
+
+                func gestureRecognizer(_ g: UIGestureRecognizer, shouldBeRequiredToFailBy other: UIGestureRecognizer) -> Bool {
+                    other.view is UIScrollView
+                }
+            }
         }
 
         /// While a card is dragged near the top or bottom 80pt, the board
