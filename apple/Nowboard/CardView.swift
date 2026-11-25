@@ -32,11 +32,15 @@ struct CardView: View {
     @State private var hovering = false
     /// The pointer is over the round check: shows a faint tick, hides Focus.
     @State private var overRing = false
-    /// The finishing animation, step by step (see `finish()`).
-    @State private var finishing: FinishStep = .idle
-    @State private var confirmingDelete = false
     /// Going into focus, the card swells a little and settles (see `breathe()`).
     @State private var swelling = false
+
+    /// The finish animation, if this card is playing it (BoardStore.finish).
+    private var finish: Finish? { mode == .normal ? store.finishing[task.id] : nil }
+    private var finishing: FinishStep { finish?.step ?? .idle }
+    /// Being deleted: shrinks a little, blurs and fades where it stands, so it
+    /// never looks like finishing (which goes down into Done).
+    private var deleting: Bool { mode == .normal && store.deleting.contains(task.id) }
 
     var body: some View {
         let theme = store.theme
@@ -89,8 +93,10 @@ struct CardView: View {
         // that reacts to the pointer, so pointing at the bottom edge can't lift
         // the card off the pointer and drop it back in a loop.
         .visualEffect { content, _ in content.offset(y: lifted ? -3 : 0) }
-        // Focus: a short breath while it grows. Finishing: shrink and fade away.
-        .scaleEffect(finishing == .leaving ? 0.6 : (swelling ? 1.035 : 1))
+        // Focus: a short breath while it grows.
+        .scaleEffect(swelling ? 1.035 : deleting ? 0.88 : 1)
+        .blur(radius: deleting ? 6 : 0)
+        .modifier(FlyIntoDone(progress: finishing == .leaving ? 1 : 0, to: finish?.flight ?? .zero))
         .onChange(of: task.focus) { _, on in
             if on && style == .today && mode == .normal { breathe() }
         }
@@ -110,15 +116,14 @@ struct CardView: View {
             }
         }
         .cursor(.openHand)
-        .allowsHitTesting(mode == .normal)
-        .contextMenu { CardMenu(task: task, confirmingDelete: $confirmingDelete) }
-        .confirmationDialog("Delete “\(task.title)”?", isPresented: $confirmingDelete) {
-            Button("Delete file", role: .destructive) { store.delete(task.id) }
-        } message: {
-            Text("The task's .md file is deleted for good.")
-        }
-        // A small tap on the phone when a task is finished.
-        .sensoryFeedback(.success, trigger: finishing == .done)
+        .allowsHitTesting(mode == .normal && finishing == .idle && !deleting)
+        #if os(iOS)
+            // Long-press: the system menu, which lifts the card (ADR 0012).
+            // The Mac draws its own on a right-click (CardMenuPopup.swift).
+            .contextMenu { CardMenu(task: task) }
+        #endif
+        // A small tap on the phone as the finished card leaves for Done.
+        .sensoryFeedback(.success, trigger: finishing == .leaving) { _, leaving in leaving }
         .accessibilityElement(children: .contain)
     }
 
@@ -130,7 +135,9 @@ struct CardView: View {
         } label: {
             VStack(alignment: .leading, spacing: compact ? 4 : 6) {
                 TitleText(task: task, size: m.titleSize, weight: m.titleWeight, lines: m.lines, theme: theme,
-                          struck: finishing != .idle)
+                          struck: finishing != .idle,
+                          tips: mode == .normal && store.drag.id == nil && finishing == .idle,
+                          inverted: style == .today && task.focus, debugHover: debugHover)
                 if style == .today && !task.items.isEmpty {
                     Text("\(task.items.filter(\.done).count) / \(task.items.count)")
                         .font(.system(size: 11, design: .monospaced))
@@ -140,8 +147,7 @@ struct CardView: View {
             }
             .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
-        .cursor(.pointingHand)
+        .buttonStyle(.pointer)
         .accessibilityLabel(task.title)
         .accessibilityHint("Opens the task")
     }
@@ -171,14 +177,16 @@ struct CardView: View {
                 .animation(.easeOut(duration: 0.15).delay(reveal ? 0.12 : 0), value: reveal)
                 .allowsHitTesting(reveal)
             if style == .today {
-                Button(action: finish) {
+                Button {
+                    guard !store.drag.swallowsClick else { return }
+                    store.finish(task.id)
+                } label: {
                     CheckRing(size: 22, step: finishing, hover: isOverRing, theme: theme)
                         .frame(width: 40, height: compact ? 34 : 40)
                         .contentShape(Rectangle())
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.pointer)
                 .onHover { h in withAnimation(.easeOut(duration: 0.2)) { overRing = h } }
-                .cursor(.pointingHand)
                 .padding(.trailing, -8)
                 .accessibilityLabel("Mark done")
             }
@@ -186,7 +194,7 @@ struct CardView: View {
     }
 
     private func opacity(dragging: Bool) -> Double {
-        if finishing == .leaving { return 0 }
+        if deleting { return 0 }
         switch mode {
         case .clone: return 0.96
         case .ghost: return 0.45
@@ -253,20 +261,34 @@ struct CardView: View {
             withAnimation(.spring(response: 0.5, dampingFraction: 0.6)) { swelling = false }
         }
     }
+}
 
-    /// Ring fills with the accent and the tick draws itself, the title is
-    /// struck through, then the card shrinks away and the task moves to Done.
-    /// About 900ms in total (DESIGN.md: every completion under a second).
-    private func finish() {
-        guard finishing == .idle, !store.drag.swallowsClick else { return }
-        withAnimation(.easeOut(duration: 0.25)) { finishing = .ticked }
-        Task {
-            try? await Task.sleep(for: .milliseconds(450))
-            withAnimation(.easeIn(duration: 0.35)) { finishing = .leaving }
-            try? await Task.sleep(for: .milliseconds(380))
-            finishing = .done
-            withAnimation(.timingCurve(0.2, 0.8, 0.3, 1, duration: 0.4)) { store.complete(task.id) }
-        }
+/// A finished card's way into the Done number: one smooth move on a gentle
+/// curve (down first, then across, like something dropped in), only ever
+/// shrinking and fading, with no lift or bounce.
+///
+/// Swift note: `Animatable` makes SwiftUI call `body` for every in-between
+/// `progress` (0 → 1), so the card can follow a curve instead of a straight line.
+struct FlyIntoDone: ViewModifier, @preconcurrency Animatable {
+    var progress: CGFloat
+    /// From the card's centre to the Done number's.
+    let to: CGSize
+
+    var animatableData: CGFloat {
+        get { progress }
+        set { progress = newValue }
+    }
+
+    func body(content: Content) -> some View {
+        let t = progress, u = 1 - progress
+        // A quadratic Bézier curve from the card to `to`, pulled towards a
+        // point below the card, so the path bends instead of cutting across.
+        let bend = CGPoint(x: to.width * 0.15, y: to.height * 0.8)
+        content
+            .scaleEffect(1 - 0.9 * t)
+            .offset(x: 2 * u * t * bend.x + t * t * to.width, y: 2 * u * t * bend.y + t * t * to.height)
+            // Mostly there for the first 60% of the way, then gone (the CSS `fly` keyframes).
+            .opacity(t < 0.6 ? 1 - 0.25 * t : 0.85 * (1 - t) / 0.4)
     }
 }
 
@@ -341,9 +363,8 @@ private struct RevealButton: View {
             .padding(.horizontal, padding)
             .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.pointer)
         .onHover { hovering = $0 }
-        .cursor(.pointingHand)
     }
 }
 
@@ -373,7 +394,13 @@ struct PauseIcon: Shape {
 }
 
 enum FinishStep {
-    case idle, ticked, leaving, done
+    case idle, ticked, leaving
+}
+
+/// One card's finish animation: the step it's at, and how far it flies.
+struct Finish: Equatable {
+    var step: FinishStep
+    var flight: CGSize = .zero
 }
 
 /// "Focus ◎": the text first, then the icon.
@@ -386,13 +413,13 @@ private struct TrailingIcon: LabelStyle {
     }
 }
 
-/// The card menu (right-click or long-press), like the Tauri app's: category
-/// first, then Open, Move, Focus, Mark done, Open in Obsidian, Delete.
+/// The iPhone's card menu (long-press), with the same items as the Mac's
+/// themed one: category first, then Open, Move, Focus, Mark done, Open in
+/// Obsidian, Delete.
 struct CardMenu: View {
     @Environment(BoardStore.self) private var store
     @Environment(\.openURL) private var openURL
     let task: BoardTask
-    @Binding var confirmingDelete: Bool
 
     var body: some View {
         Picker("Category", selection: Binding(get: { task.area }, set: { store.setCategory(task.id, to: $0) })) {
@@ -409,12 +436,12 @@ struct CardMenu: View {
         } else {
             Button("Move to Today", systemImage: "arrow.up") { store.moveToTop(task.id, of: .today) }
         }
-        Button("Mark done", systemImage: "checkmark") { store.complete(task.id) }
+        Button("Mark done", systemImage: "checkmark") { store.finish(task.id) }
         if let url = store.obsidianURL(task.id) {
             Button("Open in Obsidian", systemImage: "arrow.up.right") { openURL(url) }
         }
         Divider()
-        Button("Delete file", systemImage: "trash", role: .destructive) { confirmingDelete = true }
+        Button("Delete file", systemImage: "trash", role: .destructive) { store.delete(task.id) }
     }
 }
 
@@ -426,6 +453,17 @@ private struct TitleText: View {
     let lines: Int
     let theme: Theme
     var struck = false
+    /// The full-title tooltip may show (not while dragging or finishing).
+    var tips = false
+    /// On the ink focus card the tooltip is light (.is-focus .opener::after).
+    var inverted = false
+    /// Debug screenshots (`-hover`): shown as if hovered.
+    var debugHover = false
+
+    /// Heights of the title as shown (clamped) and as it would be in full.
+    @State private var shownHeight: CGFloat = 0
+    @State private var fullHeight: CGFloat = 0
+    @State private var hovering = false
 
     var body: some View {
         // Text pieces joined with `+` flow as one paragraph, so the lock sits
@@ -434,17 +472,60 @@ private struct TitleText: View {
         if task.isPrivate {
             text = text + Text("  ") + Text(Image(systemName: "lock")).font(.system(size: size * 0.62, weight: .semibold)).foregroundStyle(.secondary)
         }
-        return
-            text
+        return styled(text)
+            .lineLimit(lines)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .fixedSize(horizontal: false, vertical: true)
+            .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { shownHeight = $0 }
+            // The same text with no line limit, unseen: if it's taller, the
+            // title is cut off ("…") and the tooltip has something to show.
+            .background(alignment: .top) {
+                styled(text)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .hidden()
+                    .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { fullHeight = $0 }
+            }
+        #if os(macOS)
+            .onHover { h in
+                // Shows after half a second of hovering, hides at once (as the CSS).
+                withAnimation(h ? .easeOut(duration: 0.15).delay(0.5) : .easeOut(duration: 0.12)) { hovering = h }
+            }
+            .overlay(alignment: .bottom) {
+                if tips && fullHeight > shownHeight + 1 {
+                    fullTitle
+                }
+            }
+        #endif
+    }
+
+    private func styled(_ text: Text) -> some View {
+        text
             // The size is animated (17 → 24pt into focus): a plain font change
             // would jump, `GrowingFont` passes every size in between.
             .modifier(GrowingFont(size: size, weight: weight, theme: theme))
             .strikethrough(struck)
             .lineSpacing(1)
-            .lineLimit(lines)
             .multilineTextAlignment(.leading)
+    }
+
+    /// `.opener[data-clipped]::after`: the whole title in a small ink label
+    /// 6pt under the title, as wide as it.
+    private var fullTitle: some View {
+        Text(task.title)
+            .font(theme.font(12, .medium))
+            .lineSpacing(3)
+            .multilineTextAlignment(.leading)
+            .foregroundStyle(inverted ? theme.ink : theme.bg)
             .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 8)
+            .background(inverted ? theme.bg : theme.ink, in: RoundedRectangle(cornerRadius: theme.radiusSmall))
             .fixedSize(horizontal: false, vertical: true)
+            .alignmentGuide(.bottom) { d in d[.top] - 6 }
+            .offset(y: hovering || debugHover ? 0 : -3)
+            .opacity(hovering || debugHover ? 1 : 0)
+            .allowsHitTesting(false)
+            .accessibilityHidden(true)
     }
 }
 

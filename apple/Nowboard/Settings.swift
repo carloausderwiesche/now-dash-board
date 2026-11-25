@@ -1,6 +1,6 @@
 // This device's settings: theme, compact cards, categories.
-// Categories move into the vault later (`.nowboard.json`, ADR 0009, with
-// editing); until then they're kept here.
+// With a Tasks folder, the categories come from its `.nowboard.json` (ADR
+// 0011); the copy kept here is for the demo board and for starting that file.
 
 import Foundation
 

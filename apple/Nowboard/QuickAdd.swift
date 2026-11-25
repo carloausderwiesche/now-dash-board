@@ -59,7 +59,7 @@ struct QuickAdd: View {
                                 .frame(width: 32, height: 32)
                                 .contentShape(Rectangle())
                         }
-                        .buttonStyle(.plain)
+                        .buttonStyle(.pointer)
                         .help(c.name)
                         .accessibilityLabel(c.name)
                         .accessibilityAddTraits(on ? .isSelected : [])

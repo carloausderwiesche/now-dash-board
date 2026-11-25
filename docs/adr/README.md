@@ -37,3 +37,6 @@ ADRs aren't edited after they're accepted, except for their status. To change a 
 | [0007](0007-yams-for-yaml.md) | The Swift app reads frontmatter with Yams, but decides what values mean itself | Accepted |
 | [0008](0008-swift-app-in-this-repo.md) | The Swift app lives in this repo, in `apple/` | Accepted |
 | [0009](0009-mac-app-without-sandbox.md) | The Mac app runs without the App Sandbox, for now | Accepted |
+| [0010](0010-delete-with-undo.md) | The SwiftUI app deletes at once and offers Undo, instead of asking first | Accepted |
+| [0011](0011-categories-in-the-tasks-folder.md) | Categories live in `.nowboard.json` in the Tasks folder | Accepted |
+| [0012](0012-swiftui-card-menu.md) | The SwiftUI card menu is drawn by the app on the Mac and native on the iPhone | Accepted |

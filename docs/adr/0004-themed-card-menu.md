@@ -1,7 +1,7 @@
 # 0004. Right-click on a card opens a menu drawn by the app
 
 - **Date:** 2026-11-23
-- **Status:** Accepted
+- **Status:** Accepted (in the SwiftUI app, Delete's two clicks are superseded by [0010](0010-delete-with-undo.md))
 
 ## Context
 

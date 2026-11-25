@@ -16,10 +16,13 @@ public enum TaskFileError: Error, Equatable, LocalizedError {
     case notATaskFile(String)
     case notFound(String)
     case invalidFrontmatter(String)
+    case invalidSettings
     case io(String)
 
     public var errorDescription: String? {
         switch self {
+        case .invalidSettings:
+            "\(TaskFolder.settingsFile) in the Tasks folder isn't valid JSON, so this device's categories are used. Fix the file or delete it."
         case .notATaskFile(let id): "Not a task file: \(id)"
         case .notFound(let id): "Task file not found: \(id)"
         case .invalidFrontmatter(let id):
@@ -205,6 +208,18 @@ public struct TaskFolder: Sendable {
         }
     }
 
+    /// Writes a deleted task's file back exactly as it was (Undo). If its name
+    /// was taken in the meantime, it gets a free one. Returns the name used.
+    @discardableResult
+    public func restore(_ id: String, text: String) throws(TaskFileError) -> String {
+        _ = try path(of: id)
+        try createFolder()
+        let taken = FileManager.default.fileExists(atPath: url.appendingPathComponent(id).path)
+        let name = taken ? freeName(for: String(id.dropLast(3)), current: nil) : id
+        try writeAtomically(text, to: try path(of: name))
+        return name
+    }
+
     // MARK: - Helpers
 
     /// A free file name for `title`: `Name.md`, else `Name (2).md`, `Name (3).md`…
@@ -231,7 +246,7 @@ public struct TaskFolder: Sendable {
         return url.appendingPathComponent(id)
     }
 
-    private func createFolder() throws(TaskFileError) {
+    func createFolder() throws(TaskFileError) {
         do {
             try FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
         } catch {
@@ -250,7 +265,7 @@ public struct TaskFolder: Sendable {
     /// Writes `.<name>.tmp`, then renames it over the file (spec 5.6), so
     /// nobody ever reads a half-written task. `rename` is the system call that
     /// does this in one step; Foundation's `moveItem` refuses to overwrite.
-    private func writeAtomically(_ text: String, to file: URL) throws(TaskFileError) {
+    func writeAtomically(_ text: String, to file: URL) throws(TaskFileError) {
         let tmp = file.deletingLastPathComponent().appendingPathComponent(".\(file.lastPathComponent).tmp")
         do {
             try Data(text.utf8).write(to: tmp)

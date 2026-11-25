@@ -19,10 +19,89 @@ struct Category: Identifiable, Equatable, Codable, Sendable {
     ]
 }
 
+/// To and from the way `.nowboard.json` stores a category (spec 7).
+extension Category {
+    init(_ record: CategoryRecord) {
+        self.init(id: record.id, name: record.name, color: Palette(rawValue: record.color) ?? .slate)
+    }
+
+    var record: CategoryRecord { CategoryRecord(id: id, name: name, color: color.rawValue) }
+}
+
+/// At most six categories (DESIGN.md, Settings).
+let maxCategories = 6
+
+/// A new category for the settings: "New category", the first colour nobody
+/// uses yet, and a free id (`category`, `category-2`…), like useSettings.ts.
+func newCategory(after cats: [Category]) -> Category {
+    let used = Set(cats.map(\.color))
+    var id = "category", n = 2
+    while cats.contains(where: { $0.id == id }) {
+        id = "category-\(n)"
+        n += 1
+    }
+    return Category(id: id, name: "New category", color: Palette.allCases.first { !used.contains($0) } ?? .slate)
+}
+
+/// The Tasks folder as the daily-note query names it: relative to the vault
+/// (the nearest folder above it with an `.obsidian` folder), e.g.
+/// `Notes/Tasks`. Without a vault in sight, just the folder's own name.
+func vaultRelativePath(of folder: URL) -> String {
+    let parts = folder.standardizedFileURL.pathComponents
+    var root = folder.standardizedFileURL
+    for depth in stride(from: parts.count - 1, through: 1, by: -1) {
+        root.deleteLastPathComponent()
+        if FileManager.default.fileExists(atPath: root.appendingPathComponent(".obsidian").path) {
+            return parts.suffix(parts.count - depth).joined(separator: "/")
+        }
+    }
+    return folder.lastPathComponent
+}
+
+/// A Dataview query for a daily note named YYYY-MM-DD: the tasks finished
+/// that day (ADR 0003). Same text as the Tauri app's settings.
+func doneQuery(tasksFolder: String) -> String {
+    """
+    ```dataview
+    LIST FROM "\(tasksFolder)"
+    WHERE status = "done" AND dateformat(default(done, file.mtime), "yyyy-MM-dd") = this.file.name
+    SORT default(done, file.mtime) ASC
+    ```
+    """
+}
+
+/// Top-left corner for a menu opened at the pointer: down and right of it,
+/// flipped up or left when it wouldn't fit, never closer than 8pt to the
+/// window's edges (placeMenu in cardMenu.ts).
+func placeMenu(at p: CGPoint, size: CGSize, in window: CGSize) -> CGPoint {
+    let edge: CGFloat = 8
+    let x = p.x + size.width + edge <= window.width ? p.x : p.x - size.width
+    let y = p.y + size.height + edge <= window.height ? p.y : p.y - size.height
+    return CGPoint(x: max(edge, min(x, window.width - size.width - edge)),
+                   y: max(edge, min(y, window.height - size.height - edge)))
+}
+
 /// The category for an `area:` id. An unknown id shows as the first category
 /// (DESIGN.md: deleting a category doesn't touch task files).
 func category(for area: String, in categories: [Category]) -> Category {
     categories.first { $0.id == area } ?? categories.first ?? Category.defaults[0]
+}
+
+/// A deleted task that Undo can still bring back: the task, and its file's
+/// text as it was (nil on the demo board, or if it couldn't be read).
+struct Deleted: Equatable {
+    let task: BoardTask
+    let text: String?
+    /// Tells two deletes of the same task apart.
+    let token = UUID()
+}
+
+/// Tasks someone else finished (Obsidian, an agent, the other device): on the
+/// board before (Today or Backlog), done in the folder now. They play the same
+/// finish animation as a card you tick (DESIGN.md, "Other writers exist").
+func finishedElsewhere(before: [BoardTask], after: [BoardTask]) -> [String] {
+    let was = Dictionary(before.map { ($0.id, $0.status) }, uniquingKeysWith: { a, _ in a })
+    return after.filter { $0.status == .done && (was[$0.id] == .today || was[$0.id] == .backlog) }.map(\.id)
 }
 
 // MARK: - Demo data

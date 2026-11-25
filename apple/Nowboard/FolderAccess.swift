@@ -68,6 +68,20 @@ enum FolderAccess {
         return result
     }
 
+    /// The shared categories (`.nowboard.json`), read like the tasks.
+    nonisolated static func loadCategories(from url: URL) -> Result<[CategoryRecord]?, Error> {
+        let ok = url.startAccessingSecurityScopedResource()
+        defer { if ok { url.stopAccessingSecurityScopedResource() } }
+
+        var result: Result<[CategoryRecord]?, Error> = .success(nil)
+        var coordinationError: NSError?
+        NSFileCoordinator().coordinate(readingItemAt: url, options: [], error: &coordinationError) { folder in
+            result = Result { try TaskFolder(url: folder).loadCategories() }
+        }
+        if let coordinationError { return .failure(coordinationError) }
+        return result
+    }
+
     /// Runs `change` on the Tasks folder with access switched on and the
     /// write coordinated with other apps (Obsidian, iCloud), so nobody reads
     /// a file while we write it.

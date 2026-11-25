@@ -41,6 +41,35 @@ private func read(_ dir: URL, _ name: String) throws -> String {
     #expect(store.lists.doneToday.map(\.title) == ["Buy milk"])
 }
 
+@MainActor @Test func finishPlaysTheAnimationThenMarksDone() async throws {
+    let (store, dir) = try await makeStore(["A.md": "---\nstatus: today\norder: 1\n---\n"])
+    store.drag.cardFrames["A.md"] = CGRect(x: 0, y: 0, width: 200, height: 128)  // on screen
+    store.finish("A.md")
+    #expect(store.finishing["A.md"]?.step == .ticked)
+    #expect(store.task("A.md")?.status == .today)  // still on the board while it animates
+    try await Task.sleep(for: .milliseconds(1000))
+    await store.waitForWrites()
+    #expect(try read(dir, "A.md").contains("status: done"))
+}
+
+@Test func onlyOpenCardsThatAreNowDoneCountAsFinishedElsewhere() {
+    func t(_ id: String, _ s: TaskStatus) -> BoardTask { BoardTask(id: id, title: id, status: s, area: "work") }
+    let before = [t("a", .today), t("b", .backlog), t("c", .done), t("d", .today), t("e", .suggested)]
+    let after = [t("a", .done), t("b", .done), t("c", .done), t("d", .today), t("e", .done), t("new", .done)]
+    #expect(finishedElsewhere(before: before, after: after) == ["a", "b"])
+}
+
+@MainActor @Test func aTaskFinishedElsewhereLandsInDoneWithoutBeingWritten() async throws {
+    let (store, dir) = try await makeStore(["A.md": "---\nstatus: today\norder: 1\n---\n"])
+    let done = "---\nstatus: done\norder: 1\ndone: 2026-11-25T09:00\nnote: from obsidian\n---\n"
+    try done.write(to: dir.appendingPathComponent("A.md"), atomically: true, encoding: .utf8)
+    for _ in 0..<30 where store.task("A.md")?.status != .done {
+        try await Task.sleep(for: .milliseconds(100))
+    }
+    #expect(store.task("A.md")?.done == "2026-11-25T09:00")
+    #expect(try read(dir, "A.md") == done)
+}
+
 @MainActor @Test func reopenClearsDoneAndGoesToTheTopOfToday() async throws {
     let (store, dir) = try await makeStore([
         "A.md": "---\nstatus: today\norder: 10\n---\n",
@@ -91,6 +120,19 @@ private func read(_ dir: URL, _ name: String) throws -> String {
     #expect(store.tasks.map(\.title) == ["Fix: token"])
 }
 
+@MainActor @Test func renamingTheOpenTaskKeepsItsPanelOpen() async throws {
+    let (store, _) = try await makeStore([
+        "Old.md": "---\nstatus: today\norder: 1\n---\n",
+        "Taken.md": "---\nstatus: today\norder: 2\n---\n",
+    ])
+    store.openID = "Old.md"
+    store.rename("Old.md", to: "Taken")
+    #expect(store.openID == "Taken (2).md")
+    await store.waitForWrites()
+    #expect(store.task("Taken (2).md") != nil)
+    #expect(store.openID == "Taken (2).md")
+}
+
 @MainActor @Test func checklistAndNotesEditsAreSaved() async throws {
     let (store, dir) = try await makeStore(["A.md": "---\nstatus: today\norder: 1\n---\n"])
     var t = try #require(store.task("A.md"))
@@ -112,6 +154,85 @@ private func read(_ dir: URL, _ name: String) throws -> String {
     let text = try read(dir, "S1.md")
     #expect(text.contains("status: backlog") && text.contains("from: '[[Notes/x]]'"))
     #expect(!FileManager.default.fileExists(atPath: dir.appendingPathComponent("S2.md").path))
+}
+
+@MainActor @Test func undoWritesADeletedFileBackExactlyAsItWas() async throws {
+    let text = "---\nstatus: backlog\norder: 3\nmood: unknown field\n---\n- [ ] step\n\nnotes   kept as typed\n"
+    let (store, dir) = try await makeStore(["A.md": text])
+    store.delete("A.md")
+    await store.waitForWrites()
+    #expect(!FileManager.default.fileExists(atPath: dir.appendingPathComponent("A.md").path))
+    #expect(store.undoable?.task.id == "A.md")
+    store.undoDelete()
+    await store.waitForWrites()
+    #expect(try read(dir, "A.md") == text)
+    #expect(store.task("A.md")?.status == .backlog)
+}
+
+@MainActor @Test func undoWhileTheCardIsStillFadingKeepsTheFile() async throws {
+    let (store, dir) = try await makeStore(["A.md": "---\nstatus: today\norder: 1\n---\n"])
+    store.delete("A.md")
+    store.undoDelete()
+    await store.waitForWrites()
+    #expect(FileManager.default.fileExists(atPath: dir.appendingPathComponent("A.md").path))
+    #expect(store.task("A.md") != nil && store.deleting.isEmpty)
+}
+
+@MainActor @Test func categoriesComeFromTheTasksFolder() async throws {
+    let (store, _) = try await makeStore([
+        ".nowboard.json": #"{"categories": [{"id": "home", "name": "Home", "color": "teal"}, {"id": "work", "name": "Job", "color": "nope"}]}"#
+    ])
+    #expect(store.settings.categories == [
+        Category(id: "home", name: "Home", color: .teal), Category(id: "work", name: "Job", color: .slate),
+    ])
+}
+
+@MainActor @Test func aMissingSettingsFileIsStartedFromThisDevicesCategories() async throws {
+    let (store, dir) = try await makeStore()
+    await store.waitForWrites()
+    let text = try read(dir, ".nowboard.json")
+    #expect(text.contains("\"personal\"") && text.contains("\"freelance\""))
+    #expect(store.settings.categories == Category.defaults)
+}
+
+@MainActor @Test func editingCategoriesWritesTheFileAfterAPause() async throws {
+    let (store, dir) = try await makeStore([".nowboard.json": #"{"categories": [{"id": "a", "name": "A", "color": "red"}]}"#])
+    store.setCategories([Category(id: "a", name: "Al", color: .red)])
+    store.setCategories([Category(id: "a", name: "Alpha", color: .red), Category(id: "b", name: "B", color: .blue)])
+    await store.waitForWrites()
+    let saved = try TaskFolder(url: dir).loadCategories()
+    #expect(saved?.map(\.name) == ["Alpha", "B"])
+}
+
+@MainActor @Test func aBrokenSettingsFileIsReportedAndLeftAlone() async throws {
+    let (store, dir) = try await makeStore([".nowboard.json": "{ broken"])
+    await store.waitForWrites()
+    #expect(store.error?.contains(".nowboard.json") == true)
+    #expect(try read(dir, ".nowboard.json") == "{ broken")
+}
+
+@Test func aNewCategoryGetsAFreeIdAndAnUnusedColour() {
+    let cats = [Category(id: "category", name: "A", color: .rose), Category(id: "category-2", name: "B", color: .red)]
+    let new = newCategory(after: cats)
+    #expect(new.id == "category-3" && new.color == .orange && new.name == "New category")
+}
+
+@Test func theDailyNoteQueryNamesTheTasksFolderRelativeToTheVault() throws {
+    let vault = FileManager.default.temporaryDirectory.appendingPathComponent("vault-\(UUID().uuidString)")
+    let tasks = vault.appendingPathComponent("Notes/Tasks")
+    try FileManager.default.createDirectory(at: tasks, withIntermediateDirectories: true)
+    #expect(vaultRelativePath(of: tasks) == "Tasks")  // no vault found: just the name
+    try FileManager.default.createDirectory(at: vault.appendingPathComponent(".obsidian"), withIntermediateDirectories: true)
+    #expect(vaultRelativePath(of: tasks) == "Notes/Tasks")
+    #expect(doneQuery(tasksFolder: "Notes/Tasks").contains(#"LIST FROM "Notes/Tasks""#))
+}
+
+@Test func theCardMenuOpensAtThePointerAndFlipsNearTheEdges() {
+    let menu = CGSize(width: 232, height: 300), window = CGSize(width: 1000, height: 800)
+    #expect(placeMenu(at: CGPoint(x: 100, y: 100), size: menu, in: window) == CGPoint(x: 100, y: 100))
+    #expect(placeMenu(at: CGPoint(x: 900, y: 700), size: menu, in: window) == CGPoint(x: 668, y: 400))
+    // Too big either way: pinned 8pt from the edge.
+    #expect(placeMenu(at: CGPoint(x: 100, y: 150), size: CGSize(width: 232, height: 790), in: window).y == 8)
 }
 
 @MainActor @Test func aFailedWriteShowsAnError() async throws {

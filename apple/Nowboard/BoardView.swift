@@ -35,6 +35,9 @@ struct BoardView: View {
         .tint(theme.accent)
         .preferredColorScheme(theme.colorScheme)
         .animation(.easeOut(duration: 0.45), value: theme.id)
+        .overlay(alignment: .bottom) { UndoPill() }
+        // Popovers are placed in this space (it's the whole window).
+        .coordinateSpace(name: rootSpace)
         .refreshable { await store.reload() }
         .task { await store.reload() }
         .onChange(of: scenePhase) { _, phase in
@@ -44,6 +47,8 @@ struct BoardView: View {
             // Mac: the panel slides in from the right, quick add drops in at the
             // top, both over a scrim (a soft shade over the board).
             .overlay { macOverlays }
+            .overlay { settingsPopover }
+            .overlay { CardMenuLayer() }
         #else
             // iPhone: both are sheets from below.
             .sheet(isPresented: Binding(get: { store.openID != nil }, set: { if !$0 { store.openID = nil } })) {
@@ -56,6 +61,12 @@ struct BoardView: View {
             .sheet(isPresented: Binding(get: { store.adding }, set: { store.adding = $0 })) {
                 QuickAdd()
                     .presentationDetents([.height(150)])
+                    .presentationCornerRadius(store.theme.radiusLarge)
+                    .presentationBackground(store.theme.surface)
+            }
+            .sheet(isPresented: Binding(get: { store.showingSettings }, set: { store.showingSettings = $0 })) {
+                ScrollView { SettingsPanel(pickFolder: { pickingFolder = true }) }
+                    .presentationDetents([.medium, .large])
                     .presentationCornerRadius(store.theme.radiusLarge)
                     .presentationBackground(store.theme.surface)
             }
@@ -113,8 +124,44 @@ struct BoardView: View {
             .animation(.timingCurve(0.2, 0.8, 0.3, 1, duration: 0.3), value: store.openID)
             .animation(.easeOut(duration: 0.25), value: store.adding)
         }
+
+        /// .popover: under the header's tools, right-aligned to them, over an
+        /// invisible layer that closes it on a click anywhere else (or Esc).
+        @ViewBuilder
+        var settingsPopover: some View {
+            let theme = store.theme
+            let anchor = store.settingsAnchor
+            GeometryReader { window in
+                if store.showingSettings {
+                    Color.clear
+                        .contentShape(Rectangle())
+                        .onTapGesture { store.showingSettings = false }
+                    Button("Close settings") { store.showingSettings = false }
+                        .keyboardShortcut(.cancelAction)
+                        .hidden()
+                    // Scrolls only when it doesn't fit the window.
+                    ViewThatFits(in: .vertical) {
+                        SettingsPanel(pickFolder: { pickingFolder = true })
+                        ScrollView { SettingsPanel(pickFolder: { pickingFolder = true }) }
+                    }
+                    .frame(width: 320)
+                    .frame(maxHeight: max(200, window.size.height - anchor.maxY - 20))
+                    .fixedSize(horizontal: false, vertical: true)
+                    .background(theme.surface, in: RoundedRectangle(cornerRadius: theme.radiusLarge))
+                    .overlay(RoundedRectangle(cornerRadius: theme.radiusLarge).strokeBorder(theme.line, lineWidth: 1))
+                    .cssShadow(y: 24, blur: 60, spread: -20, opacity: 0.35, radius: theme.radiusLarge)
+                    .offset(x: anchor.maxX - 320, y: anchor.maxY + 10)
+                    .transition(.opacity.combined(with: .scale(scale: 0.96, anchor: .topTrailing)))
+                }
+            }
+            .ignoresSafeArea()
+            .animation(.timingCurve(0.2, 0.8, 0.3, 1, duration: 0.25), value: store.showingSettings)
+        }
     }
 #endif
+
+/// The window's coordinate space, for placing popovers and menus.
+let rootSpace = "root"
 
 /// Everything inside the scroll view. Separate, so a snapshot can render it.
 struct BoardContent: View {
@@ -124,6 +171,8 @@ struct BoardContent: View {
 
     var body: some View {
         let lists = store.lists
+        // A card flying into Done must pass over the sections below its own.
+        let flying = { (list: [BoardTask]) in list.contains { store.finishing[$0.id] != nil } ? 1.0 : 0 }
         // .page: gap 28 between the header and the column of sections.
         VStack(alignment: .leading, spacing: 28) {
             HeaderView(narrow: narrow, pickFolder: pickFolder)
@@ -139,8 +188,10 @@ struct BoardContent: View {
                         SuggestedStrip(tasks: lists.suggested)
                     }
                 }
+                .zIndex(flying(lists.today))
                 CardSection(title: "Backlog", cards: lists.backlog, style: .backlog, narrow: narrow,
                             empty: ("Backlog is empty", "Ideas and later things go here"))
+                    .zIndex(flying(lists.backlog))
                 DoneSection(today: lists.doneToday, recent: lists.doneRecent)
             }
         }
@@ -152,6 +203,10 @@ struct BoardContent: View {
         .frame(maxWidth: 1400)
         .frame(maxWidth: .infinity)
         .coordinateSpace(name: boardSpace)
+        // The bottom of what the scroll view shows, in board coordinates.
+        .onGeometryChange(for: CGFloat.self) { $0.bounds(of: .scrollView)?.maxY ?? .infinity } action: { bottom in
+            store.visibleBottom = bottom
+        }
         // The copy of the card that follows the pointer while dragging.
         .overlay(alignment: .topLeading) {
             let drag = store.drag
@@ -224,11 +279,12 @@ struct HeaderView: View {
                 FilterDot(category: c)
             }
             Rectangle().fill(store.theme.line).frame(width: 1, height: 20).padding(.horizontal, 8)
-            SettingsMenu(pickFolder: pickFolder)
+            SettingsButton()
             PlusButton()
                 .padding(.leading, 4)
         }
         .fixedSize()
+        .onGeometryChange(for: CGRect.self) { $0.frame(in: .named(rootSpace)) } action: { store.settingsAnchor = $0 }
     }
 }
 
@@ -267,52 +323,28 @@ struct FilterDot: View {
     }
 }
 
-/// Settings: theme, card size and the Tasks folder. A menu for now; the full
-/// popover from the Tauri app (categories, vault) comes with editing.
-struct SettingsMenu: View {
+/// The settings button (.iconbtn: muted, ink on hover or while open). Opens
+/// SettingsPanel: a popover under the header on the Mac, a sheet on the iPhone.
+struct SettingsButton: View {
     @Environment(BoardStore.self) private var store
-    var pickFolder: () -> Void
     @State private var hovering = false
 
     var body: some View {
-        // `@Bindable` lets a view write to an @Observable object's property
-        // through a binding (`$store.settings.theme`), here for the pickers.
-        @Bindable var store = store
-        Menu {
-            Picker("Theme", selection: $store.settings.theme) {
-                ForEach(["Rams", "Ive", "Pastel", "Eames"], id: \.self) { group in
-                    Section(group) {
-                        ForEach(Theme.all.filter { $0.group == group }) { t in
-                            Text(t.name).tag(t.id)
-                        }
-                    }
-                }
-            }
-            Picker("Cards", selection: $store.settings.compact) {
-                Text("Roomy").tag(false)
-                Text("Compact").tag(true)
-            }
-            Divider()
-            Button("Choose Tasks folder…", action: pickFolder)
-            if case .folder(let url) = store.source {
-                Text("Reading \(url.lastPathComponent)")
-                Button("Show the demo board") { Task { await store.useDemo() } }
-            }
+        let theme = store.theme
+        Button {
+            store.showingSettings.toggle()
         } label: {
-            // .iconbtn: muted, ink on hover.
             SlidersIcon()
-                .stroke(hovering ? store.theme.ink : store.theme.muted, style: StrokeStyle(lineWidth: 1.7 * 18 / 24, lineCap: .round, lineJoin: .round))
+                .stroke(hovering || store.showingSettings ? theme.ink : theme.muted,
+                        style: StrokeStyle(lineWidth: 1.7 * 18 / 24, lineCap: .round, lineJoin: .round))
                 .animation(.easeOut(duration: 0.2), value: hovering)
                 .frame(width: 18, height: 18)
                 .frame(width: 44, height: 44)
                 .contentShape(Rectangle())
         }
-        .menuStyle(.button)
-        .buttonStyle(.plain)
-        .menuIndicator(.hidden)
-        .fixedSize()
+        .buttonStyle(.pointer)
         .onHover { hovering = $0 }
-        .cursor(.pointingHand)
+        .help("Settings")
         .accessibilityLabel("Settings")
     }
 }
@@ -391,7 +423,7 @@ struct CardSection: View {
                                 .measure(id, span: spanOf(task), in: drag)
                                 // Last: the grid reads span and layering from its direct child.
                                 .gridSpan(spanOf(task))
-                                .zIndex(store.hoveredID == id ? 3 : 0)
+                                .zIndex(store.finishing[id] != nil ? 4 : store.hoveredID == id ? 3 : 0)
                         }
                     }
                 }
@@ -545,18 +577,18 @@ struct SuggestedStrip: View {
                     Button { store.openID = t.id } label: {
                         Text(t.title).font(theme.font(14)).lineLimit(1).frame(maxWidth: .infinity, alignment: .leading).contentShape(Rectangle())
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(.pointer)
                     if let from = t.from {
                         Text(from).font(.system(size: 11, design: .monospaced)).foregroundStyle(theme.muted).lineLimit(1)
                     }
                     Button("Accept") { store.accept(t.id) }
-                        .buttonStyle(.plain)
+                        .buttonStyle(.pointer)
                         .font(theme.font(12, .medium))
                         .foregroundStyle(theme.ink)
                         .padding(.horizontal, 8)
                         .frame(height: 32)
                     Button("Dismiss") { store.delete(t.id) }
-                        .buttonStyle(.plain)
+                        .buttonStyle(.pointer)
                         .font(theme.font(12, .medium))
                         .foregroundStyle(theme.muted)
                         .padding(.horizontal, 8)
@@ -565,6 +597,7 @@ struct SuggestedStrip: View {
                 }
                 .frame(minHeight: 40)
                 .overlay(alignment: .bottom) { Rectangle().fill(theme.line).frame(height: 1) }
+                .opacity(store.deleting.contains(t.id) ? 0 : 1)
             }
         }
     }
@@ -610,6 +643,10 @@ struct DoneSection: View {
                         .padding(.vertical, theme.lineBoxTrim(56, lineHeight: 0.85))
                         .foregroundStyle(bump || over ? theme.accent : theme.ink)
                         .scaleEffect(bump ? 1.08 : 1, anchor: .bottomLeading)
+                        // Where finished cards fly to.
+                        .onGeometryChange(for: CGRect.self) { $0.frame(in: .named(boardSpace)) } action: { frame in
+                            store.doneTarget = frame
+                        }
                     VStack(alignment: .leading, spacing: 3) {
                         Text("Done today").fontWeight(.semibold)
                         Text(today.first.map { "Last: \($0.title)" } ?? "Nothing finished yet today")
@@ -630,13 +667,13 @@ struct DoneSection: View {
                 .overlay(alignment: .top) { Rectangle().fill(theme.ink).frame(height: 2) }
                 .contentShape(Rectangle())
             }
-            .buttonStyle(.plain)
+            .buttonStyle(.pointer)
             .accessibilityHint(open ? "Hides the list" : "Shows the last 7 days")
             #if os(iOS)
                 // Dropping a card on Done completes it.
                 .dropDestination(for: String.self) { ids, _ in
                     guard let id = ids.first, store.task(id)?.status != .done else { return false }
-                    store.complete(id)
+                    store.finish(id)
                     return true
                 } isTargeted: { targeted = $0 }
             #endif
@@ -667,7 +704,7 @@ struct DoneSection: View {
                                 Text(dayLabel(done)).font(theme.font(12)).foregroundStyle(theme.muted).padding(.horizontal, 8)
                             }
                             Button("Undo") { store.reopen(t.id) }
-                                .buttonStyle(.plain)
+                                .buttonStyle(.pointer)
                                 .font(theme.font(12, .medium))
                                 .padding(.horizontal, 8)
                                 .frame(height: 32)
@@ -677,6 +714,40 @@ struct DoneSection: View {
                     }
                 }
                 .transition(.opacity)
+            }
+        }
+    }
+}
+
+/// "Deleted “…” · Undo": a small ink pill at the bottom for a few seconds
+/// after a delete (ADR 0010). ⌘Z does the same on the Mac.
+struct UndoPill: View {
+    @Environment(BoardStore.self) private var store
+
+    var body: some View {
+        let theme = store.theme
+        ZStack {
+            if let deleted = store.undoable {
+                HStack(spacing: 16) {
+                    Text("Deleted “\(deleted.task.title)”")
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                    Button("Undo") { store.undoDelete() }
+                        .buttonStyle(.pointer)
+                        .fontWeight(.semibold)
+                        .underline()
+                        .keyboardShortcut("z", modifiers: .command)
+                }
+                .font(theme.font(13, .medium))
+                .foregroundStyle(theme.bg)
+                .padding(.horizontal, 20)
+                .frame(height: 44)
+                .frame(maxWidth: 420)
+                .background(theme.ink, in: Capsule())
+                .cssShadow(y: 14, blur: 34, spread: -14, opacity: 0.45, radius: 22)
+                .padding(.bottom, 24)
+                .padding(.horizontal, 16)
+                .transition(.move(edge: .bottom).combined(with: .opacity))
             }
         }
     }
