@@ -31,6 +31,10 @@
                 try? await Task.sleep(for: .milliseconds(600))
                 if let id = argument("open") { store.openID = id }
                 if argument("adding") == "true" { store.adding = true }
+                // `-settings true` opens settings, `-delete <file name>` deletes
+                // that card (demo only), so the Undo pill shows.
+                if argument("settings") == "true" { store.showingSettings = true }
+                if let id = argument("delete"), store.isDemo { store.delete(id) }
                 #if os(macOS)
                     // `-panel true`: open the ⌥ Space panel, as if the shortcut was pressed.
                     if argument("panel") == "true" { GlobalQuickAdd.shared.toggle() }
@@ -72,6 +76,18 @@
                             store.drag.onDrop?(d.id, d.target)
                             try? await Task.sleep(for: .milliseconds(900))
                         }
+                    }
+                    // `-finishdemo <file name>`: finish that card and capture the
+                    // window during its flight into Done (0-name.png … 4-name.png).
+                    if let id = argument("finishdemo"), store.isDemo {
+                        let start = Date()
+                        store.finish(id)
+                        for (i, ms) in [300, 520, 640, 760, 1300].enumerated() {
+                            let wait = Double(ms) / 1000 - Date().timeIntervalSince(start)
+                            if wait > 0 { try? await Task.sleep(for: .seconds(wait)) }
+                            capture("\(i)-" + name)
+                        }
+                        exit(0)
                     }
                     // `-focusdemo <file name>`: focus that card and capture the
                     // window during the animation (name-0.png … name-6.png).

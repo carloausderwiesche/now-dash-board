@@ -43,6 +43,18 @@ enum CursorKind {
     case pointingHand, openHand
 }
 
+/// `.buttonStyle(.pointer)`: a plain button that shows the hand cursor on the
+/// Mac, like everything clickable in the Tauri app (`cursor: pointer`).
+struct PointerButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label.cursor(.pointingHand)
+    }
+}
+
+extension ButtonStyle where Self == PointerButtonStyle {
+    static var pointer: PointerButtonStyle { PointerButtonStyle() }
+}
+
 private struct Tip: ViewModifier {
     @Environment(BoardStore.self) private var store
     let text: String

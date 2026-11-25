@@ -36,6 +36,8 @@ struct BoardView: View {
         .preferredColorScheme(theme.colorScheme)
         .animation(.easeOut(duration: 0.45), value: theme.id)
         .overlay(alignment: .bottom) { UndoPill() }
+        // Popovers are placed in this space (it's the whole window).
+        .coordinateSpace(name: rootSpace)
         .refreshable { await store.reload() }
         .task { await store.reload() }
         .onChange(of: scenePhase) { _, phase in
@@ -45,6 +47,7 @@ struct BoardView: View {
             // Mac: the panel slides in from the right, quick add drops in at the
             // top, both over a scrim (a soft shade over the board).
             .overlay { macOverlays }
+            .overlay { settingsPopover }
         #else
             // iPhone: both are sheets from below.
             .sheet(isPresented: Binding(get: { store.openID != nil }, set: { if !$0 { store.openID = nil } })) {
@@ -57,6 +60,12 @@ struct BoardView: View {
             .sheet(isPresented: Binding(get: { store.adding }, set: { store.adding = $0 })) {
                 QuickAdd()
                     .presentationDetents([.height(150)])
+                    .presentationCornerRadius(store.theme.radiusLarge)
+                    .presentationBackground(store.theme.surface)
+            }
+            .sheet(isPresented: Binding(get: { store.showingSettings }, set: { store.showingSettings = $0 })) {
+                ScrollView { SettingsPanel(pickFolder: { pickingFolder = true }) }
+                    .presentationDetents([.medium, .large])
                     .presentationCornerRadius(store.theme.radiusLarge)
                     .presentationBackground(store.theme.surface)
             }
@@ -114,8 +123,44 @@ struct BoardView: View {
             .animation(.timingCurve(0.2, 0.8, 0.3, 1, duration: 0.3), value: store.openID)
             .animation(.easeOut(duration: 0.25), value: store.adding)
         }
+
+        /// .popover: under the header's tools, right-aligned to them, over an
+        /// invisible layer that closes it on a click anywhere else (or Esc).
+        @ViewBuilder
+        var settingsPopover: some View {
+            let theme = store.theme
+            let anchor = store.settingsAnchor
+            GeometryReader { window in
+                if store.showingSettings {
+                    Color.clear
+                        .contentShape(Rectangle())
+                        .onTapGesture { store.showingSettings = false }
+                    Button("Close settings") { store.showingSettings = false }
+                        .keyboardShortcut(.cancelAction)
+                        .hidden()
+                    // Scrolls only when it doesn't fit the window.
+                    ViewThatFits(in: .vertical) {
+                        SettingsPanel(pickFolder: { pickingFolder = true })
+                        ScrollView { SettingsPanel(pickFolder: { pickingFolder = true }) }
+                    }
+                    .frame(width: 320)
+                    .frame(maxHeight: max(200, window.size.height - anchor.maxY - 20))
+                    .fixedSize(horizontal: false, vertical: true)
+                    .background(theme.surface, in: RoundedRectangle(cornerRadius: theme.radiusLarge))
+                    .overlay(RoundedRectangle(cornerRadius: theme.radiusLarge).strokeBorder(theme.line, lineWidth: 1))
+                    .cssShadow(y: 24, blur: 60, spread: -20, opacity: 0.35, radius: theme.radiusLarge)
+                    .offset(x: anchor.maxX - 320, y: anchor.maxY + 10)
+                    .transition(.opacity.combined(with: .scale(scale: 0.96, anchor: .topTrailing)))
+                }
+            }
+            .ignoresSafeArea()
+            .animation(.timingCurve(0.2, 0.8, 0.3, 1, duration: 0.25), value: store.showingSettings)
+        }
     }
 #endif
+
+/// The window's coordinate space, for placing popovers and menus.
+let rootSpace = "root"
 
 /// Everything inside the scroll view. Separate, so a snapshot can render it.
 struct BoardContent: View {
@@ -233,11 +278,12 @@ struct HeaderView: View {
                 FilterDot(category: c)
             }
             Rectangle().fill(store.theme.line).frame(width: 1, height: 20).padding(.horizontal, 8)
-            SettingsMenu(pickFolder: pickFolder)
+            SettingsButton()
             PlusButton()
                 .padding(.leading, 4)
         }
         .fixedSize()
+        .onGeometryChange(for: CGRect.self) { $0.frame(in: .named(rootSpace)) } action: { store.settingsAnchor = $0 }
     }
 }
 
@@ -276,52 +322,28 @@ struct FilterDot: View {
     }
 }
 
-/// Settings: theme, card size and the Tasks folder. A menu for now; the full
-/// popover from the Tauri app (categories, vault) comes with editing.
-struct SettingsMenu: View {
+/// The settings button (.iconbtn: muted, ink on hover or while open). Opens
+/// SettingsPanel: a popover under the header on the Mac, a sheet on the iPhone.
+struct SettingsButton: View {
     @Environment(BoardStore.self) private var store
-    var pickFolder: () -> Void
     @State private var hovering = false
 
     var body: some View {
-        // `@Bindable` lets a view write to an @Observable object's property
-        // through a binding (`$store.settings.theme`), here for the pickers.
-        @Bindable var store = store
-        Menu {
-            Picker("Theme", selection: $store.settings.theme) {
-                ForEach(["Rams", "Ive", "Pastel", "Eames"], id: \.self) { group in
-                    Section(group) {
-                        ForEach(Theme.all.filter { $0.group == group }) { t in
-                            Text(t.name).tag(t.id)
-                        }
-                    }
-                }
-            }
-            Picker("Cards", selection: $store.settings.compact) {
-                Text("Roomy").tag(false)
-                Text("Compact").tag(true)
-            }
-            Divider()
-            Button("Choose Tasks folder…", action: pickFolder)
-            if case .folder(let url) = store.source {
-                Text("Reading \(url.lastPathComponent)")
-                Button("Show the demo board") { Task { await store.useDemo() } }
-            }
+        let theme = store.theme
+        Button {
+            store.showingSettings.toggle()
         } label: {
-            // .iconbtn: muted, ink on hover.
             SlidersIcon()
-                .stroke(hovering ? store.theme.ink : store.theme.muted, style: StrokeStyle(lineWidth: 1.7 * 18 / 24, lineCap: .round, lineJoin: .round))
+                .stroke(hovering || store.showingSettings ? theme.ink : theme.muted,
+                        style: StrokeStyle(lineWidth: 1.7 * 18 / 24, lineCap: .round, lineJoin: .round))
                 .animation(.easeOut(duration: 0.2), value: hovering)
                 .frame(width: 18, height: 18)
                 .frame(width: 44, height: 44)
                 .contentShape(Rectangle())
         }
-        .menuStyle(.button)
-        .buttonStyle(.plain)
-        .menuIndicator(.hidden)
-        .fixedSize()
+        .buttonStyle(.pointer)
         .onHover { hovering = $0 }
-        .cursor(.pointingHand)
+        .help("Settings")
         .accessibilityLabel("Settings")
     }
 }

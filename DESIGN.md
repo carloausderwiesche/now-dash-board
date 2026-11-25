@@ -54,13 +54,14 @@ Read this before changing how something looks or behaves. These decisions came o
 
 ## Settings
 
-A popover under the settings button; clicking anywhere outside (or Esc) closes it.
+A popover under the settings button; clicking anywhere outside (or Esc) closes it. On the iPhone it's a sheet from below with the same contents.
 
 - **Theme** dropdown (below).
 - **Cards:** Roomy / Compact. Compact keeps the same layout with smaller cards, text and gaps, so more fit on screen.
 - **Categories:** click a category's dot to open a small floating palette of 14 colours (two even rows of seven) (it sits on top, nothing shifts), rename it inline, reorder it by dragging the ⠿ grip that appears on hover in the left margin (or focus it and press ↑ ↓; the order is the order of the dots everywhere), delete it with the × that appears on hover (at least one stays). Deleting doesn't touch task files; their tasks show in the first category until recategorised. Up to six. In the SwiftUI app the categories are saved in `.nowboard.json` in the Tasks folder, so every device shows the same ones ([ADR 0011](docs/adr/0011-categories-in-the-tasks-folder.md)).
 - **Finished tasks in your daily note:** a ready-made Dataview query (with the current tasks folder) and a Copy button. Pasted into the daily-note template, it lists the tasks finished on that note's day. The app itself never writes into daily notes ([ADR 0003](docs/adr/0003-daily-note-query.md)).
 - **Obsidian vault:** a dropdown of the vaults Obsidian already knows (read from Obsidian's `obsidian.json`) plus "Other folder…", which opens Finder's folder picker. No typing paths.
+- **Tasks folder** (SwiftUI app, instead of the vault, because the iPhone can only open the folder you pick): the folder's path, "Choose…" (the system folder picker) and "Show the demo board". The daily-note query names the folder relative to the vault it's in (the nearest folder above it with `.obsidian`). Categories reorder by dragging the grip, or with VoiceOver's Move up / Move down actions.
 
 ## Themes
 

@@ -45,6 +45,10 @@ final class BoardStore {
     var openID: String?
     /// Quick add is showing.
     var adding = false
+    /// The settings popover (Mac) or sheet (iPhone) is showing.
+    var showingSettings = false
+    /// The header's tools, in window coordinates: the Mac's settings popover hangs under them.
+    var settingsAnchor: CGRect = .zero
     /// Dragging cards (Mac).
     let drag = DragController()
     /// The card under the pointer (Mac): drawn above its neighbours.

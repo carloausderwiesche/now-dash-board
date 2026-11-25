@@ -28,6 +28,48 @@ extension Category {
     var record: CategoryRecord { CategoryRecord(id: id, name: name, color: color.rawValue) }
 }
 
+/// At most six categories (DESIGN.md, Settings).
+let maxCategories = 6
+
+/// A new category for the settings: "New category", the first colour nobody
+/// uses yet, and a free id (`category`, `category-2`…), like useSettings.ts.
+func newCategory(after cats: [Category]) -> Category {
+    let used = Set(cats.map(\.color))
+    var id = "category", n = 2
+    while cats.contains(where: { $0.id == id }) {
+        id = "category-\(n)"
+        n += 1
+    }
+    return Category(id: id, name: "New category", color: Palette.allCases.first { !used.contains($0) } ?? .slate)
+}
+
+/// The Tasks folder as the daily-note query names it: relative to the vault
+/// (the nearest folder above it with an `.obsidian` folder), e.g.
+/// `Notes/Tasks`. Without a vault in sight, just the folder's own name.
+func vaultRelativePath(of folder: URL) -> String {
+    let parts = folder.standardizedFileURL.pathComponents
+    var root = folder.standardizedFileURL
+    for depth in stride(from: parts.count - 1, through: 1, by: -1) {
+        root.deleteLastPathComponent()
+        if FileManager.default.fileExists(atPath: root.appendingPathComponent(".obsidian").path) {
+            return parts.suffix(parts.count - depth).joined(separator: "/")
+        }
+    }
+    return folder.lastPathComponent
+}
+
+/// A Dataview query for a daily note named YYYY-MM-DD: the tasks finished
+/// that day (ADR 0003). Same text as the Tauri app's settings.
+func doneQuery(tasksFolder: String) -> String {
+    """
+    ```dataview
+    LIST FROM "\(tasksFolder)"
+    WHERE status = "done" AND dateformat(default(done, file.mtime), "yyyy-MM-dd") = this.file.name
+    SORT default(done, file.mtime) ASC
+    ```
+    """
+}
+
 /// The category for an `area:` id. An unknown id shows as the first category
 /// (DESIGN.md: deleting a category doesn't touch task files).
 func category(for area: String, in categories: [Category]) -> Category {

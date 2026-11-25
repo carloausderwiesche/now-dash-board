@@ -198,6 +198,22 @@ private func read(_ dir: URL, _ name: String) throws -> String {
     #expect(try read(dir, ".nowboard.json") == "{ broken")
 }
 
+@Test func aNewCategoryGetsAFreeIdAndAnUnusedColour() {
+    let cats = [Category(id: "category", name: "A", color: .rose), Category(id: "category-2", name: "B", color: .red)]
+    let new = newCategory(after: cats)
+    #expect(new.id == "category-3" && new.color == .orange && new.name == "New category")
+}
+
+@Test func theDailyNoteQueryNamesTheTasksFolderRelativeToTheVault() throws {
+    let vault = FileManager.default.temporaryDirectory.appendingPathComponent("vault-\(UUID().uuidString)")
+    let tasks = vault.appendingPathComponent("Notes/Tasks")
+    try FileManager.default.createDirectory(at: tasks, withIntermediateDirectories: true)
+    #expect(vaultRelativePath(of: tasks) == "Tasks")  // no vault found: just the name
+    try FileManager.default.createDirectory(at: vault.appendingPathComponent(".obsidian"), withIntermediateDirectories: true)
+    #expect(vaultRelativePath(of: tasks) == "Notes/Tasks")
+    #expect(doneQuery(tasksFolder: "Notes/Tasks").contains(#"LIST FROM "Notes/Tasks""#))
+}
+
 @MainActor @Test func aFailedWriteShowsAnError() async throws {
     let (store, _) = try await makeStore(["Broken.md": "---\nstatus: today\narea: [work\n---\n"])
     store.complete("Broken.md")
