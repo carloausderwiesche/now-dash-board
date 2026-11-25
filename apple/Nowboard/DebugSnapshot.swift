@@ -184,12 +184,9 @@
                     .foregroundStyle(store.theme.ink)
                     .environment(\.colorScheme, store.theme.colorScheme)
                 let renderer = ImageRenderer(content: view)
-                renderer.scale = 2
-                #if os(macOS)
-                    let image = renderer.nsImage.flatMap { $0.cgImage(forProposedRect: nil, context: nil, hints: nil) }
-                #else
-                    let image = renderer.uiImage?.cgImage
-                #endif
+                // `-scale 1`: a non-Retina display, where half points show.
+                renderer.scale = argument("scale").flatMap { Double($0) } ?? 2
+                let image = renderer.cgImage
                 // The sandbox only lets the app write inside its own container,
                 // so the file goes to the app's temporary folder; its path is printed.
                 let url = FileManager.default.temporaryDirectory.appendingPathComponent(URL(fileURLWithPath: path).lastPathComponent)

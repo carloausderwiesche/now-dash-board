@@ -388,7 +388,7 @@ private struct CategoryRow<G: Gesture>: View {
                             picking = false
                         } label: {
                             Circle().fill(c).frame(width: 16, height: 16)
-                                .overlay(Circle().strokeBorder(c, lineWidth: 1.5).padding(-4.5).opacity(on ? 1 : 0))
+                                .selectionRing(c, on: on)
                                 .frame(width: 30, height: 30)
                                 .contentShape(Rectangle())
                         }

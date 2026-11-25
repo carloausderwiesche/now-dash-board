@@ -205,7 +205,7 @@
                         store.setCategory(task.id, to: c.id)
                     } label: {
                         Circle().fill(color).frame(width: 12, height: 12)
-                            .overlay(Circle().strokeBorder(color, lineWidth: 1.5).padding(-4.5).opacity(c.id == current.id ? 1 : 0))
+                            .selectionRing(color, on: c.id == current.id)
                             .scaleEffect(hoverCategory == c.id ? 1.18 : 1)
                             .animation(.easeOut(duration: 0.15), value: hoverCategory)
                             .frame(width: 26, height: 30)

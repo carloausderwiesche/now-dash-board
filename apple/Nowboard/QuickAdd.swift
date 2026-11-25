@@ -55,7 +55,7 @@ struct QuickAdd: View {
                             area = c.id
                         } label: {
                             Circle().fill(c.color.strong(in: theme)).frame(width: 12, height: 12)
-                                .overlay(Circle().strokeBorder(c.color.strong(in: theme), lineWidth: 1.5).padding(-4.5).opacity(on ? 1 : 0))
+                                .selectionRing(c.color.strong(in: theme), on: on)
                                 .frame(width: 32, height: 32)
                                 .contentShape(Rectangle())
                         }
