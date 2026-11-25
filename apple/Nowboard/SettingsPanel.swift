@@ -57,7 +57,8 @@ struct SettingsPanel: View {
                 .accessibilityLabel("Theme")
             }
             Field(label: "Cards") {
-                Segmented(selection: $store.settings.compact, options: [(false, "Roomy"), (true, "Compact")], theme: theme)
+                Segmented(selection: $store.settings.density,
+                          options: [(.roomy, "Roomy"), (.compact, "Compact"), (.minimal, "Minimal")], theme: theme)
             }
             Field(label: "Categories") {
                 CategoryEditor()

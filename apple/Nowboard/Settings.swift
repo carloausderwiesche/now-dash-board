@@ -1,12 +1,17 @@
-// This device's settings: theme, compact cards, categories.
+// This device's settings: theme, card density, categories.
 // With a Tasks folder, the categories come from its `.nowboard.json` (ADR
 // 0011); the copy kept here is for the demo board and for starting that file.
 
 import Foundation
 
+/// How much room a card takes (Settings → Cards).
+enum CardDensity: String, Codable, CaseIterable {
+    case roomy, compact, minimal
+}
+
 struct DeviceSettings: Codable, Equatable {
     var theme = "braun"
-    var compact = false
+    var density = CardDensity.roomy
     var categories = Category.defaults
 
     private static let key = "settings"
@@ -26,6 +31,21 @@ struct DeviceSettings: Codable, Equatable {
         if let data = try? JSONEncoder().encode(self) {
             UserDefaults.standard.set(data, forKey: Self.key)
         }
+    }
+}
+
+// In an extension, so the plain `DeviceSettings()` stays available.
+extension DeviceSettings {
+    /// Settings saved before Minimal existed have `compact: true/false` instead of `density`.
+    private enum Legacy: CodingKey { case compact }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        let legacy = try decoder.container(keyedBy: Legacy.self)
+        theme = try c.decode(String.self, forKey: .theme)
+        categories = try c.decode([Category].self, forKey: .categories)
+        density = try c.decodeIfPresent(CardDensity.self, forKey: .density)
+            ?? (try legacy.decodeIfPresent(Bool.self, forKey: .compact) == true ? .compact : .roomy)
     }
 }
 
@@ -51,7 +71,7 @@ enum TauriSettings {
             }
             var settings = DeviceSettings()
             if let theme = file.theme { settings.theme = theme }
-            if let compact = file.compact { settings.compact = compact }
+            if file.compact == true { settings.density = .compact }
             if let cats = file.categories, !cats.isEmpty { settings.categories = cats }
             return settings
         #else

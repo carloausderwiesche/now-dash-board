@@ -396,10 +396,17 @@ struct CardSection: View {
     @State private var targeted = false
 
     var body: some View {
-        let compact = store.settings.compact
         let drag = store.drag
+        // Minimal cards are one line high, so wider columns cut fewer titles.
         let (minWidth, gap): (CGFloat, CGFloat) =
-            style == .today ? (compact ? 160 : 200, compact ? 8 : 12) : (compact ? 150 : 180, compact ? 6 : 10)
+            switch (style, store.settings.density) {
+            case (.today, .roomy): (200, 12)
+            case (.today, .compact): (160, 8)
+            case (.today, .minimal): (200, 6)
+            case (.backlog, .roomy): (180, 10)
+            case (.backlog, .compact): (150, 6)
+            case (.backlog, .minimal): (180, 6)
+            }
         // The list as drawn: while dragging, with the preview ("ghost") where
         // the card will land and the dragged card's slot closed if it moved.
         let byID = Dictionary(cards.map { ($0.id, $0) }, uniquingKeysWith: { a, _ in a })
@@ -550,7 +557,7 @@ struct EmptyBox: View {
         .foregroundStyle(theme.muted)
         .multilineTextAlignment(.center)
         .padding(16)
-        .frame(maxWidth: .infinity, minHeight: small ? (store.settings.compact ? 60 : 88) : 128)
+        .frame(maxWidth: .infinity, minHeight: small ? [.roomy: 88, .compact: 60, .minimal: 40][store.settings.density]! : 128)
         .overlay(
             RoundedRectangle(cornerRadius: small ? theme.radiusSmall : theme.radiusLarge)
                 .strokeBorder(theme.line, style: StrokeStyle(lineWidth: 1.5, dash: [5, 4]))

@@ -46,13 +46,13 @@ struct CardView: View {
         let theme = store.theme
         let cat = category(for: task.area, in: store.settings.categories)
         let focus = style == .today && task.focus
-        let compact = store.settings.compact
+        let density = store.settings.density
         // `switch` as an expression picks the measurements for this kind of card.
         let m: Metrics =
             switch (style, focus) {
-            case (.backlog, _): .backlog(compact: compact)
-            case (.today, true): .focus(compact: compact)
-            case (.today, false): .today(compact: compact)
+            case (.backlog, _): .backlog(density)
+            case (.today, true): .focus(density)
+            case (.today, false): .today(density)
             }
         let ink = focus ? theme.bg : theme.ink
         let dragging = store.drag.id != nil
@@ -63,17 +63,29 @@ struct CardView: View {
         let lifted = mode == .normal && !dragging && finishing == .idle && (isHovered || store.openID == task.id)
         let shape = RoundedRectangle(cornerRadius: style == .today ? theme.radiusCard : theme.radiusSmall)
 
-        VStack(alignment: .leading, spacing: m.gap) {
-            title(m, compact: compact, theme: theme)
-            Spacer(minLength: 0)
-            footer(m, cat: cat, focus: focus, compact: compact, theme: theme,
-                   reveal: showReveal(hovering: isHovered, overRing: isOverRing), overRing: isOverRing)
+        let reveal = showReveal(hovering: isHovered, overRing: isOverRing)
+        Group {
+            // Minimal: one row, with the title between the dot and the ring.
+            if density == .minimal {
+                footer(m, cat: cat, focus: focus, density: density, theme: theme, reveal: reveal, overRing: isOverRing) {
+                    title(m, density: density, theme: theme)
+                }
+            } else {
+                VStack(alignment: .leading, spacing: m.gap) {
+                    title(m, density: density, theme: theme)
+                    Spacer(minLength: 0)
+                    footer(m, cat: cat, focus: focus, density: density, theme: theme, reveal: reveal, overRing: isOverRing) {
+                        Spacer(minLength: 0)
+                    }
+                }
+            }
         }
         .foregroundStyle(ink)
         .padding(.top, m.padTop)
         .padding(.horizontal, m.padSide)
         .padding(.bottom, m.padBottom)
-        .frame(maxWidth: .infinity, minHeight: m.minHeight, maxHeight: .infinity, alignment: .topLeading)
+        .frame(maxWidth: .infinity, minHeight: m.minHeight, maxHeight: .infinity,
+               alignment: density == .minimal ? .leading : .topLeading)
         .background {
             switch (style, focus) {
             // One fill whose colour changes, so going into focus *blends* the
@@ -129,17 +141,17 @@ struct CardView: View {
     }
 
     /// The title (opens the panel) and the checklist count under it.
-    private func title(_ m: Metrics, compact: Bool, theme: Theme) -> some View {
+    private func title(_ m: Metrics, density: CardDensity, theme: Theme) -> some View {
         Button {
             guard !store.drag.swallowsClick else { return }
             store.openID = task.id
         } label: {
-            VStack(alignment: .leading, spacing: compact ? 4 : 6) {
+            VStack(alignment: .leading, spacing: density == .roomy ? 6 : 4) {
                 TitleText(task: task, size: m.titleSize, weight: m.titleWeight, lines: m.lines, theme: theme,
                           struck: finishing != .idle,
                           tips: mode == .normal && store.drag.id == nil && finishing == .idle,
                           inverted: style == .today && task.focus, debugHover: debugHover)
-                if style == .today && !task.items.isEmpty {
+                if style == .today && !task.items.isEmpty && density != .minimal {
                     Text("\(task.items.filter(\.done).count) / \(task.items.count)")
                         .font(.system(size: 11, design: .monospaced))
                         .monospacedDigit()
@@ -153,8 +165,10 @@ struct CardView: View {
         .accessibilityHint("Opens the task")
     }
 
-    /// .card-foot: the dot, (NOW), a spacer, Focus / Today ↑, the ring.
-    private func footer(_ m: Metrics, cat: Category, focus: Bool, compact: Bool, theme: Theme, reveal: Bool, overRing isOverRing: Bool) -> some View {
+    /// .card-foot: the dot, (NOW), `middle` (a spacer, or the title on minimal
+    /// cards), Focus / Today ↑, the ring.
+    private func footer(_ m: Metrics, cat: Category, focus: Bool, density: CardDensity, theme: Theme, reveal: Bool,
+                        overRing isOverRing: Bool, @ViewBuilder middle: () -> some View) -> some View {
         HStack(spacing: 2) {
             DotButton(color: cat.color.strong(in: theme), name: cat.name, box: m.dotBox, inverted: focus) {
                 guard !store.drag.swallowsClick else { return }
@@ -171,9 +185,14 @@ struct CardView: View {
                         insertion: .opacity.combined(with: .offset(x: -8)).animation(.easeOut(duration: 0.35).delay(0.18)),
                         removal: .opacity.animation(.easeOut(duration: 0.15))))
             }
-            Spacer(minLength: 0)
+            middle()
+                .frame(maxWidth: .infinity, alignment: .leading)
             revealButton(theme: theme)
                 .opacity(reveal ? 1 : 0)
+                // Minimal: no room kept for it, so the one-line title gets the space.
+                .fixedSize()
+                .frame(width: density == .minimal && !reveal ? 0 : nil, alignment: .leading)
+                .clipped()
                 // Shows after 0.12s (so passing through doesn't flash it), hides at once.
                 .animation(.easeOut(duration: 0.15).delay(reveal ? 0.12 : 0), value: reveal)
                 .allowsHitTesting(reveal)
@@ -183,7 +202,7 @@ struct CardView: View {
                     store.finish(task.id)
                 } label: {
                     CheckRing(size: 22, step: finishing, hover: isOverRing, theme: theme)
-                        .frame(width: 40, height: compact ? 34 : 40)
+                        .frame(width: 40, height: [.roomy: 40, .compact: 34, .minimal: 32][density]!)
                         .contentShape(Rectangle())
                 }
                 .buttonStyle(.pointer)
@@ -604,30 +623,35 @@ struct Tick: Shape {
     }
 }
 
-/// Card measurements from styles.css, roomy and compact.
+/// Card measurements: roomy and compact from styles.css; minimal (one row) is
+/// the SwiftUI app's own.
 private struct Metrics {
     var padTop: CGFloat, padSide: CGFloat, padBottom: CGFloat
     var gap: CGFloat, minHeight: CGFloat
     var titleSize: CGFloat, titleWeight: Font.Weight, lines: Int
     var dotBox: CGFloat
 
-    static func today(compact: Bool) -> Metrics {
-        compact
-            ? Metrics(padTop: 10, padSide: 12, padBottom: 2, gap: 6, minHeight: 84, titleSize: 15, titleWeight: .medium, lines: 3, dotBox: 32)
-            : Metrics(padTop: 16, padSide: 16, padBottom: 8, gap: 12, minHeight: 128, titleSize: 17, titleWeight: .medium, lines: 3, dotBox: 32)
+    static func today(_ density: CardDensity) -> Metrics {
+        switch density {
+        case .roomy: Metrics(padTop: 16, padSide: 16, padBottom: 8, gap: 12, minHeight: 128, titleSize: 17, titleWeight: .medium, lines: 3, dotBox: 32)
+        case .compact: Metrics(padTop: 10, padSide: 12, padBottom: 2, gap: 6, minHeight: 84, titleSize: 15, titleWeight: .medium, lines: 3, dotBox: 32)
+        case .minimal: Metrics(padTop: 2, padSide: 12, padBottom: 2, gap: 0, minHeight: 42, titleSize: 14, titleWeight: .medium, lines: 1, dotBox: 28)
+        }
     }
 
-    static func focus(compact: Bool) -> Metrics {
-        var m = today(compact: compact)
-        m.titleSize = compact ? 19 : 24
+    static func focus(_ density: CardDensity) -> Metrics {
+        var m = today(density)
+        m.titleSize = [.roomy: 24, .compact: 19, .minimal: 16][density]!
         m.titleWeight = .semibold
-        m.lines = 2
+        m.lines = density == .compact ? 2 : m.lines
         return m
     }
 
-    static func backlog(compact: Bool) -> Metrics {
-        compact
-            ? Metrics(padTop: 8, padSide: 10, padBottom: 0, gap: 4, minHeight: 60, titleSize: 13, titleWeight: .medium, lines: 2, dotBox: 28)
-            : Metrics(padTop: 12, padSide: 12, padBottom: 4, gap: 10, minHeight: 88, titleSize: 14, titleWeight: .medium, lines: 2, dotBox: 28)
+    static func backlog(_ density: CardDensity) -> Metrics {
+        switch density {
+        case .roomy: Metrics(padTop: 12, padSide: 12, padBottom: 4, gap: 10, minHeight: 88, titleSize: 14, titleWeight: .medium, lines: 3, dotBox: 28)
+        case .compact: Metrics(padTop: 8, padSide: 10, padBottom: 0, gap: 4, minHeight: 60, titleSize: 13, titleWeight: .medium, lines: 2, dotBox: 28)
+        case .minimal: Metrics(padTop: 0, padSide: 10, padBottom: 0, gap: 0, minHeight: 32, titleSize: 13, titleWeight: .medium, lines: 1, dotBox: 26)
+        }
     }
 }

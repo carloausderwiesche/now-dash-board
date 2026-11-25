@@ -224,6 +224,14 @@ private func read(_ dir: URL, _ name: String) throws -> String {
     #expect(try read(dir, ".nowboard.json") == "{ broken")
 }
 
+@Test func settingsSavedBeforeMinimalKeepTheirCardDensity() throws {
+    let old = #"{"theme":"walnut","compact":true,"categories":[]}"#
+    let settings = try JSONDecoder().decode(DeviceSettings.self, from: Data(old.utf8))
+    #expect(settings.theme == "walnut" && settings.density == .compact)
+    let saved = try JSONEncoder().encode(DeviceSettings(density: .minimal))
+    #expect(try JSONDecoder().decode(DeviceSettings.self, from: saved).density == .minimal)
+}
+
 @Test func aNewCategoryGetsAFreeIdAndAnUnusedColour() {
     let cats = [Category(id: "category", name: "A", color: .rose), Category(id: "category-2", name: "B", color: .red)]
     let new = newCategory(after: cats)
