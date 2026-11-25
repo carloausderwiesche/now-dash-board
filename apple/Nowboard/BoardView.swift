@@ -423,7 +423,7 @@ struct CardSection: View {
                                 .measure(id, span: spanOf(task), in: drag)
                                 // Last: the grid reads span and layering from its direct child.
                                 .gridSpan(spanOf(task))
-                                .zIndex(store.finishing[id] != nil ? 4 : store.hoveredID == id ? 3 : 0)
+                                .zIndex(store.finishing[id] != nil ? 4 : store.hoveredID == id || store.menu?.id == id ? 3 : 0)
                         }
                     }
                 }

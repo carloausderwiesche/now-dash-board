@@ -56,7 +56,8 @@ struct CardView: View {
             }
         let ink = focus ? theme.bg : theme.ink
         let dragging = store.drag.id != nil
-        let isHovered = hovering || debugHover
+        // The open card menu covers the card, but it should still look pointed at.
+        let isHovered = hovering || debugHover || store.menu?.id == task.id
         let isOverRing = overRing || (debugHover && debugRing)
         // .card:hover and .card.open lift the card 3pt; never while dragging.
         let lifted = mode == .normal && !dragging && finishing == .idle && (isHovered || store.openID == task.id)

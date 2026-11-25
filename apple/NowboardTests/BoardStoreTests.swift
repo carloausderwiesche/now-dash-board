@@ -169,6 +169,19 @@ private func read(_ dir: URL, _ name: String) throws -> String {
     #expect(store.task("A.md")?.status == .backlog)
 }
 
+@MainActor @Test func aDeletedCardStaysHiddenUntilItLeavesTheList() async throws {
+    let (store, _) = try await makeStore(["A.md": "---\nstatus: today\norder: 1\n---\n"])
+    store.delete("A.md")
+    // Called just before `deleting` next changes (the card would show again).
+    nonisolated(unsafe) var shownWhileListed = false
+    withObservationTracking { _ = store.deleting } onChange: {
+        MainActor.assumeIsolated { shownWhileListed = store.task("A.md") != nil }
+    }
+    await store.waitForWrites()
+    #expect(store.task("A.md") == nil)
+    #expect(!shownWhileListed)
+}
+
 @MainActor @Test func undoWhileTheCardIsStillFadingKeepsTheFile() async throws {
     let (store, dir) = try await makeStore(["A.md": "---\nstatus: today\norder: 1\n---\n"])
     store.delete("A.md")
