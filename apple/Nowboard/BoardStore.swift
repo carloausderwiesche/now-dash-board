@@ -357,7 +357,10 @@ final class BoardStore {
         }
         incoming += fresh
         let before = Dictionary(tasks.map { ($0.id, $0) }, uniquingKeysWith: { a, _ in a })
-        var result = loaded
+        // A card on its way out: a read that started before its file was
+        // deleted mustn't bring it back.
+        let leaving = deleting.filter { before[$0] == nil }
+        var result = loaded.filter { !leaving.contains($0.id) }
         for i in result.indices where held[result[i].id] != nil || fresh.contains(result[i].id) {
             let id = result[i].id
             held[id] = result[i]
@@ -476,10 +479,14 @@ final class BoardStore {
         pendingDelete = Task {
             try? await Task.sleep(for: .milliseconds(200))
             // Undo while it was still fading: nothing to delete.
-            guard deleting.remove(id) != nil else { return }
+            guard deleting.contains(id) else { return }
             withAnimation(.timingCurve(0.2, 0.8, 0.3, 1, duration: 0.4)) {
                 change({ all in all.removeAll { $0.id == id } }) { folder in try folder.delete(id) }
             }
+            // Still hidden while the others close the gap; unhiding it sooner
+            // flashes the card back for a frame.
+            try? await Task.sleep(for: .milliseconds(400))
+            deleting.remove(id)
         }
         Task {
             try? await Task.sleep(for: .seconds(5))
@@ -492,7 +499,12 @@ final class BoardStore {
         guard let d = undoable else { return }
         withAnimation(.easeOut(duration: 0.2)) { undoable = nil }
         let id = d.task.id
-        if withAnimation(.easeOut(duration: 0.2), { deleting.remove(id) }) != nil { return }
+        // Still on the board (fading): just show it again.
+        if task(id) != nil {
+            withAnimation(.easeOut(duration: 0.2)) { _ = deleting.remove(id) }
+            return
+        }
+        deleting.remove(id)
         withAnimation(.timingCurve(0.2, 0.8, 0.3, 1, duration: 0.4)) {
             change({ all in if !all.contains(where: { $0.id == id }) { all.append(d.task) } }) { folder in
                 if let text = d.text {

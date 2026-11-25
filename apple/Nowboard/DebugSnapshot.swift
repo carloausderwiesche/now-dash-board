@@ -130,7 +130,7 @@
         static func runIfAsked(store: BoardStore) {
             guard let path = argument("snapshot") else { return }
             if let theme = argument("theme") { store.settings.theme = theme }
-            if argument("compact") == "true" { store.settings.compact = true }
+            if let density = argument("density").flatMap(CardDensity.init) { store.settings.density = density }
             store.filter = argument("filter")
             if argument("demo") == "true" { store.useDemoForSnapshot() }
             let width = argument("width").flatMap { Double($0) } ?? 1190
