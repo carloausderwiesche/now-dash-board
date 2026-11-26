@@ -19,6 +19,9 @@ final class CaptureCenter {
     private(set) var pending = 0
     /// What went wrong the last time, as a sentence, or nil.
     private(set) var lastProblem: String?
+    /// The text of a capture that could not even be saved (the disk refused). A screen should
+    /// put it back in its text field instead of clearing it. Nil when the last capture was saved.
+    private(set) var unsavedText: String?
 
     var isBusy: Bool { pending > 0 }
 
@@ -35,10 +38,13 @@ final class CaptureCenter {
     @ObservationIgnored private let pipeline: CapturePipeline
     @ObservationIgnored private let changes = Changes()
 
-    init(config: VaultConfig, classifier: any Classifier, categoryIds: @escaping @Sendable () -> [String]) {
+    init(
+        config: VaultConfig, classifier: any Classifier, categoryIds: @escaping @Sendable () -> [String],
+        now: @escaping @Sendable () -> Date = { Date() }
+    ) {
         let changes = self.changes
         pipeline = CapturePipeline(
-            config: config, classifier: classifier, categoryIds: categoryIds, onChange: { _ in changes.fire() })
+            config: config, classifier: classifier, categoryIds: categoryIds, now: now, onChange: { _ in changes.fire() })
         // The pipeline calls this from any thread; refresh on the main one.
         changes.handler = { [weak self] in Task { @MainActor in self?.refresh() } }
         refresh()
@@ -51,10 +57,24 @@ final class CaptureCenter {
 
     // MARK: Actions
 
-    /// Saves and files a capture. The text is on disk before this returns control to the classifier.
+    /// Saves and files a capture. The pipeline saves the text first, then classifies.
+    /// If it can't be saved at all, `unsavedText` holds it.
     func capture(_ text: String) {
-        run { [pipeline] in
-            do { return try await pipeline.capture(text).problem } catch { return .filing(error.localizedDescription) }
+        unsavedText = nil
+        pending += 1
+        Task { [pipeline] in
+            var problem: CaptureProblem?
+            var failedText: String?
+            do {
+                problem = try await pipeline.capture(text).problem
+            } catch {
+                problem = .filing("Couldn't save the capture: \(error.localizedDescription)")
+                failedText = text
+            }
+            pending -= 1
+            lastProblem = problem?.errorDescription
+            unsavedText = failedText
+            refresh()
         }
     }
 

@@ -20,6 +20,12 @@ private func makeVault() throws -> URL {
     return vault
 }
 
+private final class Clock: @unchecked Sendable {
+    private let lock = NSLock()
+    private var minutes = 0
+    func next() -> Date { lock.withLock { minutes += 1; return Date(timeIntervalSince1970: 1_800_000_000 + Double(minutes * 60)) } }
+}
+
 private func unclear(_ title: String) -> CaptureResult {
     CaptureResult(kind: .unclear, title: title, body: nil, area: "work", status: nil, folder: nil, confidence: 0.1, followUp: "Which \(title)?")
 }
@@ -32,14 +38,16 @@ private func unclear(_ title: String) -> CaptureResult {
 @MainActor @Test func capturesShowUpAndTheOldestQuestionIsTheOpenOne() async throws {
     let vault = try makeVault()
     defer { try? FileManager.default.removeItem(at: vault) }
+    // Each capture gets a clock a minute later, so the file names differ without waiting.
+    let clock = Clock()
     let center = CaptureCenter(
-        config: VaultConfig(vault: vault), classifier: FixedClassifier { unclear($0.text) }, categoryIds: { ["work"] })
+        config: VaultConfig(vault: vault), classifier: FixedClassifier { unclear($0.text) }, categoryIds: { ["work"] },
+        now: { clock.next() })
     #expect(center.entries.isEmpty)
     #expect(center.openQuestion == nil)
 
     center.capture("Mia")
     await eventually { center.entries.count == 1 && !center.isBusy }
-    try await Task.sleep(for: .milliseconds(1100))  // the next capture gets a later file name
     center.capture("Montag")
     await eventually { center.entries.count == 2 && !center.isBusy }
 
@@ -67,4 +75,16 @@ private func unclear(_ title: String) -> CaptureResult {
     #expect(center.lastProblem?.contains("wasn't found") == true)
     #expect(center.entries.first?.outcome == nil)
     #expect(center.entries.first?.text == "later")
+}
+
+@MainActor @Test func aCaptureThatCantBeSavedComesBackAsUnsavedText() async throws {
+    // The "vault" is a file, so the Inbox can't be made.
+    let file = FileManager.default.temporaryDirectory.appendingPathComponent("nowboard-notafolder-\(UUID().uuidString)")
+    try "x".write(to: file, atomically: true, encoding: .utf8)
+    defer { try? FileManager.default.removeItem(at: file) }
+    let center = CaptureCenter(config: VaultConfig(vault: file), classifier: FixedClassifier { unclear($0.text) }, categoryIds: { ["work"] })
+    center.capture("do not lose me")
+    await eventually { !center.isBusy && center.unsavedText != nil }
+    #expect(center.unsavedText == "do not lose me")
+    #expect(center.lastProblem?.contains("Couldn't save the capture") == true)
 }

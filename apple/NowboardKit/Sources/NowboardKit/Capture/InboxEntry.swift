@@ -37,7 +37,7 @@ public struct InboxUpdate: Sendable, Equatable {
     }
 
     /// The fields only a filed result has. Every update that doesn't set them removes them.
-    static let resultKeys = ["follow_up", "task", "note", "note_sha", "daily_note", "daily_line", "notice"]
+    static let resultKeys = ["follow_up", "task", "task_sha", "note", "note_sha", "daily_note", "daily_line", "notice"]
 
     /// The same update with every result field that isn't mentioned removed.
     func clearingTheRest() -> InboxUpdate {
@@ -62,6 +62,8 @@ public struct InboxEntry: Equatable, Sendable {
     public var followUp: String?
     /// The task file the app made for it (`task-suggested`), a file name in the Tasks folder.
     public var taskFile: String?
+    /// A fingerprint of the task file as the app wrote it.
+    public var taskDigest: String?
     /// The note the app filed (`note-filed`), relative to the vault.
     public var notePath: String?
     /// A fingerprint of the note as the app wrote it, to know later if someone changed it.
@@ -74,7 +76,7 @@ public struct InboxEntry: Equatable, Sendable {
 
     public init(
         id: String, text: String, captured: String? = nil, outcome: InboxOutcome? = nil, followUp: String? = nil,
-        taskFile: String? = nil, notePath: String? = nil, noteDigest: String? = nil, dailyNote: String? = nil,
+        taskFile: String? = nil, taskDigest: String? = nil, notePath: String? = nil, noteDigest: String? = nil, dailyNote: String? = nil,
         dailyLine: String? = nil, notice: String? = nil
     ) {
         self.id = id
@@ -83,6 +85,7 @@ public struct InboxEntry: Equatable, Sendable {
         self.outcome = outcome
         self.followUp = followUp
         self.taskFile = taskFile
+        self.taskDigest = taskDigest
         self.notePath = notePath
         self.noteDigest = noteDigest
         self.dailyNote = dailyNote
@@ -104,7 +107,7 @@ public struct InboxEntry: Equatable, Sendable {
             id: id, text: body, captured: fieldText(fields["captured"]),
             // An unknown outcome is read as missing (spec 3).
             outcome: fieldText(fields["outcome"]).flatMap { InboxOutcome(rawValue: $0) },
-            followUp: fieldText(fields["follow_up"]), taskFile: fieldText(fields["task"]), notePath: fieldText(fields["note"]),
+            followUp: fieldText(fields["follow_up"]), taskFile: fieldText(fields["task"]), taskDigest: fieldText(fields["task_sha"]), notePath: fieldText(fields["note"]),
             noteDigest: fieldText(fields["note_sha"]), dailyNote: fieldText(fields["daily_note"]),
             dailyLine: fieldText(fields["daily_line"]), notice: fieldText(fields["notice"]))
     }

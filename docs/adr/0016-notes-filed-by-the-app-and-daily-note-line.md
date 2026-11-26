@@ -40,4 +40,6 @@ Other decisions that go with it:
 - The daily note can show captures and the person can follow a link to each. The risk of an edit conflict with a note open in Obsidian is accepted and limited as above, not removed.
 - If someone edits the `## Captured` section by hand, Undo may not be able to remove the line; it then says so and leaves it.
 - Re-reading before the write narrows but doesn't close the window between read and rename. If this turns out to bite, writing the line through Obsidian itself (a plugin or the URI scheme) would be the next step.
+- If the app files something but then can't write the outcome into the capture (a disk error), the capture still has no outcome, so a retry files it again: a duplicate task or note. The same can happen if two devices retry one capture that is still being classified. We accept both for now.
+- The SHA-256 used to recognise our own files comes from CryptoKit, which is part of the operating system: no new dependency.
 - Revisit if captures should be listed some other way than by a line in the daily note.

@@ -136,9 +136,12 @@ public final class CapturePipeline: Sendable {
     @discardableResult
     public func answer(_ id: String, text: String) async throws(PipelineError) -> CaptureReport {
         guard text.trimmedOrNil != nil else { throw .emptyAnswer }
-        let current = try read(id)
-        guard current.outcome == .waitingForAnswer else { throw .notWaiting(id) }
-        let problem = await serially { await self.process(id, answer: text) }
+        // Checked again inside the queue: two answers at once must not both pass,
+        // or the second one would be dropped without a word.
+        let problem = try await serially { () async throws(PipelineError) -> CaptureProblem? in
+            guard try self.read(id).outcome == .waitingForAnswer else { throw .notWaiting(id) }
+            return await self.process(id, answer: text)
+        }
         return CaptureReport(entry: entry(id), problem: problem)
     }
 
@@ -271,7 +274,12 @@ public final class CapturePipeline: Sendable {
             title: result.title, status: .suggested, area: result.area,
             created: TaskFormat.timestamp(now(), timeZone: timeZone), notes: result.body ?? "")
         let saved = try TaskFolder(url: config.tasksURL).save(task)
-        return InboxUpdate(.taskSuggested, [.init("task", saved.id)])
+        // A fingerprint of the file as written: Undo only deletes it if it's still exactly this.
+        var fields: [InboxUpdate.Field] = [.init("task", saved.id)]
+        if let text = try? String(contentsOf: config.tasksURL.appendingPathComponent(saved.id), encoding: .utf8) {
+            fields.append(.init("task_sha", Self.digest(text)))
+        }
+        return InboxUpdate(.taskSuggested, fields)
     }
 
     // MARK: Notes
@@ -382,8 +390,9 @@ public final class CapturePipeline: Sendable {
             let folder = TaskFolder(url: config.tasksURL)
             let file = config.tasksURL.appendingPathComponent(name)
             if let text = try? String(contentsOf: file, encoding: .utf8) {
-                // Moved to Today or edited elsewhere = the person took it on. Not ours to delete.
-                guard TaskFormat.parse(id: name, text: text).status == .suggested else { throw .changedSince("the task “\(name)”") }
+                // Only if it is byte for byte what we wrote. Moved to Today, edited, or a different
+                // task that got the same name after ours was deleted: not ours to delete.
+                guard let expected = current.taskDigest, Self.digest(text) == expected else { throw .changedSince("the task “\(name)”") }
                 do { try folder.delete(name) } catch { throw .io(error.localizedDescription) }
             }  // gone already: nothing to delete
         }
@@ -410,6 +419,14 @@ public final class CapturePipeline: Sendable {
     /// Returns a message for the person when it can't.
     private func removeDailyLine(_ entry: InboxEntry) -> String? {
         guard let daily = entry.dailyNote, let line = entry.dailyLine else { return nil }
+        // The raw file is a file anyone can edit, so the recorded path is checked: it must be
+        // the daily note of the day the capture was made (same folder and name format), and the
+        // line must link to the note we filed. Otherwise the daily note is left as it is. (If
+        // the settings changed since, or the capture crossed midnight, that means the line stays.)
+        guard let captured = entry.captured.flatMap({ Self.date(fromStamp: $0, timeZone) }),
+            daily == config.dailyNotePath(for: captured, timeZone: timeZone), let note = entry.notePath,
+            line.contains("[[\(note.dropLast(3))]]")
+        else { return "The daily note line was left as it is: it isn't where this capture's day note would be." }
         guard let file = try? VaultPath.resolve(file: daily, in: config.vault, reserved: config.reservedFolders),
             let text = try? String(contentsOf: file, encoding: .utf8)
         else { return "The daily note \(daily) couldn't be read, so its line was left." }
@@ -474,6 +491,16 @@ public final class CapturePipeline: Sendable {
 
     private func vaultGuide() -> String? {
         try? String(contentsOf: config.vault.appendingPathComponent("_vault-guide.md"), encoding: .utf8)
+    }
+
+    /// A `YYYY-MM-DDTHH:MM` stamp back into a date.
+    static func date(fromStamp stamp: String, _ timeZone: TimeZone) -> Date? {
+        let f = DateFormatter()
+        f.locale = Locale(identifier: "en_US_POSIX")
+        f.calendar = Calendar(identifier: .gregorian)
+        f.timeZone = timeZone
+        f.dateFormat = "yyyy-MM-dd'T'HH:mm"
+        return f.date(from: stamp)
     }
 
     /// `13:05`

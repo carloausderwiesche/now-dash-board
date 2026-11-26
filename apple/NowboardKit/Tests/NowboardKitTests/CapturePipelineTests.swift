@@ -501,6 +501,72 @@ private actor Gate {
     #expect(typedText(vault, entry.id) == "typed text")
 }
 
+@Test func aDifferentTaskWithTheSameNameIsNotDeleted() async throws {
+    let vault = try makeVault()
+    defer { try? FileManager.default.removeItem(at: vault) }
+    let clock = Locked(fixedNow)
+    let p = CapturePipeline(
+        config: VaultConfig(vault: vault), classifier: fixed(result(.task, "Call dentist")), categoryIds: { ["work"] },
+        now: { clock.get() }, timeZone: utc)
+    let a = try await p.capture("first")
+    // The person deletes the suggestion on the board; a second capture gets the freed name.
+    try FileManager.default.removeItem(at: vault.appendingPathComponent("Notes/Tasks/Call dentist.md"))
+    clock.set(fixedNow.addingTimeInterval(60))
+    let b = try await p.capture("second")
+    #expect(b.entry.taskFile == "Call dentist.md")
+    await #expect(throws: PipelineError.changedSince("the task “Call dentist.md”")) { try await p.undo(a.entry.id) }
+    #expect(read(vault, "Notes/Tasks/Call dentist.md") != nil)  // the second one's task survives
+    #expect(try await p.undo(b.entry.id).outcome == .skipped)
+    #expect(read(vault, "Notes/Tasks/Call dentist.md") == nil)
+}
+
+@Test func aTamperedTaskOrDailyFieldIsNeverFollowed() async throws {
+    let vault = try makeVault()
+    defer { try? FileManager.default.removeItem(at: vault) }
+    try write(vault, "Precious.md", "keep me\n- 13:05 [[Wiki/Mine]]\n")
+    try write(vault, "Notes/Tasks/Other task.md", "---\nstatus: today\n---\n")
+    let p = pipeline(vault, fixed(result(.note, "Mine", folder: "Wiki")))
+    let report = try await p.capture("typed")
+    let raw = try #require(read(vault, "Notes/Inbox/\(report.entry.id)"))
+    // 1. The daily note field points at some other note: its line is not removed.
+    try write(vault, "Notes/Inbox/\(report.entry.id)", raw.replacingOccurrences(of: "daily_note: 2026-11-26.md", with: "daily_note: Precious.md"))
+    let entry = try await p.undo(report.entry.id)
+    #expect(entry.outcome == .skipped)
+    #expect(read(vault, "Precious.md") == "keep me\n- 13:05 [[Wiki/Mine]]\n")
+    #expect(entry.notice?.contains("isn't where this capture's day note would be") == true)
+    // 2. A task field pointing at another file in the Tasks folder: refused, nothing deleted.
+    let p2 = pipeline(vault, fixed(result(.task, "Mine task")))
+    let t = try await p2.capture("typed 2")
+    let rawTask = try #require(read(vault, "Notes/Inbox/\(t.entry.id)"))
+    try write(vault, "Notes/Inbox/\(t.entry.id)", rawTask.replacingOccurrences(of: "task: Mine task.md", with: "task: Other task.md"))
+    await #expect(throws: PipelineError.self) { try await p2.undo(t.entry.id) }
+    #expect(read(vault, "Notes/Tasks/Other task.md") != nil)
+    // 3. And a path outside the Tasks folder.
+    try write(vault, "Notes/Inbox/\(t.entry.id)", rawTask.replacingOccurrences(of: "task: Mine task.md", with: "task: ../../Precious.md"))
+    await #expect(throws: PipelineError.self) { try await p2.undo(t.entry.id) }
+    #expect(read(vault, "Precious.md") != nil)
+}
+
+@Test func twoAnswersAtOnceAreNotSilentlyDropped() async throws {
+    let vault = try makeVault()
+    defer { try? FileManager.default.removeItem(at: vault) }
+    let classifier = FakeClassifier { input in
+        input.answer == nil ? result(.unclear, "?", confidence: 0.1) : result(.task, "Done")
+    }
+    let p = pipeline(vault, classifier)
+    let first = try await p.capture("Mia")
+    let id = first.entry.id
+    let results = await withTaskGroup(of: Bool.self) { group -> [Bool] in
+        for text in ["yes", "also yes"] {
+            // `true` = the answer was accepted, `false` = refused because it was no longer waiting.
+            group.addTask { (try? await p.answer(id, text: text)) != nil }
+        }
+        return await group.reduce(into: []) { $0.append($1) }
+    }
+    #expect(results.filter { $0 }.count == 1 && results.filter { !$0 }.count == 1)  // the loser hears about it
+    #expect(classifier.inputs.filter { $0.answer != nil }.count == 1)
+}
+
 @Test func aTaskThePersonAlreadyAcceptedIsNotDeleted() async throws {
     let vault = try makeVault()
     defer { try? FileManager.default.removeItem(at: vault) }

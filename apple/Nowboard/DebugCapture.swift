@@ -19,7 +19,6 @@
             let answer = DebugSnapshot.argument("answer")
             Task {
                 let vault = FileManager.default.temporaryDirectory.appendingPathComponent("nowboard-capture-demo-\(UUID().uuidString)")
-                defer { try? FileManager.default.removeItem(at: vault) }
                 // A small vault: Obsidian's folder, the tasks folder and some folders to file notes in.
                 for dir in [".obsidian", "Notes/Tasks", "Wiki/Projects", "Wiki/Ideas", "Wiki/People", "Daily", "Archive"] {
                     try? FileManager.default.createDirectory(at: vault.appendingPathComponent(dir), withIntermediateDirectories: true)
@@ -52,6 +51,8 @@
                 let data = try? JSONSerialization.data(withJSONObject: report, options: [.sortedKeys, .prettyPrinted])
                 print(data.map { String(decoding: $0, as: UTF8.self) } ?? "{}")
                 fflush(stdout)
+                // Removed by hand: `exit` ends the program without running `defer`.
+                try? FileManager.default.removeItem(at: vault)
                 exit(0)
             }
         }

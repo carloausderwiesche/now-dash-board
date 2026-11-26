@@ -41,6 +41,7 @@ An **Inbox entry** is one file in the Inbox, read as:
 | `outcome` | What became of it, from the optional `outcome` field. **Missing** means nothing happened to it yet (not classified: see 10). |
 | `follow_up` | The question waiting for the person (`waiting-for-answer`). |
 | `task` | The task file the app made (`task-suggested`): a file name in the Tasks folder. |
+| `task_sha` | The SHA-256 of the task file as written (Undo only deletes it if it is still exactly that). |
 | `note`, `note_sha` | The note the app filed (`note-filed`): its path relative to the vault, and the SHA-256 of its text as written. |
 | `daily_note`, `daily_line` | The daily note and the exact line the app added to it. |
 | `notice` | Something the person should know (see 9). |
@@ -53,10 +54,9 @@ Only a file with a `captured` field is a capture. A file dropped into the Inbox 
 |---|---|
 | `task-suggested` | A task was added to the board as `suggested` for the person to accept. |
 | `note-filed` | A note was written into the vault. |
-| `answered` | It was a question and the answer was shown. |
+| `answered` | It was a question and the answer was shown. (Reserved: nothing sets it until questions are answered from the vault.) |
 | `waiting-for-answer` | The classifier wasn't sure (unclear, or below the threshold in 4.3) and a follow-up question is waiting. |
 | `skipped` | The person dismissed it, or it was left as it is. |
-
 | `question-open` | It's a question. Answering from the vault isn't built yet, so nothing was filed and it stays open. |
 
 A value that isn't in this list is read as missing. Setting the outcome changes only the frontmatter. Fields that go with an outcome (the list above) are replaced together with it: a new outcome removes the ones it doesn't set. `outcome` is added or replaced, other fields keep their place, and the body stays byte for byte as it was.
@@ -206,6 +206,6 @@ For every capture, in this order: **(a)** the typed text is saved as a raw file 
 
 - **Skip** sets outcome `skipped` on a capture the app filed nothing for. It is refused for a capture with a filed task or note: use Undo.
 - **Undo** takes back what the app made, then sets `skipped` and removes the recorded fields. It only deletes files the app made itself, recorded in the capture, and only if they are still as made:
-  - a **suggested task**: its file is deleted if its `status` is still `suggested`. If the person moved or accepted it, Undo is refused and nothing changes. A task file that is already gone is fine.
-  - a **filed note**: the recorded path must pass the path rules (5) again (the capture file could have been edited). Its text must still have the recorded SHA-256, otherwise Undo is refused and nothing changes (not even the daily note). Then it is deleted, and from the daily note exactly one line equal to the recorded `daily_line` is removed (the last such line), and nothing else. If that line was changed or the note can't be read, the daily note is left as it is and a `notice` says so; the note is still removed.
+  - a **suggested task**: its file is deleted if its text still has the recorded SHA-256 (so: still a suggestion, not edited, and not a different task that later got the same name). If not, Undo is refused and nothing changes. A task file that is already gone is fine.
+  - a **filed note**: the recorded path must pass the path rules (5) again (the capture file could have been edited). Its text must still have the recorded SHA-256, otherwise Undo is refused and nothing changes (not even the daily note). Then it is deleted, and from the daily note exactly one line equal to the recorded `daily_line` is removed (the last such line), and nothing else. The recorded daily note must be the daily note of the day the capture was made (same folder and name format) and the line must link to the recorded note, otherwise it is left alone: the capture file can be edited by hand. If that line was changed or the note can't be read, the daily note is left as it is and a `notice` says so; the note is still removed.
   - Undo of a capture with nothing filed is Skip.
