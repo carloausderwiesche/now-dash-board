@@ -81,11 +81,11 @@ Other keys are ignored.
 
 ### 4.3 Confidence
 
-`confidence` below **0.65** means the classifier isn't sure: the result is treated as `unclear` whatever `kind` it says, and the person is asked. Exactly 0.65 passes. A result with kind `unclear` is always treated as unclear.
+`confidence` below **0.58** means the classifier isn't sure: the result is treated as `unclear` whatever `kind` it says, and the person is asked. Exactly 0.58 passes. A result with kind `unclear` is always treated as unclear.
 
 The question asked is `follow_up` if there is one; otherwise "Is this a task, a note or a question?".
 
-0.65 is a starting value. In a spike with 30 made-up inputs, unclear inputs scored 0.2 to 0.4, a wrongly filed note 0.55 and a correct note 0.60. Tune it with real captures ([ADR 0015](adr/0015-classify-captures-with-claude-cli.md)).
+0.58 is a starting point, not a tuned value. In spike runs with 30 made-up inputs, unclear inputs scored 0.2 to 0.4 (one scored 0.90, which doesn't matter: kind `unclear` is always asked about), wrongly filed notes 0.50 to 0.55 and correct notes at least 0.60 (at least 0.70 with `--safe-mode`). Tune it with real captures ([ADR 0015](adr/0015-classify-captures-with-claude-cli.md)).
 
 ## 5. Paths chosen by the model
 

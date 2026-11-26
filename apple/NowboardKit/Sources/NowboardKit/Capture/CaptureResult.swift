@@ -31,11 +31,12 @@ public struct CaptureResult: Equatable, Sendable {
 
     /// Below this the classifier isn't sure, so we ask (spec 4.3).
     ///
-    /// A starting value, not a tuned one: in a spike with 30 made-up inputs,
-    /// unclear inputs scored 0.2 to 0.4, a wrong note 0.55, a correct note
-    /// 0.60 (docs/adr/0015-classify-captures-with-claude-cli.md). Tune it
-    /// with real captures.
-    public static let confidenceThreshold = 0.65
+    /// A starting point, not a tuned value: in spike runs on 30 made-up
+    /// inputs, wrong notes scored 0.50 to 0.55 and correct notes at least
+    /// 0.60 (0.70 with `--safe-mode`); see
+    /// docs/adr/0015-classify-captures-with-claude-cli.md. Tune it on real
+    /// captures.
+    public static let confidenceThreshold = 0.58
 
     /// The question asked when the classifier gave none.
     public static let defaultQuestion = "Is this a task, a note or a question?"

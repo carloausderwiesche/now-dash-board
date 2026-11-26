@@ -18,7 +18,7 @@ private let utc = TimeZone(identifier: "UTC")!
 // MARK: - Confidence
 
 @Test func theThresholdIsASingleNamedValue() {
-    #expect(CaptureResult.confidenceThreshold == 0.65)
+    #expect(CaptureResult.confidenceThreshold == 0.58)
 }
 
 @Test func belowTheThresholdMeansAskEvenForATask() throws {
