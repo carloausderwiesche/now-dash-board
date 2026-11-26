@@ -29,6 +29,21 @@ public struct CaptureResult: Equatable, Sendable {
     public var confidence: Double
     public var followUp: String?
 
+    /// Public so other classifiers (and test fakes) can make a result; `decode` is how the CLI's answer becomes one.
+    public init(
+        kind: CaptureKind, title: String, body: String? = nil, area: String, status: CaptureStatus? = nil, folder: String? = nil,
+        confidence: Double, followUp: String? = nil
+    ) {
+        self.kind = kind
+        self.title = title
+        self.body = body
+        self.area = area
+        self.status = status
+        self.folder = folder
+        self.confidence = confidence
+        self.followUp = followUp
+    }
+
     /// Below this the classifier isn't sure, so we ask (spec 4.3).
     ///
     /// A starting point, not a tuned value: in spike runs on 30 made-up

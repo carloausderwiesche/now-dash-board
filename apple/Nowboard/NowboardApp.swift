@@ -26,6 +26,8 @@ struct NowboardApp: App {
             #if os(macOS)
                 // `-classifyDemo "text"`: one real classification, printed, then quit.
                 DebugClassify.runIfAsked()
+                // `-captureDemo "text"`: the whole pipeline on a throwaway vault, printed, then quit.
+                DebugCapture.runIfAsked()
             #endif
             DebugSnapshot.runIfAsked(store: store)
             DebugSnapshot.applyLaunchState(store: store)

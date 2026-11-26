@@ -30,7 +30,7 @@ ADRs aren't edited after they're accepted, except for their status. To change a 
 |---|---|---|
 | [0001](0001-node-test-runner.md) | Node's built-in test runner for frontend tests, not Vitest | Accepted |
 | [0002](0002-prettier.md) | Prettier formats the frontend, checked in CI | Accepted |
-| [0003](0003-daily-note-query.md) | Daily notes list finished tasks with a query; the app doesn't write them | Accepted |
+| [0003](0003-daily-note-query.md) | Daily notes list finished tasks with a query; the app doesn't write them | Accepted; partly superseded by 0016 |
 | [0004](0004-themed-card-menu.md) | Right-click on a card opens a menu drawn by the app | Accepted |
 | [0005](0005-icloud-vault-sync.md) | The vault syncs through iCloud Drive; the operating system does the syncing | Accepted |
 | [0006](0006-native-swiftui-app.md) | Nowboard moves to a native SwiftUI multiplatform app | Accepted |
@@ -43,3 +43,4 @@ ADRs aren't edited after they're accepted, except for their status. To change a 
 | [0013](0013-focus-live-activity.md) | The focus card as a Live Activity | Accepted |
 | [0014](0014-markdown-notes-with-markdownui.md) | The SwiftUI app shows notes as Markdown with MarkdownUI | Accepted |
 | [0015](0015-classify-captures-with-claude-cli.md) | Captures are classified by the `claude` command-line tool, with a local Ollama model as fallback | Proposed |
+| [0016](0016-notes-filed-by-the-app-and-daily-note-line.md) | Notes are filed by the app and appended to the daily note | Proposed |

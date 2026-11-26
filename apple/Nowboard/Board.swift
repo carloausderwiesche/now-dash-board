@@ -52,14 +52,10 @@ func vaultRelativePath(of folder: URL) -> String {
     return folder.pathComponents.dropFirst(root.pathComponents.count).joined(separator: "/")
 }
 
-/// The vault a folder is in: the nearest folder above it with an `.obsidian` folder.
+/// The vault a folder is in: the nearest folder above it with an `.obsidian`
+/// folder. The rule lives in NowboardKit, where the capture pipeline uses it too.
 func vaultRoot(of folder: URL) -> URL? {
-    var root = folder.standardizedFileURL
-    while root.pathComponents.count > 1 {
-        root.deleteLastPathComponent()
-        if FileManager.default.fileExists(atPath: root.appendingPathComponent(".obsidian").path) { return root }
-    }
-    return nil
+    VaultConfig.vaultRoot(of: folder)
 }
 
 /// Where a folder or file is, as Finder and Files name it: "iCloud Drive ›

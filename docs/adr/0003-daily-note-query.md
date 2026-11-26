@@ -1,7 +1,7 @@
 # 0003. Daily notes list finished tasks with a query; the app doesn't write them
 
 - **Date:** 2026-11-23
-- **Status:** Accepted
+- **Status:** Accepted; partly superseded by [0016](0016-notes-filed-by-the-app-and-daily-note-line.md) (captured notes only; finished tasks are still never written to daily notes)
 
 ## Context
 
