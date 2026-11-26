@@ -27,14 +27,17 @@ final class CaptureCenter {
 
     /// The question to show now: the oldest capture that is waiting for an
     /// answer. Only one is shown at a time; the others wait behind it.
-    var openQuestion: InboxEntry? {
-        // `entries` is newest first, so the last waiting one is the oldest.
-        entries.last { $0.outcome == .waitingForAnswer }
-    }
+    var openQuestion: InboxEntry? { InboxList.openQuestion(entries) }
 
-    /// How many questions are waiting, including the open one.
-    var waitingCount: Int { entries.filter { $0.outcome == .waitingForAnswer }.count }
+    /// How many questions are waiting, including the open one (the Inbox tab's badge).
+    var waitingCount: Int { InboxList.waitingCount(entries) }
 
+    /// What just happened to the last capture or answer, for the strip above the
+    /// capture bar. It fades by itself: `CaptureStrip.decide` stops showing it after a few seconds.
+    private(set) var recent: RecentCapture?
+
+    /// Where the vault and its folders are (the Inbox page opens notes from here).
+    let config: VaultConfig
     @ObservationIgnored private let pipeline: CapturePipeline
     @ObservationIgnored private let changes = Changes()
 
@@ -43,6 +46,7 @@ final class CaptureCenter {
         now: @escaping @Sendable () -> Date = { Date() }
     ) {
         let changes = self.changes
+        self.config = config
         pipeline = CapturePipeline(
             config: config, classifier: classifier, categoryIds: categoryIds, now: now, onChange: { _ in changes.fire() })
         // The pipeline calls this from any thread; refresh on the main one.
@@ -61,12 +65,15 @@ final class CaptureCenter {
     /// If it can't be saved at all, `unsavedText` holds it.
     func capture(_ text: String) {
         unsavedText = nil
+        lastProblem = nil
         pending += 1
         Task { [pipeline] in
             var problem: CaptureProblem?
             var failedText: String?
+            var report: CaptureReport?
             do {
-                problem = try await pipeline.capture(text).problem
+                report = try await pipeline.capture(text)
+                problem = report?.problem
             } catch {
                 problem = .filing("Couldn't save the capture: \(error.localizedDescription)")
                 failedText = text
@@ -75,14 +82,30 @@ final class CaptureCenter {
             lastProblem = problem?.errorDescription
             unsavedText = failedText
             refresh()
+            if let report { noteResult(report.entry) }
         }
     }
 
     /// Answers the open question.
     func answer(_ text: String) {
         guard let id = openQuestion?.id else { return }
-        run { [pipeline] in
-            do { return try await pipeline.answer(id, text: text).problem } catch { return .filing(error.localizedDescription) }
+        recent = nil
+        lastProblem = nil
+        pending += 1
+        Task { [pipeline] in
+            var problem: CaptureProblem?
+            var report: CaptureReport?
+            do {
+                report = try await pipeline.answer(id, text: text)
+                problem = report?.problem
+            } catch {
+                problem = .filing(error.localizedDescription)
+            }
+            pending -= 1
+            lastProblem = problem?.errorDescription
+            unsavedText = nil
+            refresh()
+            if let report { noteResult(report.entry) }
         }
     }
 
@@ -95,6 +118,7 @@ final class CaptureCenter {
 
     /// Takes back what was filed for a capture.
     func undo(_ id: String) {
+        recent = nil
         run { [pipeline] in
             do { _ = try await pipeline.undo(id); return nil } catch { return .filing(error.localizedDescription) }
         }
@@ -103,6 +127,23 @@ final class CaptureCenter {
     /// Classifies the captures that couldn't be classified before (offline…).
     func retry() {
         run { [pipeline] in await pipeline.retryUnclassified().compactMap(\.problem).first }
+    }
+
+    /// Hides the last error line (the person has read it).
+    func dismissProblem() {
+        lastProblem = nil
+        unsavedText = nil
+    }
+
+    /// Hides the line about the last result (the person acted on it, or closed it).
+    func dismissRecent() { recent = nil }
+
+    /// Remembers a capture's outcome for the strip, if it has something to say.
+    private func noteResult(_ entry: InboxEntry) {
+        switch entry.outcome {
+        case .taskSuggested?, .noteFiled?, .questionOpen?: recent = RecentCapture(entry: entry, at: Date())
+        default: recent = nil
+        }
     }
 
     /// Runs one action in the background and keeps `pending` and `lastProblem` up to date.

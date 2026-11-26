@@ -39,14 +39,20 @@ struct NowboardApp: App {
 
     var body: some Scene {
         WindowGroup {
-            BoardView()
-                .environment(store)
+            #if os(macOS)
+                // The Mac opens the Dashboard; the board is its Tasks page.
+                DashboardRoot()
+                    .environment(store)
+            #else
+                BoardView()
+                    .environment(store)
+            #endif
         }
         #if os(macOS)
             // No title bar, like the Tauri app: the board runs to the top edge
             // and the window buttons float over it.
             .windowStyle(.hiddenTitleBar)
-            .defaultSize(width: 1190, height: 900)
+            .defaultSize(width: 1728, height: 1117)
             .commands {
                 // ⌘R reloads, like pull-to-refresh on the phone.
                 CommandGroup(after: .toolbar) {

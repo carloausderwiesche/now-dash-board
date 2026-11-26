@@ -88,3 +88,38 @@ private func unclear(_ title: String) -> CaptureResult {
     #expect(center.unsavedText == "do not lose me")
     #expect(center.lastProblem?.contains("Couldn't save the capture") == true)
 }
+
+@MainActor @Test func theLastResultIsKeptForTheStripAndClearedOnUndo() async throws {
+    let vault = try makeVault()
+    defer { try? FileManager.default.removeItem(at: vault) }
+    let task = FixedClassifier { CaptureResult(kind: .task, title: $0.text, area: "work", confidence: 0.9) }
+    let center = CaptureCenter(config: VaultConfig(vault: vault), classifier: task, categoryIds: { ["work"] })
+    center.capture("Buy milk")
+    await eventually { center.recent != nil && !center.isBusy }
+    #expect(center.recent?.entry.outcome == .taskSuggested)
+    // The strip decision uses it (pure function, tested in NowboardKit).
+    let strip = CaptureStrip.decide(CaptureStripInput(recent: center.recent, now: center.recent?.at ?? Date()))
+    if case .result(_, _, let canUndo)? = strip { #expect(canUndo) } else { Issue.record("expected a result strip") }
+
+    center.undo(try #require(center.recent?.entry.id))
+    await eventually { center.recent == nil && !center.isBusy }
+    #expect(center.entries.first?.outcome == .skipped)
+}
+
+@MainActor @Test func aQuestionOpensAndAnsweringItClosesIt() async throws {
+    let vault = try makeVault()
+    defer { try? FileManager.default.removeItem(at: vault) }
+    let classifier = FixedClassifier { input in
+        input.answer == nil ? unclear(input.text) : CaptureResult(kind: .task, title: "Call Mia", area: "work", confidence: 0.9)
+    }
+    let center = CaptureCenter(config: VaultConfig(vault: vault), classifier: classifier, categoryIds: { ["work"] })
+    center.capture("Mia")
+    await eventually { center.openQuestion != nil && !center.isBusy }
+    #expect(center.waitingCount == 1)
+    center.answer("It's a task.")
+    await eventually { center.openQuestion == nil && !center.isBusy }
+    #expect(center.entries.first?.outcome == .taskSuggested)
+    #expect(center.recent?.entry.outcome == .taskSuggested)
+    center.dismissRecent()
+    #expect(center.recent == nil)
+}
