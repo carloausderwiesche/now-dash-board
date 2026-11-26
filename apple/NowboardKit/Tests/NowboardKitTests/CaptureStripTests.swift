@@ -165,3 +165,27 @@ private func recent(_ e: InboxEntry, secondsAgo: Double = 1, category: String? =
     #expect(InboxList.openQuestion([newer, other, older])?.text == "older")
     #expect(InboxList.openQuestion([other]) == nil)
 }
+
+// MARK: - Focus sessions
+
+@Test func aRunningFocusSessionHidesTheQuestionButNotTheRest() {
+    let q = entry("q.md", text: "Mia", outcome: .waitingForAnswer, followUp: "Which?")
+    let waiting = CaptureStripInput(openQuestion: q, waitingCount: 2, now: t0, sessionRunning: true)
+    #expect(CaptureStrip.decide(waiting) == nil)  // nothing interrupts
+    // Without a session the same input asks.
+    if case .question? = CaptureStrip.decide(CaptureStripInput(openQuestion: q, waitingCount: 2, now: t0)) {} else { Issue.record("expected the question") }
+    // Sorting and errors still show: they are about what you just did.
+    #expect(CaptureStrip.decide(CaptureStripInput(pending: 1, openQuestion: q, now: t0, sessionRunning: true)) == .sorting)
+    #expect(CaptureStrip.decide(CaptureStripInput(problem: "boom", openQuestion: q, now: t0, sessionRunning: true)) == .problem(message: "boom", textSaved: true))
+}
+
+@Test func aResultStillShowsDuringASessionAndTheQuestionComesBackAfterwards() {
+    let q = entry("q.md", outcome: .waitingForAnswer, followUp: "Which?")
+    let done = recent(entry("d.md", outcome: .taskSuggested, taskFile: "T.md"))
+    // During the session: the result of a new capture shows, the question doesn't.
+    let during = CaptureStrip.decide(CaptureStripInput(openQuestion: q, waitingCount: 1, recent: done, now: t0, sessionRunning: true))
+    if case .result? = during {} else { Issue.record("got \(String(describing: during))") }
+    // After it: the question is back, ahead of the result, as before.
+    let after = CaptureStrip.decide(CaptureStripInput(openQuestion: q, waitingCount: 1, recent: done, now: t0, sessionRunning: false))
+    if case .question? = after {} else { Issue.record("got \(String(describing: after))") }
+}

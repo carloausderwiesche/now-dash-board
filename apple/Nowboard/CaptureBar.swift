@@ -14,6 +14,8 @@
         let unavailable: String?
         /// The page being shown: the field takes the keyboard again when it changes.
         let page: DashboardPage
+        /// A focus session is running: a waiting question stays quiet until it ends.
+        let sessionRunning: Bool
         @State private var text = ""
         @FocusState private var focused: Bool
 
@@ -111,7 +113,8 @@
             }
             return CaptureStripInput(
                 pending: center.pending, problem: center.lastProblem, textUnsaved: center.unsavedText != nil,
-                openQuestion: center.openQuestion, waitingCount: center.waitingCount, recent: recent, now: now)
+                openQuestion: center.openQuestion, waitingCount: center.waitingCount, recent: recent, now: now,
+                sessionRunning: sessionRunning)
         }
 
     }
