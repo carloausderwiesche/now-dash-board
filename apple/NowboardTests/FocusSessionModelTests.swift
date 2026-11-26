@@ -127,6 +127,21 @@
         #expect(store.task("A.md")?.status == .done)
     }
 
+    @MainActor @Test func markTaskDoneLeavesATaskThatIsAlreadyDoneAlone() async throws {
+        let done = "---\nstatus: done\narea: work\ndone: 2026-11-20T10:00\n---\n"
+        let (store, dir) = try await makeStore(["A.md": done])
+        defer { try? FileManager.default.removeItem(at: dir) }
+        var finished = FocusSession(minutes: 1, taskID: "A.md")
+        finished.start(at: Date().addingTimeInterval(-120))
+        store.settings.focusSessionData = finished.encoded()
+        let model = FocusSessionModel()
+        model.attach(to: store)
+        #expect(!model.canMarkDone)
+        model.markTaskDone()
+        await store.waitForWrites()
+        #expect(store.task("A.md")?.done == "2026-11-20T10:00")  // not re-stamped
+    }
+
     @MainActor @Test func anotherOneRestartsWithTheSameLengthAndTask() async throws {
         let (store, dir) = try await makeStore(["A.md": today])
         defer { try? FileManager.default.removeItem(at: dir) }

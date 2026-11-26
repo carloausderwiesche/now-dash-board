@@ -185,13 +185,17 @@
             let theme = store.theme
             HStack(spacing: 10) {
                 if session.isFinished {
-                    if model.title(of: session.taskID) != nil {
+                    if model.canMarkDone {
                         primary("Mark task done") { model.markTaskDone() }
                     }
                     secondary("Another one") { model.anotherOne() }
                 } else {
                     if session.isIdle {
-                        primary("Start") { model.start() }
+                        primary("Start") {
+                            // Minutes typed but not confirmed with Return count too.
+                            commitCustom()
+                            model.start()
+                        }
                     } else if session.isRunning {
                         primary("Pause") { model.pause() }
                     } else {

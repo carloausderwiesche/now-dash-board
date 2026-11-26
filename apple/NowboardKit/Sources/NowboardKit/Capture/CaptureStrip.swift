@@ -77,7 +77,9 @@ public enum CaptureStrip: Equatable, Sendable {
         if let problem = input.problem { return .problem(message: problem, textSaved: !input.textUnsaved) }
         // During a focus session a question waits: not shown, and (because the capture bar
         // asks this same function) Return makes a new capture instead of answering it.
-        if let question = input.openQuestion, !input.sessionRunning {
+        if let question = input.openQuestion {
+            // Nothing at all: not even "it's a question, answering comes later", which would be untrue.
+            if input.sessionRunning { return nil }
             return .question(
                 entryID: question.id, typed: question.text, question: question.followUp ?? CaptureResult.defaultQuestion,
                 others: max(0, input.waitingCount - 1))

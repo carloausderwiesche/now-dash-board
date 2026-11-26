@@ -190,6 +190,10 @@ public struct FocusSession: Equatable, Codable, Sendable {
         case .running, .finished:
             break
         }
+        // An end further away than the whole length can't be right (a clock that was far ahead when saved).
+        if case .running(let end) = session.phase, end > now.addingTimeInterval(session.total) {
+            session.phase = .running(end: now.addingTimeInterval(session.total))
+        }
         session.updateFinished(at: now)
         return session
     }

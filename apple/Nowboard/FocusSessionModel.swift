@@ -92,9 +92,16 @@
             changed()
         }
 
+        /// The linked task still exists and isn't done yet (it may have been finished on the board meanwhile).
+        var canMarkDone: Bool {
+            guard let id = session.taskID, let task = store?.task(id) else { return false }
+            return task.status != .done
+        }
+
         /// "Mark task done": finishes the linked task through the board's own action, then back to idle.
         func markTaskDone() {
-            if let id = session.taskID, let store, store.task(id) != nil { store.finish(id) }
+            // Only a task that isn't done yet: finishing again would stamp a new time on it.
+            if canMarkDone, let id = session.taskID { store?.finish(id) }
             session.reset()
             choice = .automatic
             changed()
@@ -110,7 +117,12 @@
 
         /// Notices that the end has come (also called by the timer and after waking up).
         func check() {
-            if session.updateFinished(at: Date()) { changed() }
+            if session.updateFinished(at: Date()) {
+                changed()
+            } else if session.isRunning {
+                // Woken too early (the clock was set back): wait again for the real end.
+                scheduleFinish()
+            }
         }
 
         /// A running session needs a wake-up at its end; nothing ticks otherwise
@@ -134,7 +146,9 @@
 
         /// Remembers a running, paused or finished session (an idle one is nothing to remember).
         private func persist() {
-            store?.settings.focusSessionData = session.encoded()
+            // Only when it differs: writing the settings rewrites them on disk.
+            let data = session.encoded()
+            if store?.settings.focusSessionData != data { store?.settings.focusSessionData = data }
         }
 
         #if DEBUG

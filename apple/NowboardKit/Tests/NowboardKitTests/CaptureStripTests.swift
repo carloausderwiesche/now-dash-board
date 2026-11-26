@@ -179,13 +179,16 @@ private func recent(_ e: InboxEntry, secondsAgo: Double = 1, category: String? =
     #expect(CaptureStrip.decide(CaptureStripInput(problem: "boom", openQuestion: q, now: t0, sessionRunning: true)) == .problem(message: "boom", textSaved: true))
 }
 
-@Test func aResultStillShowsDuringASessionAndTheQuestionComesBackAfterwards() {
+@Test func aWaitingQuestionKeepsEverythingElseQuietDuringASession() {
     let q = entry("q.md", outcome: .waitingForAnswer, followUp: "Which?")
     let done = recent(entry("d.md", outcome: .taskSuggested, taskFile: "T.md"))
-    // During the session: the result of a new capture shows, the question doesn't.
-    let during = CaptureStrip.decide(CaptureStripInput(openQuestion: q, waitingCount: 1, recent: done, now: t0, sessionRunning: true))
-    if case .result? = during {} else { Issue.record("got \(String(describing: during))") }
-    // After it: the question is back, ahead of the result, as before.
-    let after = CaptureStrip.decide(CaptureStripInput(openQuestion: q, waitingCount: 1, recent: done, now: t0, sessionRunning: false))
-    if case .question? = after {} else { Issue.record("got \(String(describing: after))") }
+    // A question is open: no strip, not even a result line.
+    #expect(CaptureStrip.decide(CaptureStripInput(openQuestion: q, waitingCount: 1, recent: done, now: t0, sessionRunning: true)) == nil)
+    // A capture that just became a question must not say "answering comes later".
+    let asked = recent(entry("n.md", outcome: .questionOpen))
+    #expect(CaptureStrip.decide(CaptureStripInput(recent: asked, now: t0, sessionRunning: true)) != nil)  // no open question: the honest line
+    // With no question open, a result shows during a session.
+    if case .result? = CaptureStrip.decide(CaptureStripInput(recent: done, now: t0, sessionRunning: true)) {} else { Issue.record("expected a result") }
+    // After the session: the question is back, ahead of the result, as before.
+    if case .question? = CaptureStrip.decide(CaptureStripInput(openQuestion: q, waitingCount: 1, recent: done, now: t0, sessionRunning: false)) {} else { Issue.record("expected the question") }
 }

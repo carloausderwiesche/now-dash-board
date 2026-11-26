@@ -300,3 +300,15 @@ private func task(_ id: String, focus: Bool = false) -> BoardTask {
 @Test func noTaskMeansNoTaskEvenWhenThereAreCards() {
     #expect(FocusTaskChoice.none.resolve(today: [task("A.md")]) == nil)
 }
+
+
+@Test func aRunningEndFurtherAwayThanTheWholeLengthIsClamped() throws {
+    var s = FocusSession(minutes: 25)
+    s.start(at: t0)
+    let data = try #require(s.encoded())
+    // Restored at a time a day BEFORE it was saved (a clock that was far ahead): the end is clamped.
+    let back = try #require(FocusSession.restored(from: data, at: at(-86_400)))
+    #expect(back.isRunning)
+    #expect(back.remaining(at: at(-86_400)) == 1500)
+    if case .running(let end) = back.phase { #expect(end == at(-86_400 + 1500)) } else { Issue.record("expected running") }
+}
