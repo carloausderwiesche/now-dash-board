@@ -24,6 +24,23 @@ Read this before changing how something looks or behaves. These decisions came o
 | Backlog | Smaller plain cards (surface colour, thin border, only a colour dot). Hover → "Today ↑". In the SwiftUI app the card then flies from its spot to the top of Today (about half a second, no overshoot) while the Today cards slide aside; "Move to Today/Backlog" in the card menu moves the same way. Kept visually quieter than Today on purpose. |
 | Done | At the bottom: a huge number (56px) + "Done today" + "Last: …". Click to expand the list (with Undo). Only today's done tasks are counted. Older ones stay in the vault. |
 
+## Dashboard (SwiftUI Mac app)
+
+The Mac app opens a **Dashboard** instead of the bare board ([ADR 0017](docs/adr/0017-mac-dashboard.md)). The iPhone app and the Tauri app keep the board as it is. The Dashboard deliberately breaks two of the principles above, because it has to hold more than one question:
+
+- **Principle 3 (one column) no longer holds on the Mac.** The window has a header, three pages and a pinned bar, and the Dashboard page can grow a second column for boxes (calendar, chat…). The column only appears once a box is registered; until then Today uses the full width. No placeholder boxes.
+- **Principle 2 (no clutter) is bent, not dropped:** the page switch and the capture bar are always there. Everything else stays quiet, and nothing moves while you type.
+- **Kept:** the look (themes, fonts, radii from the theme), colour = category, big confident type, short animations, and the board's cards and sections as they are.
+
+| Area | Decision |
+|---|---|
+| Window | Opens at 1728 × 1117, landscape, no title bar. Only the task lists and the Inbox list scroll; the header and the capture bar are fixed. |
+| Header | The day number (72px) with weekday and month, and on the right a page switch (Dashboard, Tasks, Inbox), the category dots and settings. The Inbox tab has a small badge with the number of captures waiting for an answer. |
+| Dashboard page | Left, scrolling: Today (the board's cards, no drag and drop here), Suggested as rows with **Today** and **Dismiss** (Dismiss deletes with Undo, as on the board), and a small "done today" pill (finished cards fly to it). The right column slot is empty and hidden. |
+| Tasks page | The board as it is: Today, Backlog, Done, drag and drop, panel, card menu. A three-column variant (Today, Suggested, Backlog) is possible later. |
+| Inbox page | Every capture, newest first with the ones waiting for an answer on top: time, what you typed, what became of it in words, Open for a filed note or task, Undo where something was filed. |
+| Capture bar | Pinned at the bottom of every page, a large field (24px) in a rounded surface, focused when the app opens. Return saves what you typed at once and clears the field. With a question open, Return answers it. Above it a strip: "Sorting…" while working; the question on a dark strip with Task, Note and Skip; one line about what happened ("Task suggested in Work", "Note filed under Wiki/Ideas, added to today's daily note") with Undo, fading after 8 seconds; an honest line that questions get answered in a later version; or the error in words, saying whether your text is saved. Switched off, with a reason, when there is no vault. |
+
 ## Interactions
 
 - **Complete** (round check on a card, "Mark done" in the panel or the card menu, or dropping a card on Done): the ring fills with the accent (no swelling), the tick draws itself, the title strikes through, then the card glides in one smooth move into the Done number (the path is measured), only ever shrinking and fading, no lift or bounce. In the SwiftUI app the path is a gentle curve, down first and then across, like something dropped in; in the Tauri app it's straight. When Done is below the window, the card aims for the bottom edge. The Done number gives a small accent-coloured nudge and the remaining cards slide into the gap. About 900ms in total.

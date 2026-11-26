@@ -88,3 +88,97 @@ private func unclear(_ title: String) -> CaptureResult {
     #expect(center.unsavedText == "do not lose me")
     #expect(center.lastProblem?.contains("Couldn't save the capture") == true)
 }
+
+@MainActor @Test func theLastResultIsKeptForTheStripAndClearedOnUndo() async throws {
+    let vault = try makeVault()
+    defer { try? FileManager.default.removeItem(at: vault) }
+    let task = FixedClassifier { CaptureResult(kind: .task, title: $0.text, area: "work", confidence: 0.9) }
+    let center = CaptureCenter(config: VaultConfig(vault: vault), classifier: task, categoryIds: { ["work"] })
+    center.capture("Buy milk")
+    await eventually { center.recent != nil && !center.isBusy }
+    #expect(center.recent?.entry.outcome == .taskSuggested)
+    // The strip decision uses it (pure function, tested in NowboardKit).
+    let strip = CaptureStrip.decide(CaptureStripInput(recent: center.recent, now: center.recent?.at ?? Date()))
+    if case .result(_, _, let canUndo)? = strip { #expect(canUndo) } else { Issue.record("expected a result strip") }
+
+    center.undo(try #require(center.recent?.entry.id))
+    await eventually { center.recent == nil && !center.isBusy }
+    #expect(center.entries.first?.outcome == .skipped)
+}
+
+@MainActor @Test func aQuestionOpensAndAnsweringItClosesIt() async throws {
+    let vault = try makeVault()
+    defer { try? FileManager.default.removeItem(at: vault) }
+    let classifier = FixedClassifier { input in
+        input.answer == nil ? unclear(input.text) : CaptureResult(kind: .task, title: "Call Mia", area: "work", confidence: 0.9)
+    }
+    let center = CaptureCenter(config: VaultConfig(vault: vault), classifier: classifier, categoryIds: { ["work"] })
+    center.capture("Mia")
+    await eventually { center.openQuestion != nil && !center.isBusy }
+    #expect(center.waitingCount == 1)
+    center.answer("It's a task.")
+    await eventually { center.openQuestion == nil && !center.isBusy }
+    #expect(center.entries.first?.outcome == .taskSuggested)
+    #expect(center.recent?.entry.outcome == .taskSuggested)
+    center.dismissRecent()
+    #expect(center.recent == nil)
+}
+
+@MainActor @Test func aSecondReturnWhileAnAnswerIsBeingSortedIsANewCaptureNotAnotherAnswer() async throws {
+    let vault = try makeVault()
+    defer { try? FileManager.default.removeItem(at: vault) }
+    let classifier = SlowClassifier()
+    let center = CaptureCenter(config: VaultConfig(vault: vault), classifier: classifier, categoryIds: { ["work"] })
+    center.capture("Mia")
+    await eventually { center.openQuestion != nil && !center.isBusy }
+    center.answer("task")
+    // While that answer is being classified the question is no longer open.
+    #expect(center.openQuestion == nil)
+    await eventually { !center.isBusy }
+    #expect(center.lastProblem == nil)
+}
+
+@MainActor @Test func anAnswerThatFailsComesBackAsUnsavedText() async throws {
+    struct FailsOnAnswer: Classifier {
+        func classify(_ input: CaptureInput) async throws(ClassifierError) -> CaptureResult {
+            if input.answer != nil { throw .timedOut }
+            return unclear(input.text)
+        }
+    }
+    let vault = try makeVault()
+    defer { try? FileManager.default.removeItem(at: vault) }
+    let center = CaptureCenter(config: VaultConfig(vault: vault), classifier: FailsOnAnswer(), categoryIds: { ["work"] })
+    center.capture("Mia")
+    await eventually { center.openQuestion != nil && !center.isBusy }
+    center.answer("it is a task")
+    await eventually { !center.isBusy && center.unsavedText != nil }
+    #expect(center.unsavedText == "it is a task")
+    #expect(center.lastProblem?.contains("too long") == true)
+    // The question is open again.
+    #expect(center.openQuestion?.text == "Mia")
+}
+
+@MainActor @Test func aLaterSuccessDoesNotWipeAnEarlierErrorUnread() async throws {
+    let vault = try makeVault()
+    defer { try? FileManager.default.removeItem(at: vault) }
+    let flaky = FlakyClassifier()
+    let center = CaptureCenter(config: VaultConfig(vault: vault), classifier: flaky, categoryIds: { ["work"] })
+    center.capture("first")  // fails (slow)
+    center.capture("second")  // works
+    await eventually { !center.isBusy }
+    #expect(center.lastProblem != nil)
+}
+
+private struct SlowClassifier: Classifier {
+    func classify(_ input: CaptureInput) async throws(ClassifierError) -> CaptureResult {
+        try? await Task.sleep(for: .milliseconds(200))
+        return input.answer == nil ? unclear(input.text) : CaptureResult(kind: .task, title: "T", area: "work", confidence: 0.9)
+    }
+}
+
+private struct FlakyClassifier: Classifier {
+    func classify(_ input: CaptureInput) async throws(ClassifierError) -> CaptureResult {
+        if input.text == "first" { throw .timedOut }
+        return CaptureResult(kind: .task, title: input.text, area: "work", confidence: 0.9)
+    }
+}

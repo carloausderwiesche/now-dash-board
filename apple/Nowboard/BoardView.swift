@@ -7,6 +7,9 @@ import NowboardKit
 import SwiftUI
 
 struct BoardView: View {
+    /// True when the Mac dashboard shows the board as its Tasks page: the
+    /// dashboard supplies the header, the panels, the menus and the reloading.
+    var embedded = false
     @Environment(BoardStore.self) private var store
     /// Coming back to the front reloads, so edits made elsewhere show up.
     @Environment(\.scenePhase) private var scenePhase
@@ -22,7 +25,7 @@ struct BoardView: View {
         // (the CSS `@media (max-width: 640px)` rules: phones).
         GeometryReader { geo in
             ScrollView {
-                BoardContent(narrow: geo.size.width < 640, pickFolder: { pickingFolder = true })
+                BoardContent(narrow: geo.size.width < 640, pickFolder: { pickingFolder = true }, showsHeader: !embedded)
                 #if os(iOS)
                     .gesture(cardDrag)
                 #endif
@@ -49,14 +52,14 @@ struct BoardView: View {
             .focusEffectDisabled()
             // The board runs up under the (hidden) title bar: .page's 48pt top
             // padding already leaves room for the window buttons.
-            .ignoresSafeArea(edges: .top)
+            .ignoresSafeArea(edges: embedded ? [] : .top)
         #endif
         .background(theme.bg.ignoresSafeArea())
         .foregroundStyle(theme.ink)
         .tint(theme.accent)
         .preferredColorScheme(theme.colorScheme)
         .animation(.easeOut(duration: 0.45), value: theme.id)
-        .overlay(alignment: .bottom) { UndoPill() }
+        .overlay(alignment: .bottom) { if !embedded { UndoPill() } }
         #if os(iOS)
             .overlay(alignment: .bottomTrailing) {
                 PlusButton()
@@ -64,19 +67,20 @@ struct BoardView: View {
                     .padding(20)
             }
         #endif
-        // Popovers are placed in this space (it's the whole window).
-        .coordinateSpace(name: rootSpace)
+        // Popovers are placed in this space (it's the whole window). The
+        // dashboard has its own, around everything.
+        .modifier(RootSpace(on: !embedded))
         .refreshable { await store.reload() }
-        .task { await store.reload() }
+        .task { if !embedded { await store.reload() } }
         .onChange(of: scenePhase) { _, phase in
-            if phase == .active { Task { await store.reload() } }
+            if phase == .active, !embedded { Task { await store.reload() } }
         }
         #if os(macOS)
             // Mac: the panel slides in from the right, quick add drops in at the
             // top, both over a scrim (a soft shade over the board).
-            .overlay { macOverlays }
-            .overlay { settingsPopover }
-            .overlay { CardMenuLayer() }
+            .overlay { if !embedded { MacOverlays() } }
+            .overlay { if !embedded { SettingsPopover(pickFolder: { pickingFolder = true }) } }
+            .overlay { if !embedded { CardMenuLayer() } }
         #else
             // iPhone: both are sheets from below.
             .sheet(isPresented: Binding(get: { store.openID != nil }, set: { if !$0 { store.openID = nil } })) {
@@ -109,10 +113,11 @@ struct BoardView: View {
 }
 
 #if os(macOS)
-    extension BoardView {
-        /// The detail panel and quick add, over a scrim. Clicking the scrim closes them.
-        @ViewBuilder
-        var macOverlays: some View {
+    /// The detail panel and quick add, over a scrim. Clicking the scrim closes them.
+    struct MacOverlays: View {
+        @Environment(BoardStore.self) private var store
+
+        var body: some View {
             let theme = store.theme
             ZStack {
                 if store.openID != nil || store.adding {
@@ -153,10 +158,15 @@ struct BoardView: View {
             .animation(.easeOut(duration: 0.25), value: store.adding)
         }
 
-        /// .popover: under the header's tools, right-aligned to them, over an
-        /// invisible layer that closes it on a click anywhere else (or Esc).
-        @ViewBuilder
-        var settingsPopover: some View {
+    }
+
+    /// .popover: under the header's tools, right-aligned to them, over an
+    /// invisible layer that closes it on a click anywhere else (or Esc).
+    struct SettingsPopover: View {
+        @Environment(BoardStore.self) private var store
+        let pickFolder: () -> Void
+
+        var body: some View {
             let theme = store.theme
             let anchor = store.settingsAnchor
             GeometryReader { window in
@@ -169,8 +179,8 @@ struct BoardView: View {
                         .hidden()
                     // Scrolls only when it doesn't fit the window.
                     ViewThatFits(in: .vertical) {
-                        SettingsPanel(pickFolder: { pickingFolder = true })
-                        ScrollView { SettingsPanel(pickFolder: { pickingFolder = true }) }
+                        SettingsPanel(pickFolder: pickFolder)
+                        ScrollView { SettingsPanel(pickFolder: pickFolder) }
                     }
                     .frame(width: 320)
                     .frame(maxHeight: max(200, window.size.height - anchor.maxY - 20))
@@ -278,11 +288,22 @@ struct BoardView: View {
 /// The window's coordinate space, for placing popovers and menus.
 let rootSpace = "root"
 
+/// Names the window's coordinate space, or does nothing (when the dashboard around the board names it).
+struct RootSpace: ViewModifier {
+    let on: Bool
+
+    func body(content: Content) -> some View {
+        if on { content.coordinateSpace(name: rootSpace) } else { content }
+    }
+}
+
 /// Everything inside the scroll view. Separate, so a snapshot can render it.
 struct BoardContent: View {
     @Environment(BoardStore.self) private var store
     var narrow: Bool
     var pickFolder: () -> Void = {}
+    /// False when the dashboard supplies its own header (the board then starts higher up).
+    var showsHeader = true
     /// Shared by both lists, so a card moved between them flies across.
     @Namespace private var flight
 
@@ -292,7 +313,7 @@ struct BoardContent: View {
         let flying = { (list: [BoardTask]) in list.contains { store.finishing[$0.id] != nil } ? 1.0 : 0 }
         // .page: gap 28 between the header and the column of sections.
         VStack(alignment: .leading, spacing: 28) {
-            HeaderView(narrow: narrow, pickFolder: pickFolder)
+            if showsHeader { HeaderView(narrow: narrow, pickFolder: pickFolder) }
             if let error = store.error {
                 ErrorBar(message: error)
             }
@@ -314,7 +335,7 @@ struct BoardContent: View {
         }
         // .page padding: 48 on the Mac (top 48 leaves room for the window
         // buttons, since there's no title bar), 20/16 on a phone.
-        .padding(.top, narrow ? 20 : 48)
+        .padding(.top, narrow ? 20 : showsHeader ? 48 : 8)
         .padding(.horizontal, narrow ? 16 : 48)
         // iPhone: room at the end so the floating + never covers the last row.
         .padding(.bottom, narrow ? 96 : 48)
@@ -551,6 +572,8 @@ struct CardSection: View {
     let narrow: Bool
     let flight: Namespace.ID
     let empty: (String, String)
+    /// False on the dashboard, where Today is a list to work through, not a board to rearrange.
+    var dragEnabled = true
 
     var body: some View {
         let drag = store.drag
@@ -639,7 +662,7 @@ struct CardSection: View {
                         }
                         // The release (and Esc) is handled by DragController's
                         // event monitor, which outlives this card's view.
-                )
+                    , including: dragEnabled ? .all : .subviews)
         #else
             CardView(task: task, style: style)
         #endif
