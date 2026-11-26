@@ -116,6 +116,7 @@
             .menuIndicator(.hidden)
             // The menu button would take the accent colour; the picker should read like the other chips.
             .foregroundStyle(theme.ink)
+            .tint(theme.ink)
             .disabled(!idle)
             .accessibilityLabel("Task for this session")
         }
