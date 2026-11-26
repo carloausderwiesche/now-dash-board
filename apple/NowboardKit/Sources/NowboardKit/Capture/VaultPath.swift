@@ -16,6 +16,8 @@ public enum VaultPathError: Error, Equatable, LocalizedError {
     case notMarkdown
     /// The folder is a symbolic link (or sits behind one) that leads out of the vault.
     case escapesVault
+    /// The path is in a folder that holds tasks (or other app data): a note filed there would become a task.
+    case reservedFolder(String)
 
     public var errorDescription: String? {
         switch self {
@@ -26,6 +28,7 @@ public enum VaultPathError: Error, Equatable, LocalizedError {
         case .tooLong: "The path is too long."
         case .notMarkdown: "The file must be a .md file."
         case .escapesVault: "The path leads outside the vault."
+        case .reservedFolder(let folder): "Notes can't be filed in \(folder): files there are tasks."
         }
     }
 }
@@ -40,9 +43,15 @@ public enum VaultPath {
     /// The characters a part can't hold: the ones task titles lose (task format 4.1).
     private static let forbidden = Set("/\\:*?\"<>|#^[]".unicodeScalars)
 
+    /// Folders nothing may be filed into: the Tasks folder, where every
+    /// `.md` file is a task (task format 1). Callers whose Tasks folder is
+    /// somewhere else pass their own list.
+    public static let reservedFolders = ["Notes/Tasks"]
+
     /// A file path like `Wiki/Projects/Idea.md`. Returns it as it is when it's fine.
-    public static func file(_ path: String) throws(VaultPathError) -> String {
+    public static func file(_ path: String, reserved: [String] = reservedFolders) throws(VaultPathError) -> String {
         let parts = try split(path)
+        try refuseReserved(parts, reserved)
         // At least a name; the last part is the file, the others are folders.
         guard parts.count - 1 <= maxDepth else { throw .tooDeep }
         let name = parts[parts.count - 1]
@@ -57,13 +66,26 @@ public enum VaultPath {
     }
 
     /// A folder path like `Wiki/Projects`. A folder can't be named `x.md`: that's a file.
-    public static func folder(_ path: String) throws(VaultPathError) -> String {
+    public static func folder(_ path: String, reserved: [String] = reservedFolders) throws(VaultPathError) -> String {
         let parts = try split(path)
+        try refuseReserved(parts, reserved)
         guard parts.count <= maxDepth else { throw .tooDeep }
         if let last = parts.last, last.hasSuffix(".md") {
             throw .badPart(last, why: "that's a file name, not a folder")
         }
         return path
+    }
+
+    /// Refuses a path that is a reserved folder or inside one. Capitals don't
+    /// matter: on a Mac `notes/tasks` and `Notes/Tasks` are the same folder.
+    private static func refuseReserved(_ parts: [String], _ reserved: [String]) throws(VaultPathError) {
+        let lower = parts.map { $0.lowercased() }
+        for folder in reserved {
+            let reservedParts = folder.split(separator: "/").map { $0.lowercased() }
+            if !reservedParts.isEmpty, lower.starts(with: reservedParts) {
+                throw .reservedFolder(folder)
+            }
+        }
     }
 
     /// The checks both kinds share: returns the parts of the path.
@@ -106,14 +128,14 @@ public enum VaultPath {
     /// link (an alias) in the vault that points somewhere else. So we also
     /// follow the links of the deepest folder that already exists and make
     /// sure the file would still be inside the vault.
-    public static func resolve(file path: String, in vault: URL) throws(VaultPathError) -> URL {
-        _ = try file(path)
+    public static func resolve(file path: String, in vault: URL, reserved: [String] = reservedFolders) throws(VaultPathError) -> URL {
+        _ = try file(path, reserved: reserved)
         return try locate(path, in: vault)
     }
 
     /// Same for a **folder** path.
-    public static func resolve(folder path: String, in vault: URL) throws(VaultPathError) -> URL {
-        _ = try folder(path)
+    public static func resolve(folder path: String, in vault: URL, reserved: [String] = reservedFolders) throws(VaultPathError) -> URL {
+        _ = try folder(path, reserved: reserved)
         return try locate(path, in: vault)
     }
 

@@ -1,0 +1,5 @@
+{
+  "error": "invalidResult",
+  "message_contains": "reminder",
+  "description": "An answer that fails our checks says why."
+}

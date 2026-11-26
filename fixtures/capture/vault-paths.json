@@ -256,6 +256,56 @@
       "path": "Wiki/Id​ea.md",
       "valid": false,
       "description": "Zero-width space."
+    },
+    {
+      "path": "Notes/Tasks/Idea.md",
+      "valid": false,
+      "description": "The Tasks folder: a note there would become a task."
+    },
+    {
+      "path": "Notes/Tasks/Sub/Idea.md",
+      "valid": false,
+      "description": "Inside the Tasks folder."
+    },
+    {
+      "path": "notes/tasks/Idea.md",
+      "valid": false,
+      "description": "Capitals don't matter on a Mac."
+    },
+    {
+      "path": "NOTES/TASKS/Idea.md",
+      "valid": false,
+      "description": "Capitals don't matter on a Mac."
+    },
+    {
+      "path": "Notes/Tasks2/Idea.md",
+      "valid": true,
+      "description": "A different folder with a similar name.",
+      "normalized": "Notes/Tasks2/Idea.md"
+    },
+    {
+      "path": "Notes/Task/Idea.md",
+      "valid": true,
+      "description": "A different folder with a similar name.",
+      "normalized": "Notes/Task/Idea.md"
+    },
+    {
+      "path": "Wiki/Notes/Tasks/Idea.md",
+      "valid": true,
+      "description": "Only the Tasks folder at the top counts.",
+      "normalized": "Wiki/Notes/Tasks/Idea.md"
+    },
+    {
+      "path": "Notes/Idea.md",
+      "valid": true,
+      "description": "The Notes folder itself is fine.",
+      "normalized": "Notes/Idea.md"
+    },
+    {
+      "path": "Notes/Inbox/Idea.md",
+      "valid": true,
+      "description": "The Inbox is fine.",
+      "normalized": "Notes/Inbox/Idea.md"
     }
   ],
   "folder_paths": [
@@ -316,6 +366,33 @@
       "path": "Wiki/Ideas?",
       "valid": false,
       "description": "Question mark."
+    },
+    {
+      "path": "Notes/Tasks",
+      "valid": false,
+      "description": "The Tasks folder itself."
+    },
+    {
+      "path": "Notes/Tasks/Sub",
+      "valid": false,
+      "description": "Inside the Tasks folder."
+    },
+    {
+      "path": "notes/tasks",
+      "valid": false,
+      "description": "Capitals don't matter."
+    },
+    {
+      "path": "Notes",
+      "valid": true,
+      "description": "The parent is fine.",
+      "normalized": "Notes"
+    },
+    {
+      "path": "Notes/Tasks2",
+      "valid": true,
+      "description": "Similar name.",
+      "normalized": "Notes/Tasks2"
     }
   ]
 }

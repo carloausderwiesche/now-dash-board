@@ -1,0 +1,4 @@
+{
+  "error": "noStructuredOutput",
+  "description": "A result without structured_output is an error."
+}

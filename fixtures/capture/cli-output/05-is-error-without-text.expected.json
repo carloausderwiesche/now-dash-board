@@ -1,0 +1,5 @@
+{
+  "error": "cliReportedError",
+  "message_contains": "error_max_turns",
+  "description": "is_error true and no text: the subtype is used."
+}
