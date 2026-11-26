@@ -112,7 +112,7 @@ A daily note can list captures under a `## Captured` heading. Adding a line is a
 1. The line is made into one line (as for titles in 4.2). If nothing is left, the text is returned unchanged.
 2. If the text has a heading line that is exactly `## Captured` (trailing spaces allowed): the line is added at the **end of that section**, after the section's last non-blank line and before the blank lines that separate it from the next heading. The section ends at the next heading of level 1 or 2 (`# ` or `## `) or the end of the text. Headings inside a fenced code block (``` or ~~~) or inside frontmatter don't count. If there are several, the first one is used.
 3. If there is no such heading: a blank line (unless the text is empty or already ends with one), `## Captured`, then the line, are added at the end.
-4. The result always ends with a line break. The line break the text already uses (`\n` or `\r\n`) is used for everything added.
+4. The new line is always followed by a line break, and a text that ended without one gets it when the new line goes at the very end. Everything added uses the line break the text already uses (`\n` or `\r\n`; `\n` if it has none).
 5. **No other text changes.** Text typed mid-sentence at the end of a note, with no final line break, only gets the line break it was missing.
 
 ## 7. The prompt
