@@ -75,3 +75,12 @@ private func spot(_ x: CGFloat, _ y: CGFloat, dragged: String = "x", cards: [Pla
     #expect(spot(50, 150, cards: shuffled) != DropTarget(status: .today, beforeID: "a"))
     #expect(spot(50, 150) == DropTarget(status: .today, beforeID: "a"))
 }
+
+@Test func anUnlimitedOrBrokenWidthIsOneColumnNotACrash() {
+    // SwiftUI can offer an infinite width while measuring (the Dashboard's Today grid did).
+    #expect(DropRules.columns(width: .infinity, minWidth: 200, spacing: 12) == 1)
+    #expect(DropRules.columns(width: -.infinity, minWidth: 200, spacing: 12) == 1)
+    #expect(DropRules.columns(width: .nan, minWidth: 200, spacing: 12) == 1)
+    #expect(DropRules.columns(width: 0, minWidth: 200, spacing: 12) == 1)
+    #expect(DropRules.columns(width: -50, minWidth: 200, spacing: 12) == 1)
+}

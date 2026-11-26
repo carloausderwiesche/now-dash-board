@@ -9,6 +9,7 @@
 // SwiftUI asks it for its size (`sizeThatFits`) and then where to put each
 // child (`placeSubviews`).
 
+import NowboardKit
 import SwiftUI
 
 /// How many columns a card takes. Set with `.gridSpan(2)`.
@@ -28,7 +29,8 @@ struct CardGridLayout: Layout {
 
     /// Where every card goes, for a given width. Both methods below use it.
     private func plan(width: CGFloat, subviews: Subviews) -> (frames: [CGRect], height: CGFloat) {
-        let columns = max(1, Int((width + spacing) / (minWidth + spacing)))
+        // (`DropRules.columns` also copes with an infinite width, which `Int(…)` would crash on.)
+        let columns = DropRules.columns(width: width, minWidth: minWidth, spacing: spacing)
         let cell = (width - spacing * CGFloat(columns - 1)) / CGFloat(columns)
 
         // 1. Put each card in a row and column, like CSS grid without "dense".
@@ -75,7 +77,10 @@ struct CardGridLayout: Layout {
     }
 
     func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
-        let width = proposal.width ?? 600
+        // No width offered, or an unlimited one (SwiftUI measures that way inside some
+        // stacks): plan for a normal width instead of an infinite one.
+        let offered = proposal.width.flatMap { $0.isFinite ? $0 : nil }
+        let width = offered ?? 600
         return CGSize(width: width, height: plan(width: width, subviews: subviews).height)
     }
 
