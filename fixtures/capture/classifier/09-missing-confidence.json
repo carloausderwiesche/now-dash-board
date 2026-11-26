@@ -1,0 +1,15 @@
+{
+  "description": "confidence is required.",
+  "categories": [
+    "personal",
+    "work",
+    "home"
+  ],
+  "input": {
+    "kind": "task",
+    "title": "x"
+  },
+  "expected": {
+    "error": true
+  }
+}

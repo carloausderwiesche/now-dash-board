@@ -1,0 +1,72 @@
+{
+  "time_zone": "UTC",
+  "cases": [
+    {
+      "description": "A simple capture.",
+      "text": "call the dentist about Thursday",
+      "time": "2026-11-26T13:05:22",
+      "existing": [],
+      "file": "2026-11-26 13-05-22.md",
+      "content": "---\ncaptured: 2026-11-26T13:05\n---\ncall the dentist about Thursday"
+    },
+    {
+      "description": "The text is kept exactly: spaces, blank lines, no final line break added.",
+      "text": "  two  spaces\n\nand a blank line  \n",
+      "time": "2026-11-26T13:05:23",
+      "existing": [],
+      "file": "2026-11-26 13-05-23.md",
+      "content": "---\ncaptured: 2026-11-26T13:05\n---\n  two  spaces\n\nand a blank line  \n"
+    },
+    {
+      "description": "Text that looks like frontmatter stays text.",
+      "text": "---\nstatus: today\n---\nnot a task",
+      "time": "2026-11-26T13:05:24",
+      "existing": [],
+      "file": "2026-11-26 13-05-24.md",
+      "content": "---\ncaptured: 2026-11-26T13:05\n---\n---\nstatus: today\n---\nnot a task"
+    },
+    {
+      "description": "Windows line breaks are kept.",
+      "text": "a\r\nb\r\n",
+      "time": "2026-11-26T13:05:25",
+      "existing": [],
+      "file": "2026-11-26 13-05-25.md",
+      "content": "---\ncaptured: 2026-11-26T13:05\n---\na\r\nb\r\n"
+    },
+    {
+      "description": "Unicode is kept.",
+      "text": "Café ☕ 日本語",
+      "time": "2026-11-26T09:03:01",
+      "existing": [],
+      "file": "2026-11-26 09-03-01.md",
+      "content": "---\ncaptured: 2026-11-26T09:03\n---\nCafé ☕ 日本語"
+    },
+    {
+      "description": "The name is taken: a clash counter is used and the old file stays.",
+      "text": "second",
+      "time": "2026-11-26T13:05:22",
+      "existing": [
+        "2026-11-26 13-05-22.md"
+      ],
+      "file": "2026-11-26 13-05-22 (2).md",
+      "content": "---\ncaptured: 2026-11-26T13:05\n---\nsecond"
+    },
+    {
+      "description": "Two names are taken.",
+      "text": "third",
+      "time": "2026-11-26T13:05:22",
+      "existing": [
+        "2026-11-26 13-05-22.md",
+        "2026-11-26 13-05-22 (2).md"
+      ],
+      "file": "2026-11-26 13-05-22 (3).md",
+      "content": "---\ncaptured: 2026-11-26T13:05\n---\nthird"
+    }
+  ],
+  "refused_texts": [
+    "",
+    "   ",
+    "\n\n",
+    " \t\r\n"
+  ]
+}

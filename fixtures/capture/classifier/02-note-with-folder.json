@@ -1,0 +1,28 @@
+{
+  "description": "A note keeps its suggested folder (checked later by the path rules).",
+  "categories": [
+    "personal",
+    "work",
+    "home"
+  ],
+  "input": {
+    "kind": "note",
+    "title": "Pin the board to the menu bar",
+    "body": "Idea for later.",
+    "area": "work",
+    "folder": "Wiki/Ideas",
+    "confidence": 0.88
+  },
+  "expected": {
+    "kind": "note",
+    "title": "Pin the board to the menu bar",
+    "body": "Idea for later.",
+    "area": "work",
+    "status": null,
+    "folder": "Wiki/Ideas",
+    "confidence": 0.88,
+    "follow_up": null,
+    "needs_question": false,
+    "question": null
+  }
+}

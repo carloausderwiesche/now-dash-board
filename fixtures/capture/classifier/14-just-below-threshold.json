@@ -1,0 +1,25 @@
+{
+  "description": "0.57 is below 0.58: treated as unclear, and the person is asked.",
+  "categories": [
+    "personal",
+    "work",
+    "home"
+  ],
+  "input": {
+    "kind": "note",
+    "title": "Maybe a note",
+    "confidence": 0.57
+  },
+  "expected": {
+    "kind": "note",
+    "title": "Maybe a note",
+    "body": null,
+    "area": "personal",
+    "status": null,
+    "folder": null,
+    "confidence": 0.57,
+    "follow_up": null,
+    "needs_question": true,
+    "question": "Is this a task, a note or a question?"
+  }
+}

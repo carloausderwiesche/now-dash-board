@@ -1,0 +1,30 @@
+{
+  "description": "null or blank optional strings are missing; the others are trimmed.",
+  "categories": [
+    "personal",
+    "work",
+    "home"
+  ],
+  "input": {
+    "kind": "task",
+    "title": "  Pay rent \n today ",
+    "body": "   ",
+    "area": null,
+    "status": null,
+    "folder": "  ",
+    "follow_up": null,
+    "confidence": 1
+  },
+  "expected": {
+    "kind": "task",
+    "title": "Pay rent today",
+    "body": null,
+    "area": "personal",
+    "status": null,
+    "folder": null,
+    "confidence": 1,
+    "follow_up": null,
+    "needs_question": false,
+    "question": null
+  }
+}

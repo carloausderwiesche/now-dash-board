@@ -1,0 +1,28 @@
+{
+  "description": "A complete task result is read field by field.",
+  "categories": [
+    "personal",
+    "work",
+    "home"
+  ],
+  "input": {
+    "kind": "task",
+    "title": "Call the dentist",
+    "body": "Ask about Thursday",
+    "area": "personal",
+    "status": "today",
+    "confidence": 0.92
+  },
+  "expected": {
+    "kind": "task",
+    "title": "Call the dentist",
+    "body": "Ask about Thursday",
+    "area": "personal",
+    "status": "today",
+    "folder": null,
+    "confidence": 0.92,
+    "follow_up": null,
+    "needs_question": false,
+    "question": null
+  }
+}

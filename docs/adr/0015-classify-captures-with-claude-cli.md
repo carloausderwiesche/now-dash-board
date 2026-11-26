@@ -1,0 +1,61 @@
+# 0015. Classify captures with the `claude` command-line tool
+
+- **Date:** 2026-11-26
+- **Status:** Proposed
+
+## Context
+
+The Focus Dashboard takes free-text captures ("call the dentist", "idea: …", "what's the capital of Peru") and files them: a suggested task, a note in the vault, an answer, or a question back when it can't tell ([capture format](../capture-format.md)). Something has to decide which. Rules and keywords won't cope with free text, so a language model is needed, and the owner already has a Claude subscription and the `claude` command-line tool on the Mac.
+
+Before building on it, a spike ran 30 inputs through the tool and compared the answers with hand-made labels.
+
+## Decision
+
+Classify captures by running the `claude` tool as a child process and reading its JSON answer. The call is:
+
+```
+claude -p --output-format json --json-schema '<schema>' --no-session-persistence --tools "" --safe-mode
+```
+
+with the CLI's **default model**, run in an **empty folder**, with the prompt built by `CapturePrompt` and the schema from `CaptureSchema` (both in `NowboardKit`). The answer is read from the `structured_output` field of the tool's JSON output and then checked by `CaptureResult.decode`.
+
+- `--json-schema` makes the answer fit the result schema.
+- `--no-session-persistence` keeps these calls out of the session history.
+- `--tools ""` and the empty folder mean the model can read nothing on the disk: it only sees the prompt. The capture text is data, and the prompt says not to follow instructions inside it.
+- `--safe-mode` starts the tool with all customizations disabled: `CLAUDE.md`, skills, plugins, hooks and MCP servers don't load. The owner's normal setup has a plugin that adds extra text to answers, which would break a classifier that must answer with the schema only. In the spike it worked with the subscription login and cost no speed.
+- No `--bare`: that flag skips the subscription login, so the call would need an API key instead.
+
+What the spike found. Three runs on the same 30 synthetic inputs, one run per setting:
+
+| | Default model | Default model + `--safe-mode` | `--model haiku` |
+|---|---|---|---|
+| Matched the label | 28 of 30 | 29 of 30 | 28 of 30 |
+| Failed calls | 0 | 0 | 0 |
+| Time per call | median 2.6 s, p90 3.8 s, max 4.2 s | median 2.6 s, p90 3.4 s, max 4.3 s | median 3.6 s, p90 4.3 s, max 5.8 s |
+
+- Unclear inputs scored 0.2 to 0.4 (one scored 0.90 with `--safe-mode`; it doesn't matter, because kind `unclear` is always asked about).
+- Default model: wrong notes scored 0.50 to 0.55 and correct notes at least 0.60.
+- With `--safe-mode`: the only miss was "Renovation budget", returned as a note at 0.50; correct notes scored 0.70 to 0.93.
+- Haiku: two wrong notes scored 0.60 and two correct notes scored 0.60, so confidence did not separate them. It was also slower and no more accurate.
+
+So: use the CLI's default model, not haiku, and pass `--safe-mode`.
+
+Answers below **0.58** are treated as unclear and the person is asked (`CaptureResult.confidenceThreshold`). It sits just above the wrong notes (0.50 to 0.55) and below the correct ones (0.60 and up). It is a starting point, to be tuned on real captures.
+
+**Caveats:** one run per setting, synthetic inputs, and only 5 of the 30 are unclear. The numbers fit this data; they are not proof. Accuracy on real captures is not known yet. The first weeks of real use are the real test; the threshold and the prompt should be revisited then.
+
+The classifier call itself (starting the process, timeouts, reading the output) is not part of the capture core and comes in a later change. The core never runs a process.
+
+## Alternatives considered
+
+- **A local model through Ollama (the fallback):** keeps the text on the machine and needs no subscription, but it needs a model downloaded and running, and wasn't measured in the spike. We keep it as the fallback if the CLI turns out to be too slow, too costly or unavailable. Because the prompt and the result format don't depend on who answers, switching only changes the call.
+- **The Anthropic API with a key:** works anywhere and is faster to wire, but means storing an API key in the app and paying per call next to the subscription. `--bare`, which needs it, is the reason it came up.
+- **Keywords and rules:** no external dependency, but free text defeats them, and a wrong guess silently files things in the wrong place.
+
+## Consequences
+
+- Capture text, today's date, category ids, the folder map and `_vault-guide.md` leave the machine, because they're in the prompt. The size limits (spec 7) cap how much, and the map lists only folder names.
+- The Mac needs the `claude` tool installed and signed in. An iPhone can't start a command-line tool, so a capture typed there can only be saved as a raw file (it is, first, always) and classified later by a Mac. How that hand-over works is not decided here.
+- About 3 to 4 seconds per capture is fine for a background step, not for waiting on. The raw file is written first, so the wait never loses text.
+- A wrong or low-confidence answer costs one question or one misfiled note, not lost text: the raw capture stays in the Inbox either way.
+- Revisit when real captures show worse accuracy than the spike, or when the tool's flags or login behaviour change.

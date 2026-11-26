@@ -1,0 +1,4 @@
+{
+  "description": "Text that already ends with a blank line doesn't get a second one.",
+  "line": "- 13:05 call the dentist"
+}

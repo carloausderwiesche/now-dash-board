@@ -1,0 +1,321 @@
+{
+  "file_paths": [
+    {
+      "path": "Wiki/Projects/Idea.md",
+      "valid": true,
+      "description": "A plain path.",
+      "normalized": "Wiki/Projects/Idea.md"
+    },
+    {
+      "path": "Idea.md",
+      "valid": true,
+      "description": "A file in the vault root.",
+      "normalized": "Idea.md"
+    },
+    {
+      "path": "Notes/Inbox/2026-11-26 13-05-22.md",
+      "valid": true,
+      "description": "Spaces and digits are fine.",
+      "normalized": "Notes/Inbox/2026-11-26 13-05-22.md"
+    },
+    {
+      "path": "Wiki/Café/Idée.md",
+      "valid": true,
+      "description": "Non-ASCII letters are fine.",
+      "normalized": "Wiki/Café/Idée.md"
+    },
+    {
+      "path": "A/B/C/D/E.md",
+      "valid": true,
+      "description": "Four folders deep is the limit.",
+      "normalized": "A/B/C/D/E.md"
+    },
+    {
+      "path": "A/B/C/D/F/E.md",
+      "valid": false,
+      "description": "Five folders deep is too deep."
+    },
+    {
+      "path": "",
+      "valid": false,
+      "description": "Empty."
+    },
+    {
+      "path": "   ",
+      "valid": false,
+      "description": "Only spaces."
+    },
+    {
+      "path": "../Secrets.md",
+      "valid": false,
+      "description": "Parent folder."
+    },
+    {
+      "path": "Wiki/../../Secrets.md",
+      "valid": false,
+      "description": "Parent folder in the middle."
+    },
+    {
+      "path": "Wiki/..",
+      "valid": false,
+      "description": "Parent folder at the end."
+    },
+    {
+      "path": "./Idea.md",
+      "valid": false,
+      "description": "Current folder."
+    },
+    {
+      "path": "Wiki/./Idea.md",
+      "valid": false,
+      "description": "Current folder in the middle."
+    },
+    {
+      "path": "/etc/passwd.md",
+      "valid": false,
+      "description": "Absolute path."
+    },
+    {
+      "path": "/Users/me/Idea.md",
+      "valid": false,
+      "description": "Absolute path."
+    },
+    {
+      "path": "~/Idea.md",
+      "valid": false,
+      "description": "Home folder."
+    },
+    {
+      "path": "C:\\Users\\me\\Idea.md",
+      "valid": false,
+      "description": "Windows path."
+    },
+    {
+      "path": "Wiki\\Idea.md",
+      "valid": false,
+      "description": "Backslash."
+    },
+    {
+      "path": "Wiki//Idea.md",
+      "valid": false,
+      "description": "Empty part."
+    },
+    {
+      "path": "Wiki/Idea.md/",
+      "valid": false,
+      "description": "Trailing slash."
+    },
+    {
+      "path": ".hidden/Idea.md",
+      "valid": false,
+      "description": "Hidden folder."
+    },
+    {
+      "path": "Wiki/.Idea.md",
+      "valid": false,
+      "description": "Hidden file."
+    },
+    {
+      "path": ".obsidian/app.md",
+      "valid": false,
+      "description": "The Obsidian settings folder."
+    },
+    {
+      "path": ".git/config.md",
+      "valid": false,
+      "description": "Git's folder."
+    },
+    {
+      "path": "Wiki/Idea.txt",
+      "valid": false,
+      "description": "Not Markdown."
+    },
+    {
+      "path": "Wiki/Idea.MD",
+      "valid": false,
+      "description": "`.md` must be lower case."
+    },
+    {
+      "path": "Wiki/Idea",
+      "valid": false,
+      "description": "No extension."
+    },
+    {
+      "path": "Wiki/.md",
+      "valid": false,
+      "description": "No name before the extension."
+    },
+    {
+      "path": "Wiki/Idea.md.md",
+      "valid": true,
+      "description": "Odd but harmless.",
+      "normalized": "Wiki/Idea.md.md"
+    },
+    {
+      "path": "Wiki/Idea?.md",
+      "valid": false,
+      "description": "Question mark."
+    },
+    {
+      "path": "Wiki/Idea:2.md",
+      "valid": false,
+      "description": "Colon."
+    },
+    {
+      "path": "Wiki/Idea*.md",
+      "valid": false,
+      "description": "Asterisk."
+    },
+    {
+      "path": "Wiki/\"Idea\".md",
+      "valid": false,
+      "description": "Quotes."
+    },
+    {
+      "path": "Wiki/<Idea>.md",
+      "valid": false,
+      "description": "Angle brackets."
+    },
+    {
+      "path": "Wiki/Idea|2.md",
+      "valid": false,
+      "description": "Pipe."
+    },
+    {
+      "path": "Wiki/#Idea.md",
+      "valid": false,
+      "description": "Hash."
+    },
+    {
+      "path": "Wiki/Idea^2.md",
+      "valid": false,
+      "description": "Caret."
+    },
+    {
+      "path": "Wiki/[[Idea]].md",
+      "valid": false,
+      "description": "Wiki link brackets."
+    },
+    {
+      "path": "Wiki/Idea\u0000.md",
+      "valid": false,
+      "description": "NUL character."
+    },
+    {
+      "path": "Wiki/Idea\n.md",
+      "valid": false,
+      "description": "Line break."
+    },
+    {
+      "path": "Wiki/Idea\t.md",
+      "valid": false,
+      "description": "Tab."
+    },
+    {
+      "path": "Wiki/ Idea.md",
+      "valid": false,
+      "description": "Part starts with a space."
+    },
+    {
+      "path": "Wiki /Idea.md",
+      "valid": false,
+      "description": "Part ends with a space."
+    },
+    {
+      "path": "Wiki/Idea .md",
+      "valid": false,
+      "description": "Name ends with a space before the extension."
+    },
+    {
+      "path": "Wiki./Idea.md",
+      "valid": false,
+      "description": "Part ends with a dot."
+    },
+    {
+      "path": "Wiki/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.md",
+      "valid": true,
+      "description": "A name of 80 characters with the extension.",
+      "normalized": "Wiki/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.md"
+    },
+    {
+      "path": "Wiki/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.md",
+      "valid": false,
+      "description": "A part longer than 80 characters."
+    },
+    {
+      "path": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb.md",
+      "valid": false,
+      "description": "The whole path is longer than 240 characters."
+    },
+    {
+      "path": "Wiki/Idea‮.md",
+      "valid": false,
+      "description": "Right-to-left override (a format character)."
+    },
+    {
+      "path": "Wiki/Id​ea.md",
+      "valid": false,
+      "description": "Zero-width space."
+    }
+  ],
+  "folder_paths": [
+    {
+      "path": "Wiki/Projects",
+      "valid": true,
+      "normalized": "Wiki/Projects",
+      "description": "A plain folder."
+    },
+    {
+      "path": "Wiki",
+      "valid": true,
+      "normalized": "Wiki",
+      "description": "One folder."
+    },
+    {
+      "path": "A/B/C/D",
+      "valid": true,
+      "normalized": "A/B/C/D",
+      "description": "Four folders deep."
+    },
+    {
+      "path": "A/B/C/D/E",
+      "valid": false,
+      "description": "Five folders deep."
+    },
+    {
+      "path": "",
+      "valid": false,
+      "description": "Empty."
+    },
+    {
+      "path": "Wiki/Idea.md",
+      "valid": false,
+      "description": "A folder path must not name a file."
+    },
+    {
+      "path": "../x",
+      "valid": false,
+      "description": "Parent folder."
+    },
+    {
+      "path": "/Wiki",
+      "valid": false,
+      "description": "Absolute."
+    },
+    {
+      "path": ".hidden",
+      "valid": false,
+      "description": "Hidden."
+    },
+    {
+      "path": "Wiki/",
+      "valid": false,
+      "description": "Trailing slash."
+    },
+    {
+      "path": "Wiki/Ideas?",
+      "valid": false,
+      "description": "Question mark."
+    }
+  ]
+}

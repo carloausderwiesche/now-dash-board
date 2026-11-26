@@ -1,0 +1,16 @@
+{
+  "description": "A string where a number is expected is an error.",
+  "categories": [
+    "personal",
+    "work",
+    "home"
+  ],
+  "input": {
+    "kind": "task",
+    "title": "x",
+    "confidence": "high"
+  },
+  "expected": {
+    "error": true
+  }
+}

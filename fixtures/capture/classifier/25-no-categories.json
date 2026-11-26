@@ -1,0 +1,22 @@
+{
+  "description": "With no categories the area falls back to personal.",
+  "categories": [],
+  "input": {
+    "kind": "task",
+    "title": "x",
+    "area": "work",
+    "confidence": 0.7
+  },
+  "expected": {
+    "kind": "task",
+    "title": "x",
+    "body": null,
+    "area": "personal",
+    "status": null,
+    "folder": null,
+    "confidence": 0.7,
+    "follow_up": null,
+    "needs_question": false,
+    "question": null
+  }
+}
