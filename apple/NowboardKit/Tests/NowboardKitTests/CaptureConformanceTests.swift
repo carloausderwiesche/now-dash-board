@@ -40,6 +40,9 @@ private let dailyNoteCases = names(in: "daily-note", ending: ".case.json")
     // every test would pass without running. This catches that.
     #expect(classifierCases.count >= 20)
     #expect(dailyNoteCases.count >= 15)
+    #expect(pathCases.count >= 50)
+    #expect(rawCases.count >= 5)
+    #expect(rawTimeZone == "UTC")
 }
 
 @Test(arguments: classifierCases)
@@ -92,6 +95,7 @@ private struct PathCase: Sendable, CustomTestStringConvertible {
     var valid: Bool
     var description: String
     var isFolder: Bool
+    var normalized: String?
     var testDescription: String { "\(isFolder ? "folder" : "file") “\(path.debugDescription)” – \(description)" }
 }
 
@@ -99,7 +103,9 @@ private let pathCases: [PathCase] = {
     guard let object = try? jsonObject("vault-paths.json") else { return [] }
     func cases(_ key: String, folder: Bool) -> [PathCase] {
         (object[key] as? [[String: Any]] ?? []).map {
-            PathCase(path: $0["path"] as! String, valid: $0["valid"] as! Bool, description: $0["description"] as! String, isFolder: folder)
+            PathCase(
+                path: $0["path"] as! String, valid: $0["valid"] as! Bool, description: $0["description"] as! String,
+                isFolder: folder, normalized: $0["normalized"] as? String)
         }
     }
     return cases("file_paths", folder: false) + cases("folder_paths", folder: true)
@@ -109,7 +115,7 @@ private let pathCases: [PathCase] = {
 private func vaultPath(c: PathCase) throws {
     func check() throws(VaultPathError) -> String { c.isFolder ? try VaultPath.folder(c.path) : try VaultPath.file(c.path) }
     if c.valid {
-        #expect((try? check()) == c.path)
+        #expect((try? check()) == (c.normalized ?? c.path))
     } else {
         #expect((try? check()) == nil, "should be refused")
     }
@@ -130,6 +136,7 @@ private struct RawCase: Sendable, CustomTestStringConvertible {
 // Swift note: a global `let` holding `[String: Any]` isn't allowed (`Any` isn't
 // `Sendable`), so the JSON is read inside the initialiser and only Sendable
 // values (`RawCase`, `[String]`) are kept.
+private let rawTimeZone: String = (try? jsonObject("raw-captures.json"))?["time_zone"] as? String ?? ""
 private let refusedTexts: [String] = (try? jsonObject("raw-captures.json"))?["refused_texts"] as? [String] ?? []
 private let rawCases: [RawCase] = ((try? jsonObject("raw-captures.json"))?["cases"] as? [[String: Any]] ?? []).map {
     RawCase(
@@ -153,7 +160,7 @@ private func rawCapture(c: RawCase) throws {
         try "OLD".write(to: dir.appendingPathComponent(name), atomically: true, encoding: .utf8)
     }
     let inbox = CaptureInbox(folder: dir)
-    let utc = try #require(TimeZone(identifier: "UTC"))
+    let utc = try #require(TimeZone(identifier: rawTimeZone))
 
     let name = try inbox.writeRaw(c.text, at: date(c.time), timeZone: utc)
     #expect(name == c.file)

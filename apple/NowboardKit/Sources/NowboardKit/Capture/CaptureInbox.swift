@@ -41,13 +41,13 @@ public struct CaptureInbox: Sendable {
         // Write the whole content to a hidden temporary file first: readers
         // skip names starting with a dot, so nobody sees a half-written capture.
         let tmp = url.appendingPathComponent(".capture-\(UUID().uuidString).tmp")
+        // Registered BEFORE writing, so a half-written temporary file goes away too.
+        defer { unlink(tmp.path) }
         do {
             try Data(content.utf8).write(to: tmp)
         } catch {
             throw .io(error.localizedDescription)
         }
-        // Whatever happens next, the temporary file goes away.
-        defer { unlink(tmp.path) }
 
         var n = 1
         while true {
@@ -59,9 +59,48 @@ public struct CaptureInbox: Sendable {
             if Darwin.link(tmp.path, url.appendingPathComponent(name).path) == 0 {
                 return name
             }
-            guard errno == EEXIST else { throw .io(String(cString: strerror(errno))) }
-            n += 1
+            let code = errno
+            if code == EEXIST {
+                n += 1
+                continue
+            }
+            // Some volumes (exFAT, certain network and cloud folders) have no
+            // hard links. Typed text must never be lost, so there we create
+            // the final file directly, still never replacing anything
+            // (`O_EXCL`). It isn't atomic, but it is complete or removed.
+            if code == ENOTSUP || code == EPERM || code == ENOSYS {
+                switch Self.createExclusively(Data(content.utf8), at: url.appendingPathComponent(name)) {
+                case 0: return name
+                case EEXIST: n += 1
+                case let failure: throw .io(String(cString: strerror(failure)))
+                }
+                continue
+            }
+            throw .io(String(cString: strerror(code)))
         }
+    }
+
+    /// Creates a file that must not exist yet and writes `data` into it.
+    /// Returns 0 or an error number (`EEXIST` if the name is taken). A file
+    /// that was created but couldn't be written completely is removed again.
+    ///
+    /// Swift note: `open`, `write` and `close` are the plain C system calls;
+    /// they report failure with -1 and leave the reason in `errno`.
+    static func createExclusively(_ data: Data, at file: URL) -> Int32 {
+        let fd = open(file.path, O_WRONLY | O_CREAT | O_EXCL, 0o644)
+        guard fd >= 0 else { return errno }
+        var written = 0
+        var failure: Int32 = 0
+        data.withUnsafeBytes { buffer in
+            while written < buffer.count {
+                let n = write(fd, buffer.baseAddress! + written, buffer.count - written)
+                if n < 0 { failure = errno; return }
+                written += n
+            }
+        }
+        if close(fd) != 0 && failure == 0 { failure = errno }
+        if failure != 0 { unlink(file.path) }
+        return failure
     }
 
     /// `2026-11-26 13-05-22` (no colons: some systems can't have them in file names).

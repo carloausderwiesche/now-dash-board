@@ -80,7 +80,11 @@ public enum VaultPath {
             if part.hasPrefix(".") { throw .badPart(part, why: "hidden names are not allowed") }
             if part.unicodeScalars.count > maxPartLength { throw .tooLong }
             for scalar in part.unicodeScalars {
-                if forbidden.contains(scalar) || scalar.properties.generalCategory == .control {
+                // Control characters (line breaks, NUL) and "format" ones
+                // (right-to-left overrides, zero-width spaces), which can make
+                // a name look like something else.
+                let category = scalar.properties.generalCategory
+                if forbidden.contains(scalar) || category == .control || category == .format {
                     throw .badPart(part, why: "it has a character that can break file names")
                 }
             }
@@ -116,18 +120,41 @@ public enum VaultPath {
     private static func locate(_ path: String, in vault: URL) throws(VaultPathError) -> URL {
         let root = vault.resolvingSymlinksInPath().standardizedFileURL
         let target = root.appendingPathComponent(path)
-        // Walk up to the nearest part that exists, resolve its links, and
-        // put the not-yet-existing rest back on.
-        var existing = target
+        let real = realLocation(of: target, linksLeft: 20)
+        // Compare with a trailing slash so `/vault2` doesn't count as inside `/vault`.
+        guard let real, (real.path + "/").hasPrefix(root.path + "/") else { throw .escapesVault }
+        return target
+    }
+
+    /// Where `url` really is once every symbolic link on the way is followed,
+    /// including links that point at something that doesn't exist (yet):
+    /// writing to such a link would create the file at its target. Nil if
+    /// there are too many links in a row (a loop).
+    ///
+    /// `attributesOfItem` looks at the link itself and doesn't follow it,
+    /// unlike `fileExists`, which would call a dangling link "not there".
+    private static func realLocation(of url: URL, linksLeft: Int) -> URL? {
+        let fm = FileManager.default
+        // Walk up to the nearest part that exists (a link counts as existing).
+        var existing = url
         var rest: [String] = []
-        while !FileManager.default.fileExists(atPath: existing.path), existing.path != root.path, existing.path != "/" {
+        while (try? fm.attributesOfItem(atPath: existing.path)) == nil, existing.path != "/" {
             rest.insert(existing.lastPathComponent, at: 0)
             existing.deleteLastPathComponent()
         }
-        var real = existing.resolvingSymlinksInPath().standardizedFileURL
-        for part in rest { real.appendPathComponent(part) }
-        // Compare with a trailing slash so `/vault2` doesn't count as inside `/vault`.
-        guard (real.path + "/").hasPrefix(root.path + "/") else { throw .escapesVault }
-        return target
+        var base: URL
+        if let destination = try? fm.destinationOfSymbolicLink(atPath: existing.path) {
+            guard linksLeft > 0 else { return nil }
+            // A relative link starts from the folder that holds the link.
+            let next = destination.hasPrefix("/")
+                ? URL(fileURLWithPath: destination)
+                : existing.deletingLastPathComponent().appendingPathComponent(destination)
+            guard let followed = realLocation(of: next.standardizedFileURL, linksLeft: linksLeft - 1) else { return nil }
+            base = followed
+        } else {
+            base = existing.resolvingSymlinksInPath().standardizedFileURL
+        }
+        for part in rest { base.appendPathComponent(part) }
+        return base
     }
 }

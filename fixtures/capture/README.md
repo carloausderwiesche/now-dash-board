@@ -34,4 +34,4 @@ A case is a group of files sharing a name like `01-heading-at-end`:
 
 ## `raw-captures.json`
 
-Cases for the raw capture file: the typed `text`, the local `time` (read in the file's `time_zone`), the file names that `existing` in the Inbox, and the `file` name and `content` that must be written. `refused_texts` must be refused and write nothing.
+Cases for the raw capture file: the typed `text`, the `time` (local time in the file's `time_zone`), the file names that `existing` in the Inbox, and the `file` name and `content` that must be written. `refused_texts` must be refused and write nothing.

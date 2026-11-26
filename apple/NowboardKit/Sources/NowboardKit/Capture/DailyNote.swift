@@ -12,6 +12,9 @@ public enum DailyNote {
 
     /// `text` with `line` added under the Captured heading (spec 6). Nothing
     /// else in `text` changes, except that a missing final line break is added.
+    ///
+    /// `line` is added exactly as given, so pass a list item (`- 13:05 text`).
+    /// A line that starts with `#` would be a heading and end the section.
     public static func appendingCaptured(_ line: String, to text: String) -> String {
         let item = line.asOneLine
         guard !item.isEmpty else { return text }
@@ -92,23 +95,36 @@ public enum DailyNote {
     private static func headingCandidates(in lines: [Line]) -> [Bool] {
         var result = [Bool](repeating: true, count: lines.count)
         var start = 0
-        // Frontmatter: `---` on the first line up to the next line starting with `---`.
+        // Frontmatter: a first line `---`, up to the next line that is exactly `---`.
         if let first = lines.first, first.body.trimmingCharacters(in: .whitespaces) == "---",
-            let close = (1..<lines.count).first(where: { lines[$0].body.hasPrefix("---") }) {
+            let close = (1..<lines.count).first(where: { lines[$0].body.trimmingCharacters(in: .whitespaces) == "---" }) {
             for i in 0...close { result[i] = false }
             start = close + 1
         }
-        // Fenced code blocks: a line starting with ``` or ~~~ opens one, the same marker closes it.
-        var fence: Character? = nil
+        // Fenced code blocks, the CommonMark way: up to 3 spaces, then 3 or
+        // more backticks (or tildes). A backtick fence's first line can't have
+        // another backtick after it (that's inline code like ```x```). It
+        // closes at a line of only the same character, at least as long.
+        var open: (marker: Character, length: Int)? = nil
         for i in start..<lines.count {
-            let body = lines[i].body.drop { $0 == " " }  // a fence may be indented a little
-            let marker: Character? = body.hasPrefix("```") ? "`" : body.hasPrefix("~~~") ? "~" : nil
-            if let open = fence {
+            let body = lines[i].body
+            let indent = body.prefix { $0 == " " }.count
+            let rest = body.dropFirst(indent)
+            let marker = rest.first
+            let run = rest.prefix { $0 == marker }.count
+            let isFenceLine = indent <= 3 && (marker == "`" || marker == "~") && run >= 3
+            if let current = open {
                 result[i] = false
-                if marker == open { fence = nil }
-            } else if let marker {
+                let after = rest.dropFirst(run)
+                if isFenceLine, marker == current.marker, run >= current.length,
+                    after.allSatisfy({ $0 == " " || $0 == "\t" }) {
+                    open = nil
+                }
+            } else if isFenceLine, let marker {
+                let info = rest.dropFirst(run)
+                if marker == "`" && info.contains("`") { continue }  // inline code, not a fence
                 result[i] = false
-                fence = marker
+                open = (marker, run)
             }
         }
         return result

@@ -109,13 +109,16 @@ public enum CaptureSchema {
 
 /// The folder tree of a vault, as a small indented list (spec 7).
 public enum VaultMap {
+    /// Characters kept free for the "… and N more folders" line.
+    private static let noticeRoom = 32
+
     /// The vault's folders as paths relative to it (`Wiki/Projects`). Hidden
     /// folders (`.obsidian`, `.git`) and links to other places are skipped,
     /// and it stops `maxDepth` levels down.
-    public static func scan(vault: URL, maxDepth: Int = CapturePrompt.Limits.vaultMapDepth) -> [String] {
+    public static func scan(vault: URL, maxDepth: Int = CapturePrompt.Limits.vaultMapDepth, maxFolders: Int = 5000) -> [String] {
         var found: [String] = []
         func walk(_ folder: URL, prefix: String, depth: Int) {
-            guard depth < maxDepth,
+            guard depth < maxDepth, found.count < maxFolders,
                 let entries = try? FileManager.default.contentsOfDirectory(
                     at: folder, includingPropertiesForKeys: [.isDirectoryKey, .isSymbolicLinkKey],
                     options: [.skipsHiddenFiles])
@@ -143,11 +146,19 @@ public enum VaultMap {
         // (case-insensitive) so a folder is followed by its own children.
         let paths = folders
             .map { $0.split(separator: "/").map(String.init) }
-            .filter { !$0.isEmpty && $0.count <= maxDepth && !$0.contains { $0.hasPrefix(".") } }
+            .filter { parts in
+                !parts.isEmpty && parts.count <= maxDepth
+                    // No hidden folders, and no names with line breaks: a folder
+                    // name must not be able to add lines to the prompt.
+                    && !parts.contains { $0.hasPrefix(".") || $0.unicodeScalars.contains { $0.properties.generalCategory == .control } }
+            }
+            // Lower case, then exact: the same order on every device (the
+            // "localized" comparisons depend on the phone's language).
             .sorted { a, b in
                 for (x, y) in zip(a, b) {
-                    let order = x.localizedCaseInsensitiveCompare(y)
-                    if order != .orderedSame { return order == .orderedAscending }
+                    let (lx, ly) = (x.lowercased(), y.lowercased())
+                    if lx != ly { return lx < ly }
+                    if x != y { return x < y }
                 }
                 return a.count < b.count
             }
@@ -162,16 +173,22 @@ public enum VaultMap {
                 }
             }
         }
-        // Take lines while they fit.
-        var shown: [String] = []
-        var size = 0
-        for line in lines {
-            // +1 for the line break.
-            if shown.count >= maxFolders || size + line.count + 1 > maxCharacters { break }
-            shown.append(line)
-            size += line.count + 1
+        // Take lines while they fit. If something has to be cut, keep room for
+        // the "… and N more folders" line, so the whole map stays within the limit.
+        func take(budget: Int) -> [String] {
+            var shown: [String] = []
+            var size = 0
+            for line in lines {
+                // +1 for the line break.
+                if shown.count >= maxFolders || size + line.count + 1 > budget { break }
+                shown.append(line)
+                size += line.count + 1
+            }
+            return shown
         }
+        var shown = take(budget: maxCharacters)
         if shown.count < lines.count {
+            shown = take(budget: maxCharacters - noticeRoom)
             shown.append("… and \(lines.count - shown.count) more folders")
         }
         return shown.joined(separator: "\n")

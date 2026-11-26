@@ -246,6 +246,16 @@
       "path": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb.md",
       "valid": false,
       "description": "The whole path is longer than 240 characters."
+    },
+    {
+      "path": "Wiki/Idea‮.md",
+      "valid": false,
+      "description": "Right-to-left override (a format character)."
+    },
+    {
+      "path": "Wiki/Id​ea.md",
+      "valid": false,
+      "description": "Zero-width space."
     }
   ],
   "folder_paths": [

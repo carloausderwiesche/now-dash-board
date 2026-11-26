@@ -96,21 +96,21 @@ A path from the classifier is **untrusted text**. Before a file or folder is cre
 3. Every part is a plain name:
    - not empty (no `//`, no trailing `/`), not `.`, not `..`;
    - doesn't start with `.` (hidden files and folders, `.obsidian`, `.git`, `.nowboard.json`);
-   - has none of `/ \ : * ? " < > | # ^ [ ]` and no control characters (the characters task titles lose, task format 4.1);
+   - has none of `/ \ : * ? " < > | # ^ [ ]` and no control or invisible formatting characters (right-to-left overrides, zero-width spaces); the characters task titles lose (task format 4.1) are the same;
    - doesn't start or end with whitespace, and doesn't end with `.`;
    - is at most **80** Unicode scalars long.
 4. At most **4** folders deep (the file name doesn't count).
 5. A file path ends in `.md` (lower case) and has a name before it that doesn't end in whitespace or a dot; a folder path is just folders (no `.md` file).
 6. The path as a whole is at most 240 Unicode scalars.
 
-When it's turned into a real location, the result **must** also lie inside the vault after symbolic links are resolved. A path that fails any check is refused, never "repaired".
+When it's turned into a real location, the result **must** also lie inside the vault after symbolic links are resolved. A link that points at something that doesn't exist yet counts too: writing to it would create the file at its target. A path that fails any check is refused, never "repaired".
 
 ## 6. The daily note: "Captured" section
 
 A daily note can list captures under a `## Captured` heading. Adding a line is a pure text transformation: **current note text + line → new note text.**
 
-1. The line is made into one line (as for titles in 4.2). If nothing is left, the text is returned unchanged.
-2. If the text has a heading line that is exactly `## Captured` (trailing spaces allowed): the line is added at the **end of that section**, after the section's last non-blank line and before the blank lines that separate it from the next heading. The section ends at the next heading of level 1 or 2 (`# ` or `## `) or the end of the text. Headings inside a fenced code block (``` or ~~~) or inside frontmatter don't count. If there are several, the first one is used.
+1. The line is made into one line (as for titles in 4.2). If nothing is left, the text is returned unchanged. It is added exactly as given, so the caller passes a list item such as `- 13:05 call the dentist`; a line that starts with `#` would be a heading and end the section.
+2. If the text has a heading line that is exactly `## Captured` (trailing spaces allowed): the line is added at the **end of that section**, after the section's last non-blank line and before the blank lines that separate it from the next heading. The section ends at the next heading of level 1 or 2 (`# ` or `## `) or the end of the text. Headings inside a fenced code block (the CommonMark way: up to 3 spaces, 3 or more backticks or tildes; a closing fence is the same character, at least as long, with nothing after it; ```x``` on one line is inline code, not a fence) or inside frontmatter (up to a line that is exactly `---`) don't count. If there are several, the first one is used.
 3. If there is no such heading: a blank line (unless the text is empty or already ends with one), `## Captured`, then the line, are added at the end.
 4. The new line is always followed by a line break, and a text that ended without one gets it when the new line goes at the very end. Everything added uses the line break the text already uses (`\n` or `\r\n`; `\n` if it has none).
 5. **No other text changes.** Text typed mid-sentence at the end of a note, with no final line break, only gets the line break it was missing.
@@ -122,7 +122,7 @@ The prompt that asks the classifier is built from: the capture text, today's dat
 | Part | Limit |
 |---|---|
 | Capture text | 4000 characters (the raw file keeps everything) |
-| Vault map | 3000 characters, 150 folders, 4 levels deep; hidden folders are left out; a line says how many folders were cut |
+| Vault map | 3000 characters, 150 folders, 4 levels deep; hidden folders are left out; a line says how many folders were cut (inside the limit); folders are sorted by lower-case name, the same on every device |
 | Vault guide | 4000 characters |
 
 Cut text ends with a marker saying how much was cut. The capture text and the guide are given to the classifier as data between tags, and the prompt says it must not follow instructions found in them. A closing tag typed inside them is defused so it can't end the block early.
