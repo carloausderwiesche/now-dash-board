@@ -66,3 +66,28 @@
         #expect(store.lists.today.map(\.id) == ["Call Mia.md"])
     }
 #endif
+
+#if os(macOS)
+    // MARK: - The window's buttons
+
+    /// The three round buttons are hidden, but the window can still be closed, minimised and zoomed
+    /// (⌘W, ⌘M, Control-⌘-F work on these abilities).
+    @MainActor @Test func theWindowButtonsAreHiddenButTheWindowKeepsItsAbilities() async throws {
+        let window = NSWindow(
+            contentRect: NSRect(x: 0, y: 0, width: 400, height: 300),
+            styleMask: [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView], backing: .buffered, defer: false)
+        window.contentView = NSHostingView(rootView: Color.clear.background(HideWindowButtons()))
+        window.orderFront(nil)
+        defer { window.close() }
+        try await Task.sleep(for: .milliseconds(200))
+        for kind in [NSWindow.ButtonType.closeButton, .miniaturizeButton, .zoomButton] {
+            #expect(window.standardWindowButton(kind)?.isHidden == true)
+        }
+        #expect(window.styleMask.contains(.closable) && window.styleMask.contains(.miniaturizable) && window.styleMask.contains(.resizable))
+        // AppKit shows them again: they are hidden again when the window next becomes key.
+        window.standardWindowButton(.closeButton)?.isHidden = false
+        NotificationCenter.default.post(name: NSWindow.didResizeNotification, object: window)
+        try await Task.sleep(for: .milliseconds(100))
+        #expect(window.standardWindowButton(.closeButton)?.isHidden == true)
+    }
+#endif

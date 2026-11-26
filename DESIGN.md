@@ -34,7 +34,7 @@ The Mac app opens a **Dashboard** instead of the bare board ([ADR 0017](docs/adr
 
 | Area | Decision |
 |---|---|
-| Window | Opens at 1728 × 1117, landscape, no title bar. Only the task lists and the Inbox list scroll; the header and the capture bar are fixed. |
+| Window | Opens at 1728 × 1117, landscape, no title bar and **no round window buttons** (they are hidden; ⌘W, ⌘M, ⌘Q and Control-⌘-F still work, and the strip at the top still drags the window). Only the task lists and the Inbox list scroll; the header and the capture bar are fixed. |
 | Header | The day number (72px) with weekday and month, and on the right a page switch (Dashboard, Tasks, Inbox), the category dots and settings. The Inbox tab has a small badge with the number of captures waiting for an answer. |
 | Dashboard page | Left, scrolling: Today (the board's cards, no drag and drop here), Suggested as rows with **Today** and **Dismiss** (Dismiss deletes with Undo, as on the board), and a small "done today" pill (finished cards fly to it). The right column slot is empty and hidden. |
 | Tasks page | The board as it is: Today, Backlog, Done, drag and drop, panel, card menu. A three-column variant (Today, Suggested, Backlog) is possible later. |

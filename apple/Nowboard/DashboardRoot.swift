@@ -58,6 +58,8 @@
                 CaptureBar(center: center, unavailable: unavailableMessage, page: page, sessionRunning: focus.session.isRunning)
             }
             .background(theme.bg.ignoresSafeArea())
+            // No round window buttons: the dashboard is one window that fills the top (WindowChrome.swift).
+            .background(HideWindowButtons())
             .foregroundStyle(theme.ink)
             .tint(theme.accent)
             .preferredColorScheme(theme.colorScheme)
@@ -178,7 +180,7 @@
                 // The settings popover opens under this.
                 .onGeometryChange(for: CGRect.self) { $0.frame(in: .named(rootSpace)) } action: { store.settingsAnchor = $0 }
             }
-            // 34pt on top leave room for the window buttons (there is no title bar).
+            // The window buttons are hidden; the 34pt on top is the strip that still drags the window.
             .padding(.top, 34)
             .padding(.horizontal, 48)
             .padding(.bottom, 14)
