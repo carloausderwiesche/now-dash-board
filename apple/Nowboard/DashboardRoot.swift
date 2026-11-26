@@ -1,5 +1,5 @@
 // The Mac app's window: a Dashboard (DESIGN.md, "Dashboard"). A header with
-// the day and a live clock, a switch between three pages, and the capture bar
+// the day, a switch between three pages, and the capture bar
 // pinned at the bottom of every page. Only the task lists and the Inbox list
 // scroll; everything else stays where it is.
 //
@@ -132,7 +132,7 @@
 
     // MARK: - Header
 
-    /// The day number with weekday and month, a live clock, and on the right the page switch.
+    /// The day number with weekday and month, and on the right the page switch.
     struct DashboardHeader: View {
         @Environment(BoardStore.self) private var store
         @Binding var page: DashboardPage
@@ -156,21 +156,6 @@
                     }
                     .font(theme.font(15))
                     .lineLimit(1)
-                }
-                .fixedSize()
-                // The clock. TimelineView redraws it every second; tabular digits keep it from jiggling.
-                TimelineView(.periodic(from: .now, by: 1)) { context in
-                    HStack(alignment: .lastTextBaseline, spacing: 6) {
-                        Text(context.date, format: .dateTime.hour().minute())
-                            .font(theme.font(56, .light))
-                            .monospacedDigit()
-                        Text(context.date, format: .dateTime.second(.twoDigits))
-                            .font(theme.font(20, .regular))
-                            .foregroundStyle(theme.muted)
-                            .monospacedDigit()
-                    }
-                    .lineLimit(1)
-                    .accessibilityLabel(Text(context.date, format: .dateTime.hour().minute()))
                 }
                 .fixedSize()
                 Spacer(minLength: 0)

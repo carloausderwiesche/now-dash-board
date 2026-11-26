@@ -9,7 +9,7 @@ The board answers one question, *what am I doing today?*, in one column with not
 
 ## Decision
 
-On macOS the app opens a **Dashboard** window ([DESIGN.md, "Dashboard"](../../DESIGN.md)): a header with the day and a live clock, a switch between three pages (Dashboard, Tasks, Inbox), and a capture bar pinned to the bottom of every page. The Tasks page is the existing board, unchanged. The iPhone app keeps the board as its one screen, and the Tauri app is not touched.
+On macOS the app opens a **Dashboard** window ([DESIGN.md, "Dashboard"](../../DESIGN.md)): a header with the day, a switch between three pages (Dashboard, Tasks, Inbox), and a capture bar pinned to the bottom of every page. The Tasks page is the existing board, unchanged. The iPhone app keeps the board as its one screen, and the Tauri app is not touched.
 
 This drops the one-column rule (principle 3) and bends the no-clutter rule (principle 2) **for the Mac Dashboard only**, on purpose, with these limits kept: the themes' colours, fonts and radii only, colour means category, short animations, and nothing that isn't built yet: no placeholder boxes. The right-hand column of the Dashboard page appears only once a box is registered.
 
