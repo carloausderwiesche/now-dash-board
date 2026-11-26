@@ -1,7 +1,7 @@
 # 0017. The Mac app opens a Dashboard that drops the board's one-column rules
 
 - **Date:** 2026-11-26
-- **Status:** Proposed
+- **Status:** Accepted
 
 ## Context
 

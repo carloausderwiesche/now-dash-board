@@ -1,7 +1,7 @@
 # 0016. Notes are filed by the app and appended to the daily note
 
 - **Date:** 2026-11-26
-- **Status:** Proposed
+- **Status:** Accepted
 
 ## Context
 

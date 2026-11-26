@@ -1,7 +1,7 @@
 # 0015. Classify captures with the `claude` command-line tool
 
 - **Date:** 2026-11-26
-- **Status:** Proposed
+- **Status:** Accepted
 
 ## Context
 
