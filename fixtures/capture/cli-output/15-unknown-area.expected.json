@@ -1,0 +1,11 @@
+{
+  "kind": "task",
+  "title": "Call the dentist",
+  "confidence": 0.93,
+  "cost": 0.01238,
+  "input_tokens": 2,
+  "output_tokens": 52,
+  "duration_ms": 1160,
+  "area": "personal",
+  "description": "An area that isn't a category falls back to the first (personal)."
+}

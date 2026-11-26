@@ -1,0 +1,5 @@
+{
+  "error": "unreadableOutput",
+  "message_contains": "I'm sorry",
+  "description": "Plain text instead of JSON is unreadable."
+}

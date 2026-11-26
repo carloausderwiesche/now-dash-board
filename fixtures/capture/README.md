@@ -18,6 +18,10 @@ One JSON file per case. Fields:
 | `input_text` | Instead of `input`: the answer as raw text (for text that isn't JSON). |
 | `expected` | `{"error": true}` if reading must fail. Otherwise the result: `kind`, `title`, `body`, `area`, `status`, `folder`, `confidence`, `follow_up` (`null` when missing), `needs_question` (is the person asked?) and `question` (what is asked, or `null`). |
 
+## `cli-output/`
+
+What the claude tool printed, and what reading it must give. `NN-name.stdout` is the raw output (it may be broken on purpose); `NN-name.expected.json` has `description` and either `error` (a `ClassifierError` case: `cliReportedError`, `noStructuredOutput`, `invalidResult`, `unreadableOutput`) with an optional `message_contains`, or the result: `kind`, `title`, `confidence`, optional `area`, and the diagnostics `cost`, `input_tokens`, `output_tokens`, `duration_ms` (`null` when the output has none). Categories are always `personal`, `work`.
+
 ## `daily-note/`
 
 A case is a group of files sharing a name like `01-heading-at-end`:

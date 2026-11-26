@@ -1,0 +1,5 @@
+{
+  "error": "unreadableOutput",
+  "message_contains": "nothing",
+  "description": "No output at all is unreadable."
+}

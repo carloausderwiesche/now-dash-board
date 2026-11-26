@@ -40,4 +40,6 @@ ADRs aren't edited after they're accepted, except for their status. To change a 
 | [0010](0010-delete-with-undo.md) | The SwiftUI app deletes at once and offers Undo, instead of asking first | Accepted |
 | [0011](0011-categories-in-the-tasks-folder.md) | Categories live in `.nowboard.json` in the Tasks folder | Accepted |
 | [0012](0012-swiftui-card-menu.md) | The SwiftUI card menu is drawn by the app on the Mac and native on the iPhone | Accepted |
+| [0013](0013-focus-live-activity.md) | The focus card as a Live Activity | Accepted |
+| [0014](0014-markdown-notes-with-markdownui.md) | The SwiftUI app shows notes as Markdown with MarkdownUI | Accepted |
 | [0015](0015-classify-captures-with-claude-cli.md) | Captures are classified by the `claude` command-line tool, with a local Ollama model as fallback | Proposed |

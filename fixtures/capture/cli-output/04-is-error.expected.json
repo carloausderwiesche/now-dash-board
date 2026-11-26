@@ -1,0 +1,5 @@
+{
+  "error": "cliReportedError",
+  "message_contains": "Credit balance is too low",
+  "description": "is_error true: the tool's own text is the message."
+}

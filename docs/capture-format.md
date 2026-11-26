@@ -102,8 +102,10 @@ A path from the classifier is **untrusted text**. Before a file or folder is cre
 4. At most **4** folders deep (the file name doesn't count).
 5. A file path ends in `.md` (lower case) and has a name before it that doesn't end in whitespace or a dot; a folder path is just folders (no `.md` file).
 6. The path as a whole is at most 240 Unicode scalars.
+7. **Never in the Tasks folder.** A path in `Notes/Tasks` (or inside it) is refused, whatever the capitals (`notes/tasks` is the same folder on a Mac): every `.md` file there is a task (task format 1), so a note filed there would silently become one. A program whose Tasks folder is somewhere else passes its own folder.
 
 When it's turned into a real location, the result **must** also lie inside the vault after symbolic links are resolved. A link that points at something that doesn't exist yet counts too: writing to it would create the file at its target. A path that fails any check is refused, never "repaired".
+
 
 ## 6. The daily note: "Captured" section
 
@@ -128,3 +130,32 @@ The prompt that asks the classifier is built from: the capture text, today's dat
 Cut text ends with a marker saying how much was cut. The capture text and the guide are given to the classifier as data between tags, and the prompt says it must not follow instructions found in them. A closing tag typed inside them is defused so it can't end the block early.
 
 The result schema is the JSON schema for the object in 4.1, with `area` limited to the category ids.
+
+## 8. Running the classifier
+
+The classifier is the `claude` command-line tool ([ADR 0015](adr/0015-classify-captures-with-claude-cli.md)). Flags: <https://code.claude.com/docs/en/headless> and <https://code.claude.com/docs/en/cli-reference>.
+
+**The call.** One argument per list entry (no shell, so nothing typed in a capture can add a flag), in this order:
+
+```
+-p <prompt> --output-format json --json-schema <schema, one compact line>
+--no-session-persistence --tools "" --safe-mode
+```
+
+No `--bare` (it skips the subscription login) and no `--model` (the tool's default model). It runs in a new empty folder that is deleted afterwards, with nothing on its standard input, and is stopped after 60 seconds.
+
+**The answer.** The output is one JSON object, or a list of them; then the last entry with `"type": "result"` counts.
+
+| Output | Result |
+|---|---|
+| Not JSON, cut off, an empty or unrelated list | error: unreadable output (the start of it is shown) |
+| `is_error` is true | error: the tool's `result` text (or its `subtype` if there is none) |
+| No `structured_output`, or `null` | error: no result |
+| `structured_output` fails the checks in 4.2 | error: invalid result, with the reason |
+| Otherwise | the `CaptureResult` |
+
+`total_cost_usd`, `usage` and `duration_ms` are read when present, for display only. An exit code other than 0 is an error even if the output looks fine; if the output says why (`is_error`), that message is shown, otherwise the exit code and the start of the error text. A timeout and a missing tool are their own errors.
+
+**Finding the tool.** A Mac app started from the Dock doesn't have a Terminal's PATH, so, in this order: the path in the device settings (`claudePath`); `~/.local/bin/claude`, `~/.claude/local/claude`, `/opt/homebrew/bin/claude`, `/usr/local/bin/claude`; the answer of `/bin/zsh -lc 'command -v claude'`.
+
+**The schema works with the tool.** Real runs (ADR 0015) accepted it as it is: `enum` lists, `required`, `additionalProperties: false`, and the answer came back in `structured_output`.
