@@ -189,7 +189,7 @@ private func classifier(_ runner: FakeRunner, found: Bool = true, timeout: Durat
     #expect(seen.get()?.totalCostUSD == 0.5)
 }
 
-private final class Locked<T: Sendable>: @unchecked Sendable {
+final class Locked<T: Sendable>: @unchecked Sendable {
     private let lock = NSLock()
     private var value: T
     init(_ value: T) { self.value = value }
