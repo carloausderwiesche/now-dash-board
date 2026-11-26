@@ -1,0 +1,12 @@
+{
+  "description": "Text that isn't JSON is an error.",
+  "categories": [
+    "personal",
+    "work",
+    "home"
+  ],
+  "input_text": "Sure! Here is the result:",
+  "expected": {
+    "error": true
+  }
+}

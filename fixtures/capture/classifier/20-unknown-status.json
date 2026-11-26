@@ -1,0 +1,17 @@
+{
+  "description": "An unknown status is an error.",
+  "categories": [
+    "personal",
+    "work",
+    "home"
+  ],
+  "input": {
+    "kind": "task",
+    "title": "x",
+    "status": "tomorrow",
+    "confidence": 0.9
+  },
+  "expected": {
+    "error": true
+  }
+}

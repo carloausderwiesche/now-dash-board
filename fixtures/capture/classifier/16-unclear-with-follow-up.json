@@ -1,0 +1,26 @@
+{
+  "description": "kind unclear is always asked about, with the classifier's own question.",
+  "categories": [
+    "personal",
+    "work",
+    "home"
+  ],
+  "input": {
+    "kind": "unclear",
+    "title": "dentist?",
+    "confidence": 0.3,
+    "follow_up": "Do you want to book an appointment?"
+  },
+  "expected": {
+    "kind": "unclear",
+    "title": "dentist?",
+    "body": null,
+    "area": "personal",
+    "status": null,
+    "folder": null,
+    "confidence": 0.3,
+    "follow_up": "Do you want to book an appointment?",
+    "needs_question": true,
+    "question": "Do you want to book an appointment?"
+  }
+}

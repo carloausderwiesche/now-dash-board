@@ -1,0 +1,19 @@
+{
+  "description": "An optional field with the wrong type is an error, not ignored.",
+  "categories": [
+    "personal",
+    "work",
+    "home"
+  ],
+  "input": {
+    "kind": "task",
+    "title": "x",
+    "folder": [
+      "a"
+    ],
+    "confidence": 0.7
+  },
+  "expected": {
+    "error": true
+  }
+}

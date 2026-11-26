@@ -1,0 +1,16 @@
+{
+  "description": "A title of only whitespace counts as missing.",
+  "categories": [
+    "personal",
+    "work",
+    "home"
+  ],
+  "input": {
+    "kind": "task",
+    "title": "   ",
+    "confidence": 0.9
+  },
+  "expected": {
+    "error": true
+  }
+}

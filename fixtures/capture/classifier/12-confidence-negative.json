@@ -1,0 +1,16 @@
+{
+  "description": "confidence below 0 is an error.",
+  "categories": [
+    "personal",
+    "work",
+    "home"
+  ],
+  "input": {
+    "kind": "task",
+    "title": "x",
+    "confidence": -0.1
+  },
+  "expected": {
+    "error": true
+  }
+}

@@ -1,0 +1,16 @@
+{
+  "description": "An unknown kind is an error.",
+  "categories": [
+    "personal",
+    "work",
+    "home"
+  ],
+  "input": {
+    "kind": "reminder",
+    "title": "x",
+    "confidence": 0.9
+  },
+  "expected": {
+    "error": true
+  }
+}

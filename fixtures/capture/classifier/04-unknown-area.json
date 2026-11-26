@@ -1,0 +1,26 @@
+{
+  "description": "An area that isn't a category id becomes the first category.",
+  "categories": [
+    "personal",
+    "work",
+    "home"
+  ],
+  "input": {
+    "kind": "task",
+    "title": "Buy milk",
+    "area": "errands",
+    "confidence": 0.8
+  },
+  "expected": {
+    "kind": "task",
+    "title": "Buy milk",
+    "body": null,
+    "area": "personal",
+    "status": null,
+    "folder": null,
+    "confidence": 0.8,
+    "follow_up": null,
+    "needs_question": false,
+    "question": null
+  }
+}

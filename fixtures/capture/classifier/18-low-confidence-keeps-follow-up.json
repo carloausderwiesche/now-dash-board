@@ -1,0 +1,26 @@
+{
+  "description": "A low-confidence note that has a follow_up asks that question.",
+  "categories": [
+    "personal",
+    "work",
+    "home"
+  ],
+  "input": {
+    "kind": "note",
+    "title": "Maybe",
+    "confidence": 0.5,
+    "follow_up": "Task or note?"
+  },
+  "expected": {
+    "kind": "note",
+    "title": "Maybe",
+    "body": null,
+    "area": "personal",
+    "status": null,
+    "folder": null,
+    "confidence": 0.5,
+    "follow_up": "Task or note?",
+    "needs_question": true,
+    "question": "Task or note?"
+  }
+}

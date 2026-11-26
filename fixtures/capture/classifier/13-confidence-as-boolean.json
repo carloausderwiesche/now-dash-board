@@ -1,0 +1,16 @@
+{
+  "description": "A boolean is not a number.",
+  "categories": [
+    "personal",
+    "work",
+    "home"
+  ],
+  "input": {
+    "kind": "task",
+    "title": "x",
+    "confidence": true
+  },
+  "expected": {
+    "error": true
+  }
+}

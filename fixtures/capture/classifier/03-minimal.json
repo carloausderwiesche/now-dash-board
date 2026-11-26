@@ -1,0 +1,25 @@
+{
+  "description": "Only kind, title and confidence are required; area falls back to the first category.",
+  "categories": [
+    "personal",
+    "work",
+    "home"
+  ],
+  "input": {
+    "kind": "question",
+    "title": "Capital of Peru",
+    "confidence": 0.9
+  },
+  "expected": {
+    "kind": "question",
+    "title": "Capital of Peru",
+    "body": null,
+    "area": "personal",
+    "status": null,
+    "folder": null,
+    "confidence": 0.9,
+    "follow_up": null,
+    "needs_question": false,
+    "question": null
+  }
+}

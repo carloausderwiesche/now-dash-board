@@ -1,0 +1,16 @@
+{
+  "description": "A JSON list is an error.",
+  "categories": [
+    "personal",
+    "work",
+    "home"
+  ],
+  "input": [
+    {
+      "kind": "task"
+    }
+  ],
+  "expected": {
+    "error": true
+  }
+}

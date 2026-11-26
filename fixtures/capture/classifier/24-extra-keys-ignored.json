@@ -1,0 +1,29 @@
+{
+  "description": "Keys we don't know are ignored.",
+  "categories": [
+    "personal",
+    "work",
+    "home"
+  ],
+  "input": {
+    "kind": "task",
+    "title": "x",
+    "confidence": 0.7,
+    "reasoning": "because",
+    "tags": [
+      "a"
+    ]
+  },
+  "expected": {
+    "kind": "task",
+    "title": "x",
+    "body": null,
+    "area": "personal",
+    "status": null,
+    "folder": null,
+    "confidence": 0.7,
+    "follow_up": null,
+    "needs_question": false,
+    "question": null
+  }
+}

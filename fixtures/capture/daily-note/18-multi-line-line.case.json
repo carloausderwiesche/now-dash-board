@@ -1,0 +1,4 @@
+{
+  "description": "A line with line breaks is made into one line.",
+  "line": "- 13:05 first\nsecond\r\nthird"
+}

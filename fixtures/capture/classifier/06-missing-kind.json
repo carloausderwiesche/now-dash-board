@@ -1,0 +1,15 @@
+{
+  "description": "kind is required.",
+  "categories": [
+    "personal",
+    "work",
+    "home"
+  ],
+  "input": {
+    "title": "x",
+    "confidence": 0.9
+  },
+  "expected": {
+    "error": true
+  }
+}

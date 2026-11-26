@@ -1,0 +1,25 @@
+{
+  "description": "0.65 passes.",
+  "categories": [
+    "personal",
+    "work",
+    "home"
+  ],
+  "input": {
+    "kind": "note",
+    "title": "A note",
+    "confidence": 0.65
+  },
+  "expected": {
+    "kind": "note",
+    "title": "A note",
+    "body": null,
+    "area": "personal",
+    "status": null,
+    "folder": null,
+    "confidence": 0.65,
+    "follow_up": null,
+    "needs_question": false,
+    "question": null
+  }
+}
