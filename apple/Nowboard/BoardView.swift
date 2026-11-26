@@ -10,8 +10,6 @@ struct BoardView: View {
     /// True when the Mac dashboard shows the board as its Tasks page: the
     /// dashboard supplies the header, the panels, the menus and the reloading.
     var embedded = false
-    /// Opens the folder picker (for the empty board's header). Only the embedded board needs it.
-    var pickFolder: () -> Void = {}
     @Environment(BoardStore.self) private var store
     /// Coming back to the front reloads, so edits made elsewhere show up.
     @Environment(\.scenePhase) private var scenePhase

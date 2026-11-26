@@ -27,7 +27,10 @@ final class CaptureCenter {
 
     /// The question to show now: the oldest capture that is waiting for an
     /// answer. Only one is shown at a time; the others wait behind it.
-    var openQuestion: InboxEntry? { InboxList.openQuestion(entries) }
+    /// A question whose answer is being classified right now isn't open any more: a new
+    /// Return in the capture bar is a new capture, not a second answer to the same question.
+    var openQuestion: InboxEntry? { InboxList.openQuestion(entries.filter { $0.id != answeringID }) }
+    @ObservationIgnored private var answeringID: String?
 
     /// How many questions are waiting, including the open one (the Inbox tab's badge).
     var waitingCount: Int { InboxList.waitingCount(entries) }
@@ -66,6 +69,7 @@ final class CaptureCenter {
     func capture(_ text: String) {
         unsavedText = nil
         lastProblem = nil
+        recent = nil
         pending += 1
         Task { [pipeline] in
             var problem: CaptureProblem?
@@ -79,8 +83,9 @@ final class CaptureCenter {
                 failedText = text
             }
             pending -= 1
-            lastProblem = problem?.errorDescription
-            unsavedText = failedText
+            // Only a failure sets these: a later capture that works must not wipe an earlier error unread.
+            if let problem { lastProblem = problem.errorDescription }
+            if let failedText { unsavedText = failedText }
             refresh()
             if let report { noteResult(report.entry) }
         }
@@ -89,6 +94,7 @@ final class CaptureCenter {
     /// Answers the open question.
     func answer(_ text: String) {
         guard let id = openQuestion?.id else { return }
+        answeringID = id
         recent = nil
         lastProblem = nil
         pending += 1
@@ -102,8 +108,12 @@ final class CaptureCenter {
                 problem = .filing(error.localizedDescription)
             }
             pending -= 1
-            lastProblem = problem?.errorDescription
-            unsavedText = nil
+            if answeringID == id { answeringID = nil }
+            if let problem {
+                lastProblem = problem.errorDescription
+                // The answer wasn't used, and unlike a capture it isn't saved anywhere: give it back.
+                unsavedText = text
+            }
             refresh()
             if let report { noteResult(report.entry) }
         }

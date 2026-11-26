@@ -47,13 +47,13 @@
                 ZStack {
                     switch page {
                     case .dashboard: DashboardPageView()
-                    case .tasks: BoardView(embedded: true, pickFolder: { pickingFolder = true })
+                    case .tasks: BoardView(embedded: true)
                     case .inbox: InboxPage(center: center)
                     }
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .overlay(alignment: .bottom) { UndoPill() }
-                CaptureBar(center: center, unavailable: unavailableMessage)
+                CaptureBar(center: center, unavailable: unavailableMessage, page: page)
             }
             .background(theme.bg.ignoresSafeArea())
             .foregroundStyle(theme.ink)

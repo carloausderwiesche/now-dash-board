@@ -12,6 +12,8 @@
         /// Nil when captures can't be made (demo board, no vault): the bar is then switched off.
         let center: CaptureCenter?
         let unavailable: String?
+        /// The page being shown: the field takes the keyboard again when it changes.
+        let page: DashboardPage
         @State private var text = ""
         @FocusState private var focused: Bool
 
@@ -20,12 +22,16 @@
             VStack(spacing: 10) {
                 // The strip is redrawn every second so a result can fade by itself.
                 TimelineView(.periodic(from: .now, by: 1)) { context in
-                    if let center, let strip = CaptureStrip.decide(input(center, now: context.date)) {
-                        StripView(strip: strip, center: center)
-                            .transition(.move(edge: .bottom).combined(with: .opacity))
+                    let strip = center.flatMap { CaptureStrip.decide(input($0, now: context.date)) }
+                    Group {
+                        if let center, let strip {
+                            StripView(strip: strip, center: center)
+                                .transition(.move(edge: .bottom).combined(with: .opacity))
+                        }
                     }
+                    // Animates when the strip appears, changes or fades away.
+                    .animation(.easeOut(duration: 0.25), value: strip)
                 }
-                .animation(.easeOut(duration: 0.25), value: stripKey)
                 field(theme)
             }
             .frame(maxWidth: 1100)
@@ -36,9 +42,13 @@
             // Ready to type when the window opens, and when the pages change.
             .onAppear { focused = center != nil }
             .onChange(of: center == nil) { _, none in focused = !none }
-            // A capture that couldn't even be saved comes back into the field.
+            .onChange(of: page) { focused = center != nil }
+            // Text that wasn't saved (a capture the disk refused, an answer that wasn't used)
+            // comes back into the field, in front of anything typed meanwhile.
             .onChange(of: center?.unsavedText) { _, unsaved in
-                if let unsaved, text.isEmpty { text = unsaved }
+                guard let unsaved else { return }
+                text = text.isEmpty ? unsaved : unsaved + " " + text
+                focused = true
             }
         }
 
@@ -47,7 +57,7 @@
         @ViewBuilder
         private func field(_ theme: Theme) -> some View {
             let enabled = center != nil
-            let asking = center?.openQuestion != nil
+            let asking = isAsking
             HStack(spacing: 14) {
                 TextField(
                     enabled ? (asking ? "Type your answer, or use the buttons above" : "Capture a task, a note, a thought…") : (unavailable ?? ""),
@@ -78,8 +88,16 @@
             let typed = text.trimmingCharacters(in: .whitespacesAndNewlines)
             guard let center, !typed.isEmpty else { return }
             text = ""
-            if center.openQuestion != nil { center.answer(typed) } else { center.capture(typed) }
+            if isAsking { center.answer(typed) } else { center.capture(typed) }
             focused = true
+        }
+
+        /// True when the strip is showing a question: only then does Return answer it. (The same
+        /// decision that draws the strip, so what you see is what Return does.)
+        private var isAsking: Bool {
+            guard let center else { return false }
+            if case .question? = CaptureStrip.decide(input(center, now: Date())) { return true }
+            return false
         }
 
         // MARK: Strip input
@@ -96,11 +114,6 @@
                 openQuestion: center.openQuestion, waitingCount: center.waitingCount, recent: recent, now: now)
         }
 
-        /// Changes when the strip's kind changes, so only that animates.
-        private var stripKey: String {
-            guard let center else { return "" }
-            return "\(center.pending)|\(center.lastProblem ?? "")|\(center.openQuestion?.id ?? "")|\(center.recent?.entry.id ?? "")"
-        }
     }
 
     // MARK: - The strip

@@ -38,17 +38,14 @@ struct NowboardApp: App {
     }
 
     var body: some Scene {
-        WindowGroup {
-            #if os(macOS)
-                // The Mac opens the Dashboard; the board is its Tasks page.
+        #if os(macOS)
+            // One window only (`Window`, not `WindowGroup`): the capture centre belongs to
+            // the window, and two windows would run two of them on the same vault.
+            // The Mac opens the Dashboard; the board is its Tasks page.
+            Window("Nowboard", id: "main") {
                 DashboardRoot()
                     .environment(store)
-            #else
-                BoardView()
-                    .environment(store)
-            #endif
-        }
-        #if os(macOS)
+            }
             // No title bar, like the Tauri app: the board runs to the top edge
             // and the window buttons float over it.
             .windowStyle(.hiddenTitleBar)
@@ -59,6 +56,11 @@ struct NowboardApp: App {
                     Button("Reload") { Task { await store.reload() } }
                         .keyboardShortcut("r")
                 }
+            }
+        #else
+            WindowGroup {
+                BoardView()
+                    .environment(store)
             }
         #endif
     }
