@@ -13,6 +13,9 @@ struct DeviceSettings: Codable, Equatable {
     var theme = "braun"
     var density = CardDensity.roomy
     var categories = Category.defaults
+    /// Where the `claude` command-line tool is, if it can't be found on its own
+    /// (macOS only; there's no screen for it yet). Nil = look in the usual places.
+    var claudePath: String?
 
     private static let key = "settings"
 
@@ -44,6 +47,7 @@ extension DeviceSettings {
         let legacy = try decoder.container(keyedBy: Legacy.self)
         theme = try c.decode(String.self, forKey: .theme)
         categories = try c.decode([Category].self, forKey: .categories)
+        claudePath = try c.decodeIfPresent(String.self, forKey: .claudePath)
         density = try c.decodeIfPresent(CardDensity.self, forKey: .density)
             ?? (try legacy.decodeIfPresent(Bool.self, forKey: .compact) == true ? .compact : .roomy)
     }

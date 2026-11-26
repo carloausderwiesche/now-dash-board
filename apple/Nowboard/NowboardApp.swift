@@ -23,6 +23,10 @@ struct NowboardApp: App {
             CardMenuMonitor.shared.start(store: store)
         #endif
         #if DEBUG
+            #if os(macOS)
+                // `-classifyDemo "text"`: one real classification, printed, then quit.
+                DebugClassify.runIfAsked()
+            #endif
             DebugSnapshot.runIfAsked(store: store)
             DebugSnapshot.applyLaunchState(store: store)
             #if os(macOS)
