@@ -30,54 +30,8 @@ public struct CaptureInbox: Sendable {
     @discardableResult
     public func writeRaw(_ text: String, at time: Date = Date(), timeZone: TimeZone = .current) throws(CaptureError) -> String {
         guard !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { throw .emptyText }
-        do {
-            try FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
-        } catch {
-            throw .io(error.localizedDescription)
-        }
         let content = "---\ncaptured: \(TaskFormat.timestamp(time, timeZone: timeZone))\n---\n" + text
-        let stem = Self.fileStem(time, timeZone: timeZone)
-
-        // Write the whole content to a hidden temporary file first: readers
-        // skip names starting with a dot, so nobody sees a half-written capture.
-        let tmp = url.appendingPathComponent(".capture-\(UUID().uuidString).tmp")
-        // Registered BEFORE writing, so a half-written temporary file goes away too.
-        defer { unlink(tmp.path) }
-        do {
-            try Data(content.utf8).write(to: tmp)
-        } catch {
-            throw .io(error.localizedDescription)
-        }
-
-        var n = 1
-        while true {
-            let name = n == 1 ? "\(stem).md" : "\(stem) (\(n)).md"
-            // `link` gives the temporary file a second name, and FAILS if that
-            // name exists. That's what makes this create-only: unlike a
-            // "check, then write", nobody can slip in between. (A plain
-            // `rename` would silently replace an existing file.)
-            if Darwin.link(tmp.path, url.appendingPathComponent(name).path) == 0 {
-                return name
-            }
-            let code = errno
-            if code == EEXIST {
-                n += 1
-                continue
-            }
-            // Some volumes (exFAT, certain network and cloud folders) have no
-            // hard links. Typed text must never be lost, so there we create
-            // the final file directly, still never replacing anything
-            // (`O_EXCL`). It isn't atomic, but it is complete or removed.
-            if code == ENOTSUP || code == EPERM || code == ENOSYS {
-                switch Self.createExclusively(Data(content.utf8), at: url.appendingPathComponent(name)) {
-                case 0: return name
-                case EEXIST: n += 1
-                case let failure: throw .io(String(cString: strerror(failure)))
-                }
-                continue
-            }
-            throw .io(String(cString: strerror(code)))
-        }
+        return try NewFile.create(content, in: url, stem: Self.fileStem(time, timeZone: timeZone))
     }
 
     /// Creates a file that must not exist yet and writes `data` into it.

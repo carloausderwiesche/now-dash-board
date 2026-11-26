@@ -199,7 +199,7 @@ private let utc = TimeZone(identifier: "UTC")!
         let text = InboxEntry.settingOutcome(outcome, in: "---\ncaptured: 2026-11-26T13:05\n---\nx")!
         #expect(InboxEntry.parse(id: "a.md", text: text).outcome == outcome)
     }
-    #expect(InboxOutcome.allCases.count == 5)
+    #expect(InboxOutcome.allCases.count == 6)
 }
 
 @Test func anUnknownOutcomeIsMissingAndBrokenFrontmatterIsNeverRewritten() {

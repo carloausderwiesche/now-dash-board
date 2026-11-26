@@ -54,6 +54,18 @@ public enum DailyNote {
         return lines.map { $0.body + $0.end }.joined()
     }
 
+    /// `text` without the line `line`, or nil if no line is exactly that.
+    /// For Undo: it takes out the one line we added, and only if it's still
+    /// there as we wrote it. If the person edited it, nothing is removed.
+    /// If the same line is there more than once, the last one goes. The
+    /// heading stays, and so does everything else.
+    public static func removingLine(_ line: String, from text: String) -> String? {
+        var lines = splitLines(text)
+        guard let index = lines.lastIndex(where: { $0.body == line }) else { return nil }
+        lines.remove(at: index)
+        return lines.map { $0.body + $0.end }.joined()
+    }
+
     // MARK: - Lines
 
     /// One line of the text and the line break that ended it (empty for a last

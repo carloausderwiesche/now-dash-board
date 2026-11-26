@@ -20,11 +20,16 @@ public struct CaptureInput: Sendable, Equatable {
     public var vaultMap: String
     /// The contents of `_vault-guide.md`, if any.
     public var vaultGuide: String?
+    /// For a follow-up: the question the person was asked (if we have it) and what they answered.
+    public var question: String?
+    public var answer: String?
 
     public init(
         text: String, today: Date = Date(), timeZone: TimeZone = .current, categoryIds: [String],
-        vaultMap: String = "", vaultGuide: String? = nil
+        vaultMap: String = "", vaultGuide: String? = nil, question: String? = nil, answer: String? = nil
     ) {
+        self.question = question
+        self.answer = answer
         self.text = text
         self.today = today
         self.timeZone = timeZone
@@ -36,7 +41,8 @@ public struct CaptureInput: Sendable, Equatable {
     /// The prompt for the classifier (spec 7).
     public var prompt: String {
         CapturePrompt.build(
-            text: text, today: today, timeZone: timeZone, categoryIds: categoryIds, vaultMap: vaultMap, vaultGuide: vaultGuide)
+            text: text, today: today, timeZone: timeZone, categoryIds: categoryIds, vaultMap: vaultMap, vaultGuide: vaultGuide,
+            question: question, answer: answer)
     }
 }
 
