@@ -46,6 +46,8 @@ public enum ClassifierError: Error, Equatable, LocalizedError {
     /// The tool ran and said it failed (`is_error`). The text is what it said.
     case cliReportedError(String)
     case timedOut
+    /// The task was cancelled while the tool ran.
+    case cancelled
     /// The tool quit with an error code. `stderr` is cut short.
     case nonZeroExit(code: Int32, stderr: String)
     /// The tool answered, but not in the shape we asked for (text, cut-off JSON).
@@ -60,6 +62,7 @@ public enum ClassifierError: Error, Equatable, LocalizedError {
             "The claude command-line tool wasn't found. Install it, or set its path in the settings."
         case .cliReportedError(let text): "Claude reported an error: \(text)"
         case .timedOut: "Claude took too long to answer."
+        case .cancelled: "The classification was cancelled."
         case .nonZeroExit(let code, let stderr):
             stderr.isEmpty ? "Claude stopped with error code \(code)." : "Claude stopped with error code \(code): \(stderr)"
         case .unreadableOutput(let preview): "Claude's answer couldn't be read: \(preview)"

@@ -54,8 +54,29 @@
                 executable: URL(fileURLWithPath: "/nonexistent/claude"), arguments: [], workingDirectory: tmp, timeout: .seconds(5))
             Issue.record("should have thrown")
         } catch {
-            if case .launchFailed = error {} else { Issue.record("got \(error)") }
+            #expect(error == .executableNotFound)
         }
+    }
+
+    @Test func aCancelledTaskStopsTheProgram() async throws {
+        let start = ContinuousClock.now
+        let task = Task {
+            try await ProcessRunner().run(executable: sh, arguments: ["-c", "sleep 30"], workingDirectory: tmp, timeout: .seconds(60))
+        }
+        try await Task.sleep(for: .milliseconds(500))
+        task.cancel()
+        do {
+            _ = try await task.value
+            Issue.record("should have thrown")
+        } catch {
+            #expect((error as? ProcessRunError) == .cancelled)
+        }
+        #expect(start.duration(to: .now) < .seconds(10))
+    }
+
+    @Test func aProgramThatEndsByItselfIsNotATimeout() async throws {
+        let out = try await ProcessRunner().run(executable: sh, arguments: ["-c", "echo ok"], workingDirectory: tmp, timeout: .seconds(30))
+        #expect(out.exitCode == 0)
     }
 
     @Test func theProgramRunsInTheGivenFolderAndCannotWaitForInput() async throws {

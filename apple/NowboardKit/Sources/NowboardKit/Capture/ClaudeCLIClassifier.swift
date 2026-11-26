@@ -30,8 +30,12 @@ public struct ProcessOutput: Equatable, Sendable {
 public enum ProcessRunError: Error, Equatable {
     /// It was still running at the timeout and was stopped.
     case timedOut
-    /// It couldn't be started (the file isn't there, no permission…).
+    /// The program isn't there.
+    case executableNotFound
+    /// It couldn't be started for another reason (no permission…).
     case launchFailed(String)
+    /// The caller gave up (the task was cancelled); the program was stopped.
+    case cancelled
 }
 
 /// Starts a program and waits for it. The app implements it with
@@ -82,8 +86,10 @@ public struct ClaudeCLIClassifier: Classifier {
             // Swift note: with typed throws, `error` here is a `ProcessRunError`.
             switch error {
             case .timedOut: throw .timedOut
-            // A tool that vanished between finding it and starting it is "not found" too.
-            case .launchFailed(let why): throw why.contains("No such file") ? .cliNotFound : .cliReportedError(why)
+            // (A tool that vanished between finding it and starting it is "not found" too.)
+            case .executableNotFound: throw .cliNotFound
+            case .launchFailed(let why): throw .cliReportedError(why)
+            case .cancelled: throw .cancelled
             }
         }
 

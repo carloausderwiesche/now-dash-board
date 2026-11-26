@@ -109,7 +109,7 @@ func readingOutput(name: String) throws {
 @Test func everyErrorHasAReadableMessage() {
     let all: [ClassifierError] = [
         .cliNotFound, .cliReportedError("x"), .timedOut, .nonZeroExit(code: 2, stderr: "boom"), .nonZeroExit(code: 2, stderr: ""),
-        .unreadableOutput("x"), .noStructuredOutput, .invalidResult("x"),
+        .unreadableOutput("x"), .cancelled, .noStructuredOutput, .invalidResult("x"),
     ]
     for e in all { #expect(e.errorDescription?.isEmpty == false) }
     #expect(ClassifierError.nonZeroExit(code: 2, stderr: "boom").errorDescription?.contains("boom") == true)
@@ -204,13 +204,18 @@ private final class Locked<T: Sendable>: @unchecked Sendable {
 }
 
 @Test func aProgramThatVanishedIsNotFoundToo() async {
-    let runner = FakeRunner { _ in throw ProcessRunError.launchFailed("The file “claude” doesn't exist: No such file or directory") }
+    let runner = FakeRunner { _ in throw ProcessRunError.executableNotFound }
     await #expect(throws: ClassifierError.cliNotFound) { try await classifier(runner).classify(input()) }
 }
 
 @Test func anotherLaunchFailureKeepsItsReason() async {
     let runner = FakeRunner { _ in throw ProcessRunError.launchFailed("Permission denied") }
     await #expect(throws: ClassifierError.cliReportedError("Permission denied")) { try await classifier(runner).classify(input()) }
+}
+
+@Test func aCancelledRunIsCancelled() async {
+    let runner = FakeRunner { _ in throw ProcessRunError.cancelled }
+    await #expect(throws: ClassifierError.cancelled) { try await classifier(runner).classify(input()) }
 }
 
 @Test func aTimeoutIsATimeout() async {
@@ -327,4 +332,25 @@ private let home = "/Users/me"
     // The default isn't reserved then.
     #expect(try VaultPath.file("Notes/Tasks/x.md", reserved: ["Work/Todo"]) == "Notes/Tasks/x.md")
     #expect(try VaultPath.file("Notes/Tasks/x.md", reserved: []) == "Notes/Tasks/x.md")
+}
+
+@Test func theTasksFolderCannotBeReachedWithLookAlikeLetters() {
+    // On a Mac `Taſks` (long s) is the folder `Tasks`: the file system folds it.
+    #expect(throws: VaultPathError.reservedFolder("Notes/Tasks")) { try VaultPath.file("Notes/Ta\u{17F}ks/X.md") }
+    #expect(throws: VaultPathError.reservedFolder("Notes/Tasks")) { try VaultPath.file("NOTES/TA\u{17F}KS/X.md") }
+    // Different spelling of an accent: still one folder.
+    #expect(throws: VaultPathError.reservedFolder("Café/Tasks")) { try VaultPath.file("Cafe\u{301}/tasks/X.md", reserved: ["Café/Tasks"]) }
+}
+
+@Test func anAliasOfTheTasksFolderIsRefusedToo() throws {
+    let vault = FileManager.default.temporaryDirectory.appendingPathComponent("nowboard-alias-\(UUID().uuidString)")
+    defer { try? FileManager.default.removeItem(at: vault) }
+    let fm = FileManager.default
+    try fm.createDirectory(at: vault.appendingPathComponent("Notes/Tasks"), withIntermediateDirectories: true)
+    try fm.createDirectory(at: vault.appendingPathComponent("Wiki"), withIntermediateDirectories: true)
+    // `Wiki/shortcut` is an alias of `Notes/Tasks`: the text looks harmless.
+    try fm.createSymbolicLink(atPath: vault.appendingPathComponent("Wiki/shortcut").path, withDestinationPath: "../Notes/Tasks")
+    #expect(throws: VaultPathError.reservedFolder("Notes/Tasks")) { try VaultPath.resolve(file: "Wiki/shortcut/X.md", in: vault) }
+    #expect(throws: VaultPathError.reservedFolder("Notes/Tasks")) { try VaultPath.resolve(folder: "Wiki/shortcut", in: vault) }
+    #expect((try? VaultPath.resolve(file: "Wiki/Fine.md", in: vault)) != nil)
 }

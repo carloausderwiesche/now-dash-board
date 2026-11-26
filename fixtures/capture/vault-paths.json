@@ -306,6 +306,16 @@
       "valid": true,
       "description": "The Inbox is fine.",
       "normalized": "Notes/Inbox/Idea.md"
+    },
+    {
+      "path": "Notes/Taſks/Idea.md",
+      "valid": false,
+      "description": "Long s folds to s on a Mac: the Tasks folder."
+    },
+    {
+      "path": "Notes/TAſKS/Idea.md",
+      "valid": false,
+      "description": "The same in capitals."
     }
   ],
   "folder_paths": [

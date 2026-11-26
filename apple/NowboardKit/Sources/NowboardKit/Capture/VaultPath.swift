@@ -79,13 +79,21 @@ public enum VaultPath {
     /// Refuses a path that is a reserved folder or inside one. Capitals don't
     /// matter: on a Mac `notes/tasks` and `Notes/Tasks` are the same folder.
     private static func refuseReserved(_ parts: [String], _ reserved: [String]) throws(VaultPathError) {
-        let lower = parts.map { $0.lowercased() }
+        let lower = parts.map(fold)
         for folder in reserved {
-            let reservedParts = folder.split(separator: "/").map { $0.lowercased() }
+            let reservedParts = folder.split(separator: "/").map { fold(String($0)) }
             if !reservedParts.isEmpty, lower.starts(with: reservedParts) {
                 throw .reservedFolder(folder)
             }
         }
+    }
+
+    /// A name as the file system compares it, ignoring capitals. Plain
+    /// `lowercased()` isn't enough: the Mac's file system folds `ſ` (long s)
+    /// to `s`, so `Taſks` is the folder `Tasks`. Going up to capitals and
+    /// back down folds those too.
+    private static func fold(_ name: String) -> String {
+        name.precomposedStringWithCanonicalMapping.uppercased().lowercased()
     }
 
     /// The checks both kinds share: returns the parts of the path.
@@ -130,21 +138,25 @@ public enum VaultPath {
     /// sure the file would still be inside the vault.
     public static func resolve(file path: String, in vault: URL, reserved: [String] = reservedFolders) throws(VaultPathError) -> URL {
         _ = try file(path, reserved: reserved)
-        return try locate(path, in: vault)
+        return try locate(path, in: vault, reserved: reserved)
     }
 
     /// Same for a **folder** path.
     public static func resolve(folder path: String, in vault: URL, reserved: [String] = reservedFolders) throws(VaultPathError) -> URL {
         _ = try folder(path, reserved: reserved)
-        return try locate(path, in: vault)
+        return try locate(path, in: vault, reserved: reserved)
     }
 
-    private static func locate(_ path: String, in vault: URL) throws(VaultPathError) -> URL {
+    private static func locate(_ path: String, in vault: URL, reserved: [String]) throws(VaultPathError) -> URL {
         let root = vault.resolvingSymlinksInPath().standardizedFileURL
         let target = root.appendingPathComponent(path)
         let real = realLocation(of: target, linksLeft: 20)
         // Compare with a trailing slash so `/vault2` doesn't count as inside `/vault`.
         guard let real, (real.path + "/").hasPrefix(root.path + "/") else { throw .escapesVault }
+        // Where the path really ends up must not be a reserved folder either:
+        // an alias `Wiki/shortcut` to `Notes/Tasks` would otherwise get around the text check.
+        let realParts = real.path.dropFirst(root.path.count).split(separator: "/").map(String.init)
+        try refuseReserved(realParts, reserved)
         return target
     }
 

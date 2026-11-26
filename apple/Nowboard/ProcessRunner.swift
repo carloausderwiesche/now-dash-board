@@ -18,11 +18,18 @@
             executable: URL, arguments: [String], workingDirectory: URL, timeout: Duration
         ) async throws(ProcessRunError) -> ProcessOutput {
             let seconds = Double(timeout.components.seconds) + Double(timeout.components.attoseconds) / 1e18
+            // If the calling task is cancelled, the program is stopped too
+            // (it would otherwise run on until the timeout).
+            let handle = Handle()
             do {
-                return try await withCheckedThrowingContinuation { continuation in
-                    DispatchQueue.global(qos: .userInitiated).async {
-                        continuation.resume(with: Result { try Self.runBlocking(executable, arguments, workingDirectory, seconds) })
+                return try await withTaskCancellationHandler {
+                    try await withCheckedThrowingContinuation { continuation in
+                        DispatchQueue.global(qos: .userInitiated).async {
+                            continuation.resume(with: Result { try Self.runBlocking(executable, arguments, workingDirectory, seconds, handle) })
+                        }
                     }
+                } onCancel: {
+                    handle.cancel()
                 }
             } catch let error as ProcessRunError {
                 throw error
@@ -33,7 +40,7 @@
 
         /// The blocking part. Runs on a background thread.
         private static func runBlocking(
-            _ executable: URL, _ arguments: [String], _ folder: URL, _ timeout: Double
+            _ executable: URL, _ arguments: [String], _ folder: URL, _ timeout: Double, _ handle: Handle
         ) throws -> ProcessOutput {
             let process = Process()
             process.executableURL = executable
@@ -49,8 +56,15 @@
             do {
                 try process.run()
             } catch {
+                // The error for "no such program" is a Cocoa error with these codes.
+                let code = (error as NSError).code
+                if (error as NSError).domain == NSCocoaErrorDomain, code == NSFileNoSuchFileError || code == NSFileReadNoSuchFileError {
+                    throw ProcessRunError.executableNotFound
+                }
                 throw ProcessRunError.launchFailed(error.localizedDescription)
             }
+            // Now `cancel()` has something to stop (and stops it at once if it was called before).
+            handle.started(process)
 
             // A pipe holds only about 64 KB. If we waited for the program to
             // end before reading, a program writing more would block on its
@@ -70,6 +84,8 @@
             // The timeout: stop the program politely, and for good if it ignores that.
             let timedOut = Flag()
             let stopper = DispatchWorkItem {
+                // Only if it's still running: one that just ended on its own isn't "too slow".
+                guard process.isRunning else { return }
                 timedOut.set()
                 process.terminate()
                 DispatchQueue.global().asyncAfter(deadline: .now() + 2) {
@@ -84,6 +100,7 @@
             // moment for them; a stray child holding a pipe open must not hang us.
             _ = readers.wait(timeout: .now() + 5)
 
+            if handle.isCancelled { throw ProcessRunError.cancelled }
             if timedOut.isSet { throw ProcessRunError.timedOut }
             return ProcessOutput(stdout: stdout.get(), stderr: stderr.get(), exitCode: process.terminationStatus)
         }
@@ -100,6 +117,32 @@
             else { return nil }
             return String(decoding: output.stdout, as: UTF8.self)
         }
+    }
+
+    /// Connects the waiting task with the running program, so a cancelled task
+    /// can stop it. Behind a lock because two threads use it.
+    private final class Handle: @unchecked Sendable {
+        private let lock = NSLock()
+        private var process: Process?
+        private var cancelled = false
+
+        func started(_ process: Process) {
+            lock.lock()
+            self.process = process
+            let stopNow = cancelled
+            lock.unlock()
+            if stopNow { process.terminate() }
+        }
+
+        func cancel() {
+            lock.lock()
+            cancelled = true
+            let running = process
+            lock.unlock()
+            running?.terminate()
+        }
+
+        var isCancelled: Bool { lock.withLock { cancelled } }
     }
 
     /// Data that one thread writes and another reads, behind a lock.
