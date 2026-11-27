@@ -1,7 +1,7 @@
 # 0020. The AI may tidy the vault, but never delete
 
 - **Date:** 2026-11-27
-- **Status:** Proposed
+- **Status:** Accepted
 
 ## Context
 

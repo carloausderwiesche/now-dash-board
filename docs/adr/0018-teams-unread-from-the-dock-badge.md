@@ -1,7 +1,7 @@
 # 0018. The Teams unread count is read from its Dock badge through Accessibility
 
 - **Date:** 2026-11-27
-- **Status:** Proposed
+- **Status:** Accepted
 
 ## Context
 

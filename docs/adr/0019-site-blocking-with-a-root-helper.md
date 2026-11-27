@@ -1,7 +1,7 @@
 # 0019. Sites are blocked during a focus session through the hosts file, by a root helper
 
 - **Date:** 2026-11-27
-- **Status:** Proposed
+- **Status:** Accepted
 
 ## Context
 
