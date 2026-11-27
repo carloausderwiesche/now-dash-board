@@ -98,6 +98,8 @@ public final class CapturePipeline: Sendable {
     private let now: @Sendable () -> Date
     private let timeZone: TimeZone
     private let onChange: (@Sendable (InboxEntry) -> Void)?
+    /// Keeps `_vault-guide.md` current after a note is filed (optional; a failure never matters to the capture).
+    private let guide: GuideMaintainer?
     private let queue = SerialQueue()
 
     /// - `categoryIds`: the board's categories right now (asked at each use).
@@ -105,8 +107,9 @@ public final class CapturePipeline: Sendable {
     public init(
         config: VaultConfig, classifier: any Classifier, categoryIds: @escaping @Sendable () -> [String],
         now: @escaping @Sendable () -> Date = { Date() }, timeZone: TimeZone = .current,
-        onChange: (@Sendable (InboxEntry) -> Void)? = nil
+        onChange: (@Sendable (InboxEntry) -> Void)? = nil, guide: GuideMaintainer? = nil
     ) {
+        self.guide = guide
         self.config = config
         self.classifier = classifier
         self.categoryIds = categoryIds
@@ -239,6 +242,8 @@ public final class CapturePipeline: Sendable {
         do {
             let update = try apply(result, to: current)
             _ = try record(id, update)
+            // A note was filed: if the folders changed, the guide may need a new description.
+            if update.outcome == .noteFiled { _ = await guide?.update() }
             return nil
         } catch let error as PipelineError {
             return .filing(error.errorDescription ?? "unknown error")

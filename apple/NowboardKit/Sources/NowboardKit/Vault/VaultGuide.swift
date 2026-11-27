@@ -69,8 +69,17 @@ public enum VaultGuide {
         // No section yet: add it after what's there, with a blank line before.
         var result = existing
         if let last = result.unicodeScalars.last, last != "\n" { result += "\n" }
-        if !result.isEmpty, !result.hasSuffix("\n\n") { result += "\n" }
+        // A blank line before the section, unless there is one (counted in scalars: `\r\n` is one Character).
+        if !result.isEmpty, !endsWithBlankLine(result) { result += "\n" }
         return result + block
+    }
+
+    /// Whether the text ends with an empty line (`\n\n` or `\r\n\r\n`).
+    private static func endsWithBlankLine(_ text: String) -> Bool {
+        var scalars = Array(text.unicodeScalars.suffix(4))
+        // Ignore the `\r` of a Windows line break.
+        scalars.removeAll { $0 == "\r" }
+        return scalars.suffix(2).count == 2 && scalars.suffix(2).allSatisfy { $0 == "\n" }
     }
 
     // MARK: - The block
