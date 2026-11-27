@@ -176,10 +176,13 @@
         #expect(!again.blockSites && again.blockedSites == ["example.org"])
     }
 
-    @Test func aBuildWithoutATeamSignatureDoesNotTalkToTheHelper() async {
-        // The test app is signed ad hoc: no team, so no rule for the helper's signature, so no call.
-        #expect(XPCFocusBlockClient.helperRequirement() == nil)
-        let problem = await XPCFocusBlockClient().block(domains: ["a.com"], until: Date().addingTimeInterval(60))
-        #expect(problem?.contains("developer-team") == true)
+    @Test func theHelperRuleNeedsATeamSignature() {
+        // Only the rule is looked at: this test never calls the real helper (a team-signed test build
+        // would otherwise reach the real one). The test app is signed ad hoc: no team, so no rule.
+        let rule = XPCFocusBlockClient.helperRequirement()
+        if let rule {
+            #expect(rule.contains("identifier \"\(FocusBlockHelperNames.helperBundleID)\""))
+            #expect(rule.contains("anchor apple generic"))
+        }
     }
 #endif

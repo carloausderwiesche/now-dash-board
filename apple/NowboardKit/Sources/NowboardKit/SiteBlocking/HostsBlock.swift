@@ -22,6 +22,8 @@ public enum HostsBlock {
 
     /// Most names one block may hold (a wrong or hostile caller can't make the file huge).
     public static let maxDomains = 500
+    /// Most names looked at (valid or not).
+    static let maxInput = 5000
 
     // MARK: - Names
 
@@ -44,15 +46,29 @@ public enum HostsBlock {
         return true
     }
 
+    /// Names the helper never blocks, whatever it is asked: the Mac's own names and Apple's services
+    /// (certificate checks, updates, iCloud, captive-portal detection). Blocking those would only break
+    /// the Mac for a few hours. Compared after lower-casing: the name itself or any name under it.
+    static let protectedSuffixes = [
+        "localhost", "local", "in-addr.arpa", "ip6.arpa", "apple.com", "icloud.com", "apple", "mzstatic.com", "cdn-apple.com",
+        "apple-dns.net", "aaplimg.com",
+    ]
+
+    /// Whether `name` is one of the protected names (or under one).
+    public static func isProtected(_ name: String) -> Bool {
+        protectedSuffixes.contains { name == $0 || name.hasSuffix("." + $0) }
+    }
+
     /// The valid names of `names`, lower-cased (a trailing dot removed), without duplicates, sorted,
     /// at most `maxDomains`. Anything invalid is dropped, never repaired.
     public static func sanitize(_ names: [String]) -> [String] {
         var seen = Set<String>()
         var result: [String] = []
-        for raw in names {
+        // Look at a limited number of inputs: a huge list from a caller can't make the work huge.
+        for raw in names.prefix(maxInput) {
             var name = raw.trimmingCharacters(in: .whitespaces).lowercased()
             if name.hasSuffix(".") { name.removeLast() }
-            guard isValidDomain(name), seen.insert(name).inserted else { continue }
+            guard isValidDomain(name), !isProtected(name), seen.insert(name).inserted else { continue }
             result.append(name)
         }
         return Array(result.sorted().prefix(maxDomains))

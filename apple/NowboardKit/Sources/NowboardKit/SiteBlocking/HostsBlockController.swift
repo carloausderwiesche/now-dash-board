@@ -95,10 +95,25 @@ public final class HostsBlockController {
     /// Removes the block if its time is up. Returns whether it did.
     @discardableResult
     public func expireIfDue() throws -> Bool {
-        guard let state = loadState() else { return false }
+        guard let state = loadState() else {
+            // A block in the file but no readable deadline (the state file is damaged or gone): nobody
+            // knows when it should end, so it goes at once rather than staying until a restart.
+            if hostsHasBlock() {
+                try unblock()
+                return true
+            }
+            return false
+        }
         guard state.until <= now() else { return false }
         try unblock()
         return true
+    }
+
+    /// Whether the hosts file holds a block of ours (false if it can't be read as text).
+    private func hostsHasBlock() -> Bool {
+        let target = URL(fileURLWithPath: hostsPath).resolvingSymlinksInPath()
+        guard let data = try? Data(contentsOf: target), let text = String(data: data, encoding: .utf8) else { return false }
+        return HostsBlock.hasBlock(in: text)
     }
 
     /// When the block ends, if one is on.
@@ -149,9 +164,11 @@ public final class HostsBlockController {
         let decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .iso8601
         guard let state = try? decoder.decode(HostsBlockState.self, from: data) else { return nil }
-        // Never trust what is in the file more than a fresh request: the names are checked again.
+        // Never trust what is in the file more than a fresh request: the names are checked again, and the
+        // end is cut to the longest block (a clock that was set back can't stretch a block).
         let clean = HostsBlock.sanitize(state.domains)
-        return clean.isEmpty ? nil : HostsBlockState(until: state.until, domains: clean)
+        let until = min(state.until, now().addingTimeInterval(Self.maxDuration))
+        return clean.isEmpty ? nil : HostsBlockState(until: until, domains: clean)
     }
 
     private func saveState(_ state: HostsBlockState) throws {
@@ -162,8 +179,10 @@ public final class HostsBlockController {
             try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
             try encoder.encode(state).write(to: url, options: .atomic)
         } catch {
-            // The block is already in the hosts file but its deadline isn't kept: take it out again.
+            // The block is already in the hosts file but its deadline isn't kept: take it out again, and
+            // forget an older deadline too, so a restart can't put the old block back.
             try? modifyHosts { HostsBlock.removing(from: $0) }
+            try? FileManager.default.removeItem(atPath: statePath)
             throw HostsBlockError.writeFailed("the deadline can't be saved: \(error.localizedDescription)")
         }
     }

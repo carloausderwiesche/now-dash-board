@@ -108,6 +108,8 @@
                     continuation.resume(returning: message)
                 }
                 connection.invalidationHandler = { once.fire("The helper isn't answering.") }
+                // A helper that takes the call but never answers must not hold up everything after it.
+                DispatchQueue.global().asyncAfter(deadline: .now() + 10) { once.fire("The helper didn't answer in time.") }
                 guard
                     let proxy = connection.remoteObjectProxyWithErrorHandler({ error in
                         once.fire("The helper isn't answering: \(error.localizedDescription)")

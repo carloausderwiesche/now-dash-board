@@ -442,6 +442,7 @@ struct GripIcon: Shape {
         @Environment(BoardStore.self) private var store
         @State private var adding = ""
         @State private var refused = false
+        @State private var protectedName = false
 
         var body: some View {
             let theme = store.theme
@@ -471,7 +472,7 @@ struct GripIcon: Shape {
                         .onSubmit(add)
                     SmallButton(title: "Add", action: add)
                 }
-                Text(refused ? "That isn't a site name." : "Blocked only while a focus session runs.")
+                Text(refused ? (protectedName ? "That name is protected: it belongs to the Mac or Apple." : "That isn't a site name.") : "Blocked only while a focus session runs.")
                     .font(theme.font(12))
                     .foregroundStyle(refused ? theme.accent : theme.muted)
             }
@@ -483,6 +484,7 @@ struct GripIcon: Shape {
                 BlockedSites.normalized(adding) == nil
             {
                 refused = true
+                protectedName = BlockedSites.isProtectedEntry(adding)
                 return
             }
             refused = false

@@ -238,3 +238,30 @@ private let system = """
     #expect(names.allSatisfy(HostsBlock.isValidDomain))
     #expect(!names.contains { $0.contains("bank") })
 }
+
+@Test func theMacsOwnAndAppleNamesAreNeverBlocked() {
+    let protected = [
+        "localhost", "a.localhost", "printer.local", "apple.com", "ocsp.apple.com", "time.apple.com", "captive.apple.com", "icloud.com",
+        "mask.icloud.com", "x.icloud.com", "1.0.0.127.in-addr.arpa", "x.ip6.arpa", "mzstatic.com", "gs.apple.com", "foo.apple",
+    ]
+    #expect(HostsBlock.sanitize(protected).isEmpty)
+    // A name that only ends in the same letters is a different name.
+    #expect(HostsBlock.sanitize(["notapple.com", "myicloud.com", "pineapple.com", "localhost.example.com"]).count == 4)
+}
+
+@Test func aProtectedSiteCannotBeOnTheList() {
+    #expect(BlockedSites.normalized("apple.com") == nil)
+    #expect(BlockedSites.normalized("https://www.icloud.com/x") == nil)
+    #expect(BlockedSites.isProtectedEntry("apple.com"))
+    #expect(BlockedSites.isProtectedEntry("https://support.apple.com/"))
+    #expect(!BlockedSites.isProtectedEntry("youtube.com"))
+    #expect(!BlockedSites.isProtectedEntry("not a name"))  // invalid, but not "protected"
+    #expect(BlockedSites.adding("apple.com", to: ["a.com"]) == ["a.com"])
+}
+
+@Test func aHugeListOfNamesIsCutBeforeItIsWorkedThrough() {
+    let many = (0..<20_000).map { "bad name \($0)" } + ["good.com"]
+    // The good name is past the input limit, so it isn't even looked at: the work is bounded.
+    #expect(HostsBlock.sanitize(many).isEmpty)
+    #expect(HostsBlock.sanitize(["good.com"] + many) == ["good.com"])
+}

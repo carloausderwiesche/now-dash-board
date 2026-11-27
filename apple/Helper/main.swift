@@ -77,8 +77,16 @@ final class BlockEngine: @unchecked Sendable {
             process.arguments = arguments
             process.standardOutput = FileHandle.nullDevice
             process.standardError = FileHandle.nullDevice
-            try? process.run()
-            process.waitUntilExit()
+            // Be told when it ends, so we can wait a limited time: a command that hangs must not
+            // freeze the helper (and with it the deadline check).
+            let ended = DispatchSemaphore(value: 0)
+            process.terminationHandler = { _ in ended.signal() }
+            do {
+                try process.run()  // (`run` can fail: then there is nothing to wait for)
+            } catch {
+                continue
+            }
+            if ended.wait(timeout: .now() + 5) == .timedOut { process.terminate() }
         }
     }
 }

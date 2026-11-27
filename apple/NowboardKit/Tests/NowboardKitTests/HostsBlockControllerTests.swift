@@ -197,3 +197,36 @@ private final class Setup: @unchecked Sendable {
     #expect((try? FileManager.default.destinationOfSymbolicLink(atPath: link)) == s.hosts)
     #expect(s.text.contains("a.com"))
 }
+
+@Test func aBlockWhoseDeadlineFileWentMissingIsRemovedByTheTimer() throws {
+    let s = try Setup(); defer { s.cleanup() }
+    let c = s.controller()
+    try c.block(domains: ["a.com"], until: t0.addingTimeInterval(600))
+    try FileManager.default.removeItem(atPath: s.state)  // damaged or deleted
+    #expect(try c.expireIfDue())
+    #expect(s.text == original)
+    // And with nothing blocked, the timer leaves the file alone.
+    #expect(try !c.expireIfDue())
+}
+
+@Test func aDeadlineFarInTheFutureInTheStateFileIsCutWhenRead() throws {
+    let s = try Setup(); defer { s.cleanup() }
+    try FileManager.default.createDirectory(atPath: (s.state as NSString).deletingLastPathComponent, withIntermediateDirectories: true)
+    // A deadline a year away (a clock that was set back and forth, or an edited file).
+    let json = #"{"until":"2027-12-01T00:00:00Z","domains":["a.com"]}"#
+    try json.write(toFile: s.state, atomically: true, encoding: .utf8)
+    s.now = ISO8601DateFormatter().date(from: "2027-01-15T08:00:00Z")!
+    let c = s.controller()
+    #expect(c.activeUntil == s.now.addingTimeInterval(HostsBlockController.maxDuration))
+}
+
+@Test func aFailedSaveForgetsTheOlderDeadlineToo() throws {
+    let s = try Setup(); defer { s.cleanup() }
+    let c = s.controller()
+    try c.block(domains: ["a.com"], until: t0.addingTimeInterval(600))
+    // Make the state file impossible to write: a folder where the file should go.
+    try FileManager.default.removeItem(atPath: s.state)
+    try FileManager.default.createDirectory(atPath: s.state, withIntermediateDirectories: true)
+    #expect(throws: HostsBlockError.self) { try c.block(domains: ["b.com"], until: t0.addingTimeInterval(900)) }
+    #expect(s.text == original)  // no block left in the file
+}

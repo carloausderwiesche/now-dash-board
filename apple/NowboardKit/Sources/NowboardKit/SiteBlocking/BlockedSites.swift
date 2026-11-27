@@ -43,7 +43,15 @@ public enum BlockedSites {
     /// The entry as it is stored: the plain host name without `www.`, or nil if it isn't a usable host name.
     public static func normalized(_ entry: String) -> String? {
         guard let host = hostName(from: entry) else { return nil }
-        return host.hasPrefix("www.") ? String(host.dropFirst(4)) : host
+        let base = host.hasPrefix("www.") ? String(host.dropFirst(4)) : host
+        // A protected name (the Mac's own, Apple's services) can't be on the list.
+        return HostsBlock.isProtected(base) ? nil : base
+    }
+
+    /// Whether the entry is a valid name that is protected (so the settings can say why it was refused).
+    public static func isProtectedEntry(_ entry: String) -> Bool {
+        guard let host = hostName(from: entry) else { return false }
+        return HostsBlock.isProtected(host.hasPrefix("www.") ? String(host.dropFirst(4)) : host)
     }
 
     /// Adds an entry to a list (normalised, no duplicates, at most `maxEntries`). Returns the list unchanged if it isn't valid.
