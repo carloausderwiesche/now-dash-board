@@ -709,7 +709,8 @@ private struct Measure: ViewModifier {
 struct SectionHeading: View {
     @Environment(BoardStore.self) private var store
     let title: String
-    let count: Int
+    /// Shown muted next to the title; nil for a section without a count (a box).
+    var count: Int? = nil
     /// The category dots on the right (a phone has no room in the header).
     var dots = false
 
@@ -719,7 +720,7 @@ struct SectionHeading: View {
             HStack(spacing: 0) {
                 HStack(alignment: .firstTextBaseline, spacing: 14) {
                     Text(title)
-                    Text("\(count)").foregroundStyle(theme.muted).monospacedDigit()
+                    if let count { Text("\(count)").foregroundStyle(theme.muted).monospacedDigit() }
                 }
                 .font(theme.font(22, .semibold))
                 .tracking(Theme.tracking(-0.02, size: 22))
