@@ -11,9 +11,10 @@
     private struct FakeAdvisor: TidyAdvisor {
         let operations: [VaultOperation]
         let failure: ClassifierError?
-        func propose(_ input: TidyInput) async throws(ClassifierError) -> [VaultOperation] {
+        var dropped = 0
+        func propose(_ input: TidyInput) async throws(ClassifierError) -> TidyProposal {
             if let failure { throw failure }
-            return operations
+            return TidyProposal(operations: operations, dropped: dropped)
         }
     }
 
@@ -141,5 +142,79 @@
         model.propose()
         await eventually { model.message != nil }
         #expect(model.phase == .idle && model.message?.contains("nothing worth changing") == true)
+    }
+
+    @MainActor @Test func onlyTheNotesTheAIWasShownCanBeChanged() async throws {
+        let vault = try makeVault(["Notes/Inbox/Plan.md": inboxNote, "Wiki/Ideas/Journal.md": "# Journal\nprivate\n"])
+        defer { try? FileManager.default.removeItem(at: vault) }
+        // A note's text talked the AI into touching a note that was not on the list.
+        let ops = [
+            VaultOperation(kind: .append, path: "Wiki/Ideas/Journal.md", text: "junk"),
+            VaultOperation(kind: .move, path: "Wiki/Ideas/Journal.md", to: "Archive/Journal.md"),
+            VaultOperation(kind: .move, path: "Notes/Inbox/Plan.md", to: "Wiki/Ideas/Plan.md"),
+        ]
+        let model = TidyModel(changes: VaultChanges(config: VaultConfig(vault: vault)), advisor: FakeAdvisor(operations: ops, failure: nil))
+        model.propose()
+        await eventually { model.phase == .review }
+        #expect(model.items[0].problem?.contains("wasn't one of those shown") == true)
+        #expect(model.items[1].problem?.contains("wasn't one of those shown") == true)
+        #expect(model.items[2].problem == nil && model.items[2].approved)
+        model.applyApproved()
+        await eventually { model.phase == .idle && !model.recent.isEmpty }
+        #expect(read(vault, "Wiki/Ideas/Journal.md") == "# Journal\nprivate\n")
+    }
+
+    @MainActor @Test func addedTextIsNeverPreSelected() async throws {
+        let vault = try makeVault(["Notes/Inbox/Plan.md": inboxNote])
+        defer { try? FileManager.default.removeItem(at: vault) }
+        let ops = [VaultOperation(kind: .append, path: "Notes/Inbox/Plan.md", text: "more"), VaultOperation(kind: .retitle, path: "Notes/Inbox/Plan.md", title: "New")]
+        let model = TidyModel(changes: VaultChanges(config: VaultConfig(vault: vault)), advisor: FakeAdvisor(operations: ops, failure: nil))
+        model.propose()
+        await eventually { model.phase == .review }
+        #expect(model.items[0].problem == nil && !model.items[0].approved)  // adding text: the person ticks it
+        #expect(model.items[1].approved)
+        model.applyApproved()
+        await eventually { model.phase == .idle && !model.recent.isEmpty }
+        #expect(read(vault, "Notes/Inbox/Plan.md")?.contains("more") == false)  // the unticked append didn't happen
+        #expect(read(vault, "Notes/Inbox/Plan.md")?.contains("# New") == true)
+    }
+
+    @MainActor @Test func nothingIsProposedOrAppliedWhileAFocusSessionRuns() async throws {
+        let vault = try makeVault(["Notes/Inbox/Plan.md": inboxNote])
+        defer { try? FileManager.default.removeItem(at: vault) }
+        let ops = [VaultOperation(kind: .move, path: "Notes/Inbox/Plan.md", to: "Wiki/Ideas/Plan.md")]
+        let model = TidyModel(changes: VaultChanges(config: VaultConfig(vault: vault)), advisor: FakeAdvisor(operations: ops, failure: nil))
+        model.sessionRunning = true
+        model.propose()
+        #expect(model.phase == .idle)  // refused in the model, not only in the button
+        model.sessionRunning = false
+        model.propose()
+        await eventually { model.phase == .review }
+        model.sessionRunning = true  // a session starts while the list is on screen
+        model.applyApproved()
+        #expect(model.phase == .review)
+        #expect(read(vault, "Notes/Inbox/Plan.md") != nil)
+    }
+
+    @MainActor @Test func unusableSuggestionsAreCountedAndShown() async throws {
+        let vault = try makeVault(["Notes/Inbox/Plan.md": inboxNote])
+        defer { try? FileManager.default.removeItem(at: vault) }
+        let ops = [VaultOperation(kind: .rename, path: "Notes/Inbox/Plan.md", name: "Better")]
+        let model = TidyModel(
+            changes: VaultChanges(config: VaultConfig(vault: vault)), advisor: FakeAdvisor(operations: ops, failure: nil, dropped: 3))
+        model.propose()
+        await eventually { model.phase == .review }
+        #expect(model.dropped == 3)
+    }
+
+    @MainActor @Test func stoppingWhileTheAIThinksThrowsItsAnswerAway() async throws {
+        let vault = try makeVault(["Notes/Inbox/Plan.md": inboxNote])
+        defer { try? FileManager.default.removeItem(at: vault) }
+        let ops = [VaultOperation(kind: .rename, path: "Notes/Inbox/Plan.md", name: "Better")]
+        let model = TidyModel(changes: VaultChanges(config: VaultConfig(vault: vault)), advisor: FakeAdvisor(operations: ops, failure: nil))
+        model.propose()
+        model.cancel()
+        try await Task.sleep(for: .milliseconds(400))
+        #expect(model.phase == .idle && model.items.isEmpty)  // the late answer didn't bring the list back
     }
 #endif

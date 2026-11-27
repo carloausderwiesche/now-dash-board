@@ -30,10 +30,38 @@ public enum WikiLinks {
     /// - `notes`: every note in the vault BEFORE the move, `old` included. Obsidian resolves a link by its
     ///   name and path, so we need to know which other notes have the same name.
     public static func rewrite(_ text: String, moving old: String, to new: String, notes: [String]) -> Result {
-        let before = Set(notes.map { $0.lowercased() })
-        // The notes after the move: `old` is replaced by `new`.
-        let after = Set(notes.filter { $0.lowercased() != old.lowercased() }.map { $0.lowercased() } + [new.lowercased()])
+        rewrite(text, move: Move(old: old, new: new, notes: notes))
+    }
 
+    /// One move, prepared once so many notes can be rewritten without looking at the whole vault each time.
+    public struct Move: Sendable {
+        let old: String
+        let new: String
+        /// Lower-cased paths before the move, and how many notes have each file name (lower case, no `.md`).
+        let before: Set<String>
+        let beforeByName: [String: [String]]
+        let afterNameCount: [String: Int]
+
+        public init(old: String, new: String, notes: [String]) {
+            self.old = old
+            self.new = new
+            let lower = notes.map { $0.lowercased() }
+            before = Set(lower)
+            beforeByName = Dictionary(grouping: lower, by: { WikiLinks.fileName($0) })
+            // After the move `old` is replaced by `new`.
+            var count: [String: Int] = [:]
+            for path in Set(lower.filter { $0 != old.lowercased() } + [new.lowercased()]) { count[WikiLinks.fileName(path), default: 0] += 1 }
+            afterNameCount = count
+        }
+    }
+
+    /// The file name of a path, lower case, without `.md`.
+    static func fileName(_ path: String) -> String {
+        let name = path.split(separator: "/").last.map(String.init) ?? path
+        return name.hasSuffix(".md") ? String(name.dropLast(3)) : name
+    }
+
+    public static func rewrite(_ text: String, move: Move) -> Result {
         var result = Result(text: "", changed: 0, ambiguous: 0)
         var lines = splitLines(text)
         var inFence: (marker: Character, length: Int)?
@@ -49,7 +77,7 @@ public enum WikiLinks {
                 continue
             }
             if inFence != nil { continue }
-            let (newBody, changed, ambiguous) = rewriteLine(body, old: old, new: new, before: before, after: after)
+            let (newBody, changed, ambiguous) = rewriteLine(body, move: move)
             lines[i].body = newBody
             result.changed += changed
             result.ambiguous += ambiguous
@@ -60,14 +88,15 @@ public enum WikiLinks {
 
     // MARK: - One line
 
-    private static func rewriteLine(_ line: String, old: String, new: String, before: Set<String>, after: Set<String>) -> (String, Int, Int) {
+    private static func rewriteLine(_ line: String, move: Move) -> (String, Int, Int) {
         guard line.contains("[[") else { return (line, 0, 0) }
         let codeRanges = inlineCodeRanges(in: line)
         var out = ""
         var changed = 0, ambiguous = 0
         var index = line.startIndex
-        // `[[` … `]]` with a target (no `|`, `#`, `^`, brackets), an optional `#heading` or `^block`, an optional `|alias`.
-        let pattern = /(!?)\[\[([^\[\]|#^]*)((?:[#^][^\[\]|]*)?)((?:\|[^\[\]]*)?)\]\]/
+        // `[[` … `]]` with a target (no `|`, `#`, `^`, `\`, brackets), an optional `#heading` or `^block`, an optional
+        // `|alias` (written `\|` inside a table cell).
+        let pattern = /(!?)\[\[([^\[\]|#^\\]*)((?:[#^][^\[\]|\\]*)?)((?:\\?\|[^\[\]]*)?)\]\]/
         for match in line.matches(of: pattern) {
             let range = match.range
             out += line[index..<range.lowerBound]
@@ -78,14 +107,14 @@ public enum WikiLinks {
                 continue
             }
             let target = String(match.output.2)
-            switch resolve(target: target, old: old, before: before) {
+            switch resolve(target: target, move: move) {
             case .other:
                 out += original
             case .ambiguous:
                 ambiguous += 1
                 out += original
             case .old:
-                let newTarget = newTarget(for: target, old: old, new: new, after: after)
+                let newTarget = newTarget(for: target, move: move)
                 if newTarget == target {
                     out += original
                 } else {
@@ -105,13 +134,15 @@ public enum WikiLinks {
     /// Does the link target mean the note `old`? A target with a folder (`Wiki/Plan`) matches a note whose
     /// path ends with it; a plain name (`Plan`) matches a note with that file name. Case doesn't matter,
     /// and a trailing `.md` is allowed. If more than one note fits, the link is ambiguous.
-    static func resolve(target: String, old: String, before: Set<String>) -> Meaning {
+    static func resolve(target: String, move: Move) -> Meaning {
         let t = normalized(target)
         guard !t.isEmpty else { return .other }  // `[[#heading]]`: a link inside the same note
-        let matches = before.filter { matches(path: $0, target: t) }
-        guard matches.contains(old.lowercased()) else { return .other }
+        // Only notes with this file name can fit: look just at those.
+        let name = t.split(separator: "/").last.map(String.init) ?? t
+        let matches = (move.beforeByName[name] ?? []).filter { matches(path: $0, target: t) }
+        guard matches.contains(move.old.lowercased()) else { return .other }
         // An exact full path always means exactly that note.
-        if stripExtension(old.lowercased()) == t { return .old }
+        if stripExtension(move.old.lowercased()) == t { return .old }
         return matches.count == 1 ? .old : .ambiguous
     }
 
@@ -122,11 +153,11 @@ public enum WikiLinks {
 
     /// The link text after the move. A full-path link gets the new full path; a plain name stays as it
     /// is when that still works, otherwise it becomes the new name (if unique) or the new full path.
-    private static func newTarget(for target: String, old: String, new: String, after: Set<String>) -> String {
+    private static func newTarget(for target: String, move: Move) -> String {
         let hadExtension = target.lowercased().hasSuffix(".md")
         let t = normalized(target)
-        let oldPath = stripExtension(old.lowercased())
-        let newPath = stripExtension(new)
+        let oldPath = stripExtension(move.old.lowercased())
+        let newPath = stripExtension(move.new)
         let newName = newPath.split(separator: "/").last.map(String.init) ?? newPath
         let oldName = oldPath.split(separator: "/").last.map(String.init) ?? oldPath
 
@@ -136,11 +167,11 @@ public enum WikiLinks {
             result = newPath
         } else {
             // A plain name: still fine if it is the same name and no other note has it now.
-            let sameNameNotes = after.filter { stripExtension($0).split(separator: "/").last.map(String.init) == newName.lowercased() }
-            if newName.lowercased() == oldName, sameNameNotes.count == 1 {
+            let sameNameCount = move.afterNameCount[newName.lowercased()] ?? 0
+            if newName.lowercased() == oldName, sameNameCount == 1 {
                 return target  // unchanged, whatever its capitals
             }
-            result = sameNameNotes.count == 1 ? newName : newPath
+            result = sameNameCount == 1 ? newName : newPath
         }
         return hadExtension ? result + ".md" : result
     }

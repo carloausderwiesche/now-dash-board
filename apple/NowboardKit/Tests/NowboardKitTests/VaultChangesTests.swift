@@ -308,3 +308,88 @@ func pathsThatAreNotAllowedAreRefusedAsSourceAndDestination(path: String) throws
     #expect(read(vault, "Locked/Other.md") == "[[Wiki/Plan]]\n")
     #expect(changes.records().isEmpty)
 }
+
+@Test func aNoteEditedByThePersonMidwayIsNeverOverwrittenByTheRollback() throws {
+    let (changes, vault) = try makeVault([
+        "Wiki/Plan.md": "x\n", "Wiki/A.md": "[[Wiki/Plan]]\n", "Wiki/Z.md": "[[Wiki/Plan]]\n",
+    ])
+    defer { try? FileManager.default.removeItem(at: vault) }
+    // Right before Z is updated, the person (Obsidian autosave) edits it.
+    changes.beforeWrite = { path in
+        if path == "Wiki/Z.md" { try? "[[Wiki/Plan]] my new sentence\n".write(to: vault.appendingPathComponent(path), atomically: true, encoding: .utf8) }
+    }
+    #expect(throws: ChangeError.self) { try changes.apply(op(.move, "Wiki/Plan.md", to: "Archive/Plan.md")) }
+    #expect(read(vault, "Wiki/Z.md") == "[[Wiki/Plan]] my new sentence\n")  // the person's edit survives
+    #expect(read(vault, "Wiki/Plan.md") == "x\n" && !exists(vault, "Archive/Plan.md"))  // everything else is back
+    #expect(read(vault, "Wiki/A.md") == "[[Wiki/Plan]]\n")
+    #expect(changes.records().isEmpty)
+}
+
+@Test func aMovedNoteEditedMidwayStaysWhereItIsAndIsReported() throws {
+    let (changes, vault) = try makeVault(["Wiki/Plan.md": "own [[Wiki/Plan]]\n", "Wiki/Z.md": "[[Wiki/Plan]]\n"])
+    defer { try? FileManager.default.removeItem(at: vault) }
+    changes.beforeWrite = { path in
+        // The moved note itself (now at its new path) is edited before its links are rewritten.
+        if path == "Archive/Plan.md" { try? "someone typed here\n".write(to: vault.appendingPathComponent(path), atomically: true, encoding: .utf8) }
+    }
+    do {
+        try changes.apply(op(.move, "Wiki/Plan.md", to: "Archive/Plan.md"))
+        Issue.record("should have failed")
+    } catch {
+        #expect(error.errorDescription?.contains("Archive/Plan.md") == true)
+    }
+    #expect(read(vault, "Archive/Plan.md") == "someone typed here\n")  // never overwritten
+}
+
+@Test func aFailureWritingTheLogPutsTheFilesBack() throws {
+    let (changes, vault) = try makeVault(["Wiki/Plan.md": "x\n", "Wiki/Other.md": "[[Wiki/Plan]]\n"])
+    defer { try? FileManager.default.removeItem(at: vault) }
+    // The log can't be written: a folder where the file should be.
+    try FileManager.default.createDirectory(at: vault.appendingPathComponent(".nowboard/changes.jsonl"), withIntermediateDirectories: true)
+    #expect(throws: ChangeError.self) { try changes.apply(op(.move, "Wiki/Plan.md", to: "Archive/Plan.md")) }
+    #expect(read(vault, "Wiki/Plan.md") == "x\n" && !exists(vault, "Archive/Plan.md"))
+    #expect(read(vault, "Wiki/Other.md") == "[[Wiki/Plan]]\n")
+}
+
+@Test func savedCapturesTasksAndTheGuideKeepTheirTextWhenANoteMoves() throws {
+    let raw = "---\ncaptured: 2026-11-26T13:05\n---\nsee [[Wiki/Plan]] typed by me"
+    let task = "---\nstatus: today\nproject: '[[Wiki/Plan]]'\n---\n"
+    let (changes, vault) = try makeVault([
+        "Wiki/Plan.md": "x\n", "Notes/Inbox/2026-11-26 13-05-22.md": raw, "Notes/Tasks/Do it.md": task, "_vault-guide.md": "guide [[Wiki/Plan]]\n",
+        "Wiki/Link.md": "[[Wiki/Plan]]\n",
+    ])
+    defer { try? FileManager.default.removeItem(at: vault) }
+    try changes.apply(op(.move, "Wiki/Plan.md", to: "Archive/Plan.md"))
+    #expect(read(vault, "Notes/Inbox/2026-11-26 13-05-22.md") == raw)  // the typed text is a record
+    #expect(read(vault, "Notes/Tasks/Do it.md") == task)
+    #expect(read(vault, "_vault-guide.md") == "guide [[Wiki/Plan]]\n")
+    #expect(read(vault, "Wiki/Link.md") == "[[Archive/Plan]]\n")  // an ordinary note does follow
+}
+
+@Test func changeIdsAreUniqueEvenWithinOneSecond() throws {
+    let (changes, vault) = try makeVault(["Wiki/A.md": "x\n"])
+    defer { try? FileManager.default.removeItem(at: vault) }
+    var ids = Set<String>()
+    for i in 0..<60 { ids.insert(try changes.apply(op(.append, "Wiki/A.md", text: "n\(i)")).id) }
+    #expect(ids.count == 60)
+}
+
+@Test func aTamperedLogPathIsNotFollowedByUndo() throws {
+    let (changes, vault) = try makeVault(["Wiki/A.md": "x\n"])
+    defer { try? FileManager.default.removeItem(at: vault) }
+    let record = try changes.apply(op(.append, "Wiki/A.md", text: "y"))
+    let logURL = vault.appendingPathComponent(".nowboard/changes.jsonl")
+    // The log writes slashes as `\/`: point the touched file at a path outside the vault.
+    let log = try String(contentsOf: logURL, encoding: .utf8).replacingOccurrences(of: #""path":"Wiki\/A.md""#, with: #""path":"..\/..\/evil.md""#)
+    #expect(log.contains("evil.md"))
+    try log.write(to: logURL, atomically: true, encoding: .utf8)
+    #expect(throws: ChangeError.self) { try changes.undo(record.id) }
+    #expect(!FileManager.default.fileExists(atPath: vault.deletingLastPathComponent().appendingPathComponent("evil.md").path))
+}
+
+@Test func aTitleThatIsMarkupIsRefused() throws {
+    let (changes, vault) = try makeVault(["Wiki/A.md": "# A\n"])
+    defer { try? FileManager.default.removeItem(at: vault) }
+    #expect(changes.problem(with: op(.retitle, "Wiki/A.md", title: "see [[Other]]")) != nil)
+    #expect(changes.problem(with: op(.retitle, "Wiki/A.md", title: "x <!-- y")) != nil)
+}

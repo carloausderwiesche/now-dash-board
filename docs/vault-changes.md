@@ -64,6 +64,14 @@ Everything lives in the hidden folder `.nowboard/` in the vault root (Obsidian i
 
 **Only when the person asks**, with a **Tidy vault** button on the Inbox page, never in the background and never while a focus session runs. The flow: the AI proposes, the person sees the list (each operation with its reason, and any refused ones with why), approves the ones they want, the app does them, and each shows an **Undo**.
 
+Safeguards on top of the per-operation checks:
+
+- Only the notes the AI was **shown** may be changed; an operation on any other path is refused in the app, whatever the AI says (a note's text could try to steer it).
+- Moves, renames and new titles are pre-ticked; **adding text is never pre-ticked** and its full text is shown in the row.
+- Unusable suggestions are counted and the count is shown.
+- Tidy cannot start or apply while a focus session runs (the model refuses, not only the button). Undo is blocked while a tidy is busy.
+- Stopping while the AI thinks throws its late answer away.
+
 ## 6. Obsidian and files changed outside it
 
 Obsidian watches the vault folder and re-reads files that change or move, so a moved or edited note shows up. What it does **not** do for a change made outside it is update the links to a moved note: its "automatically update internal links" setting only covers renames done inside Obsidian. That is why section 3 exists. A note that is open in Obsidian while a change is written may show Obsidian's own merge prompt; changes are written atomically and re-read first to keep that rare.

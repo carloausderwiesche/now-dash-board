@@ -62,6 +62,10 @@ public struct ChangeRecord: Codable, Equatable, Sendable {
 public final class VaultChanges: @unchecked Sendable {
     public let config: VaultConfig
     private let now: @Sendable () -> Date
+    /// For tests: called with a path right before it is written, so a test can edit it at that moment.
+    var beforeWrite: (@Sendable (String) -> Void)?
+    /// One change (or undo) at a time.
+    private let lock = NSRecursiveLock()
 
     /// The hidden folder (Obsidian ignores folders that start with a dot).
     public static let folderName = ".nowboard"
@@ -164,7 +168,7 @@ public final class VaultChanges: @unchecked Sendable {
 
         case .retitle:
             guard let title = operation.title, !title.trimmingCharacters(in: .whitespaces).isEmpty, title.count <= 200, !title.contains("\n"),
-                !title.contains("\r")
+                !title.contains("\r"), !title.contains("[["), !title.contains("]]"), !title.contains("<!--")
             else {
                 throw .refused("the new title is empty, too long or not one line")
             }
@@ -233,46 +237,69 @@ public final class VaultChanges: @unchecked Sendable {
 
     // MARK: - Doing it
 
+    /// Whether a note may have its links updated when another note moves: a normal note. Never a saved capture
+    /// (the typed text), a task file (the Tasks folder), the vault guide, or a file in a reserved folder.
+    private func linksMayBeUpdated(in path: String, text: String) -> Bool {
+        guard path != VaultGuide.fileName else { return false }
+        let lower = path.lowercased()
+        for folder in config.reservedFolders where lower.hasPrefix(folder.lowercased() + "/") { return false }
+        return InboxEntry.parse(id: path, text: text).captured == nil
+    }
+
+    /// One note the change writes: where it is, what it held, what it will hold.
+    private struct Edit {
+        var path: String
+        var original: String
+        var new: String
+        var finalPath: String
+        /// Set once the new text is on disk.
+        var written = false
+    }
+
     /// Checks and does one operation: the originals go to the history folder first, links to a moved note
-    /// are updated, and the change is logged. Returns the log record.
+    /// are updated, and the change is logged. Returns the log record. One change at a time.
     @discardableResult
     public func apply(_ operation: VaultOperation) throws(ChangeError) -> ChangeRecord {
+        lock.lock()
+        defer { lock.unlock() }
         let plan = try plan(operation)
         let id = makeID()
         let fm = FileManager.default
-        var touched: [ChangeRecord.Touched] = []
         var linksChanged = 0, linksAmbiguous = 0
 
         guard let original = read(plan.source) else { throw .refused("“\(plan.source)” can't be read") }
 
         // What each file will contain afterwards, worked out before anything is written.
-        // (path now, original text, new text, where it will be)
-        var edits: [(path: String, original: String, new: String, finalPath: String)] = []
+        var edits: [Edit] = []
         switch operation.kind {
         case .move, .rename:
             let destination = plan.destination!
             let notes = allNotes()
+            // Prepared once: the sets of names are built a single time, not per note.
+            let move = WikiLinks.Move(old: plan.source, new: destination, notes: notes)
             // The moved note's own text: its links to itself must follow too.
-            let own = WikiLinks.rewrite(original, moving: plan.source, to: destination, notes: notes)
+            let own = WikiLinks.rewrite(original, move: move)
             linksChanged += own.changed
             linksAmbiguous += own.ambiguous
-            edits.append((plan.source, original, own.text, destination))
+            edits.append(Edit(path: plan.source, original: original, new: own.text, finalPath: destination))
             // Every other note that links to it.
             let name = ((plan.source as NSString).lastPathComponent as NSString).deletingPathExtension.lowercased()
             for note in notes where note.lowercased() != plan.source.lowercased() {
-                guard let text = read(note), text.contains("[["), text.lowercased().contains(name) else { continue }
-                let result = WikiLinks.rewrite(text, moving: plan.source, to: destination, notes: notes)
+                guard let text = read(note), text.contains("[["), text.lowercased().contains(name), linksMayBeUpdated(in: note, text: text) else {
+                    continue
+                }
+                let result = WikiLinks.rewrite(text, move: move)
                 linksAmbiguous += result.ambiguous
                 if result.changed > 0 {
                     linksChanged += result.changed
-                    edits.append((note, text, result.text, note))
+                    edits.append(Edit(path: note, original: text, new: result.text, finalPath: note))
                 }
             }
         case .append:
-            edits.append((plan.source, original, Self.appended(original, operation.text ?? ""), plan.source))
+            edits.append(Edit(path: plan.source, original: original, new: Self.appended(original, operation.text ?? ""), finalPath: plan.source))
         case .retitle:
             guard let new = Self.retitled(original, to: operation.title ?? "") else { throw .refused("no heading to change") }
-            edits.append((plan.source, original, new, plan.source))
+            edits.append(Edit(path: plan.source, original: original, new: new, finalPath: plan.source))
         }
         // Nothing may end up empty: a change that would leave a note empty is refused.
         for edit in edits where edit.original.contains(where: { !$0.isWhitespace }) && !edit.new.contains(where: { !$0.isWhitespace }) {
@@ -290,54 +317,73 @@ public final class VaultChanges: @unchecked Sendable {
             }
         }
 
-        // 2. The change itself.
+        // 2. The change itself, and 3. the log. If anything fails, what was written is put back, and
+        // only if it is still as we wrote it (a note the person edited meanwhile is never overwritten).
+        var moved = false
         do {
             if operation.kind == .move || operation.kind == .rename {
                 let to = config.vault.appendingPathComponent(plan.destination!)
                 try fm.createDirectory(at: to.deletingLastPathComponent(), withIntermediateDirectories: true)
                 // `moveItem` refuses if something is there: nothing is ever overwritten.
                 try fm.moveItem(at: config.vault.appendingPathComponent(plan.source), to: to)
+                moved = true
             }
-            for edit in edits {
-                let url = config.vault.appendingPathComponent(edit.finalPath)
-                if edit.new != edit.original || edit.path != edit.finalPath {
-                    // Re-read right before writing: if the note changed meanwhile, stop (what we move stays moved).
-                    if let now = try? String(contentsOf: url, encoding: .utf8), now != edit.original {
-                        throw ChangeError.io("“\(edit.finalPath)” changed while it was being updated, so it was left alone")
+            for i in edits.indices {
+                let url = config.vault.appendingPathComponent(edits[i].finalPath)
+                if edits[i].new != edits[i].original {
+                    beforeWrite?(edits[i].finalPath)
+                    // Re-read right before writing: if the note changed since we read it, stop.
+                    if let now = try? String(contentsOf: url, encoding: .utf8), now != edits[i].original {
+                        throw ChangeError.io("“\(edits[i].finalPath)” changed while it was being updated, so nothing was changed")
                     }
-                    try TaskFolder(url: url.deletingLastPathComponent()).writeAtomically(edit.new, to: url)
+                    try TaskFolder(url: url.deletingLastPathComponent()).writeAtomically(edits[i].new, to: url)
+                    edits[i].written = true
                 }
-                touched.append(.init(path: edit.finalPath, history: edit.path, afterSha: Self.sha(edit.new)))
             }
+            let touched = edits.map {
+                ChangeRecord.Touched(path: $0.finalPath, history: $0.path, afterSha: Self.sha($0.new))
+            }
+            let record = ChangeRecord(
+                id: id, time: Self.timestamp(now()), operation: operation, from: plan.destination == nil ? nil : plan.source, files: touched,
+                linksChanged: linksChanged, linksAmbiguous: linksAmbiguous)
+            try append(toLog: ["type": "change", "record": record])
+            return record
         } catch {
-            // Something failed half way: put everything back from the originals, so no note is left
-            // moved without its links updated. (Best effort: the originals are all in the history folder.)
-            rollback(edits: edits.map { ($0.path, $0.finalPath) }, id: id)
-            if let error = error as? ChangeError { throw error }
-            throw .io(error.localizedDescription)
+            let left = rollback(edits: edits, moved: moved)
+            var message = (error as? ChangeError)?.errorDescription ?? error.localizedDescription
+            if !left.isEmpty { message += " Not put back because they were edited meanwhile: " + left.joined(separator: ", ") + "." }
+            if let change = error as? ChangeError, case .refused = change { throw change }
+            throw .io(message)
         }
-
-        // 3. The log.
-        let record = ChangeRecord(
-            id: id, time: Self.timestamp(now()), operation: operation, from: plan.destination == nil ? nil : plan.source, files: touched,
-            linksChanged: linksChanged, linksAmbiguous: linksAmbiguous)
-        try append(toLog: ["type": "change", "record": record])
-        return record
     }
 
-    /// Restores every file of a change that failed half way from the history folder.
-    private func rollback(edits: [(path: String, finalPath: String)], id: String) {
+    /// Puts back what a failed change had written: each file only if it is still exactly what we wrote
+    /// (or, for a note that was only moved, still exactly what it was). Returns the paths it did NOT touch
+    /// because someone changed them meanwhile.
+    private func rollback(edits: [Edit], moved: Bool) -> [String] {
         let fm = FileManager.default
-        for edit in edits {
-            let originalURL = historyURL.appendingPathComponent(id).appendingPathComponent(edit.path)
-            guard let original = try? String(contentsOf: originalURL, encoding: .utf8) else { continue }
-            let back = config.vault.appendingPathComponent(edit.path)
-            let moved = config.vault.appendingPathComponent(edit.finalPath)
-            if edit.path != edit.finalPath, fm.fileExists(atPath: moved.path), !fm.fileExists(atPath: back.path) {
-                try? fm.moveItem(at: moved, to: back)
+        var left: [String] = []
+        for edit in edits.reversed() {
+            let current = read(edit.finalPath)
+            let expected = edit.written ? edit.new : edit.original
+            guard current == expected else {
+                // Something we wrote, or a note we moved, that someone has changed since: leave it, and say so.
+                // (A note we never touched that was edited is simply not ours to report.)
+                if edit.written || edit.path != edit.finalPath { left.append(edit.finalPath) }
+                continue
             }
-            try? TaskFolder(url: back.deletingLastPathComponent()).writeAtomically(original, to: back)
+            let back = config.vault.appendingPathComponent(edit.path)
+            let there = config.vault.appendingPathComponent(edit.finalPath)
+            if edit.path != edit.finalPath {
+                guard !fm.fileExists(atPath: back.path) else {
+                    left.append(edit.finalPath)
+                    continue
+                }
+                try? fm.moveItem(at: there, to: back)
+            }
+            if edit.written { try? TaskFolder(url: back.deletingLastPathComponent()).writeAtomically(edit.original, to: back) }
         }
+        return left
     }
 
     // MARK: - Undo
@@ -346,12 +392,20 @@ public final class VaultChanges: @unchecked Sendable {
     /// deleted: the moved note goes back, and the originals come out of the history folder.
     @discardableResult
     public func undo(_ id: String) throws(ChangeError) -> ChangeRecord {
+        lock.lock()
+        defer { lock.unlock() }
         guard id.wholeMatch(of: /[0-9]{8}-[0-9]{6}-[0-9a-f]{4}/) != nil else { throw .unknownChange(id) }
         let all = records()
         guard let record = all.first(where: { $0.id == id }) else { throw .unknownChange(id) }
         guard !record.undone else { throw .alreadyUndone(id) }
         let fm = FileManager.default
 
+        // The log is a file too: its paths are checked again before anything is written from them.
+        for file in record.files + (record.from.map { [ChangeRecord.Touched(path: $0, history: $0, afterSha: "")] } ?? []) {
+            guard (try? VaultPath.file(file.path, reserved: [])) != nil, (try? VaultPath.file(file.history, reserved: [])) != nil else {
+                throw .refused("the log names a path that isn't allowed: \(file.path)")
+            }
+        }
         // Everything must be as we left it, or nothing is changed.
         for file in record.files {
             guard let text = read(file.path), Self.sha(text) == file.afterSha else { throw .changedSince(file.path) }
@@ -434,12 +488,16 @@ public final class VaultChanges: @unchecked Sendable {
 
     // MARK: - Small helpers
 
+    /// A new id (`YYYYMMDD-HHMMSS-xxxx`) that no history folder has yet.
     private func makeID() -> String {
         let f = DateFormatter()
         f.locale = Locale(identifier: "en_US_POSIX")
         f.dateFormat = "yyyyMMdd-HHmmss"
-        let suffix = String(format: "%04x", UInt16.random(in: 0...UInt16.max))
-        return "\(f.string(from: now()))-\(suffix)"
+        let stamp = f.string(from: now())
+        while true {
+            let id = "\(stamp)-\(String(format: "%04x", UInt16.random(in: 0...UInt16.max)))"
+            if !FileManager.default.fileExists(atPath: historyURL.appendingPathComponent(id).path) { return id }
+        }
     }
 
     static func timestamp(_ date: Date) -> String {

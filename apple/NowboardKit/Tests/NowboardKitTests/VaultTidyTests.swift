@@ -217,7 +217,7 @@ private func advisor(_ stdout: String) -> ClaudeCLIVaultAdvisor {
     let answer = #"{"operations":[{"op":"move","path":"Notes/Inbox/a.md","to":"Wiki/a.md"}]}"#
     let out = try JSONSerialization.data(withJSONObject: ["type": "result", "is_error": false, "structured_output": try JSONSerialization.jsonObject(with: Data(answer.utf8))])
     let ops = try await advisor(String(decoding: out, as: UTF8.self)).propose(TidyInput(vaultMap: "", guide: nil, notes: []))
-    #expect(ops == [VaultOperation(kind: .move, path: "Notes/Inbox/a.md", to: "Wiki/a.md")])
+    #expect(ops == TidyProposal(operations: [VaultOperation(kind: .move, path: "Notes/Inbox/a.md", to: "Wiki/a.md")]))
 }
 
 @Test func theCLIAdvisorReportsABadAnswerAndTheToolsOwnErrors() async {

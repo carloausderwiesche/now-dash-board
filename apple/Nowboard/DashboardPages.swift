@@ -304,10 +304,19 @@
                     .disabled(!canStart)
                     Text(hint).font(theme.font(13)).foregroundStyle(theme.muted).fixedSize(horizontal: false, vertical: true)
                 }
+                // While the AI is thinking the person can still stop waiting.
+                if tidy.phase == .proposing {
+                    Button("Stop") { tidy.cancel() }
+                        .buttonStyle(.pointer).font(theme.font(13, .medium)).foregroundStyle(theme.muted)
+                }
                 if case .failed(let why) = tidy.phase {
                     Text(why).font(theme.font(13, .medium)).foregroundStyle(theme.accent).textSelection(.enabled)
                 }
                 if tidy.phase == .review || tidy.phase == .applying { reviewList(theme) }
+                if tidy.dropped > 0, tidy.phase == .review {
+                    Text("\(tidy.dropped) suggestion\(tidy.dropped == 1 ? " was" : "s were") unusable and left out.")
+                        .font(theme.font(12)).foregroundStyle(theme.muted)
+                }
                 if let message = tidy.message {
                     Text(message).font(theme.font(13, .medium)).fixedSize(horizontal: false, vertical: true)
                 }
@@ -346,6 +355,14 @@
                         VStack(alignment: .leading, spacing: 2) {
                             Text(item.operation.summary).font(theme.font(14, .medium))
                             if let reason = item.operation.reason { Text(reason).font(theme.font(12)).foregroundStyle(theme.muted) }
+                            // What would be added is shown in full: approving means reading it.
+                            if item.operation.kind == .append, let text = item.operation.text {
+                                Text("Adds: “\(text.trimmingCharacters(in: .whitespacesAndNewlines))”")
+                                    .font(theme.font(12))
+                                    .lineLimit(6)
+                                    .padding(8)
+                                    .background(theme.hover, in: RoundedRectangle(cornerRadius: theme.radiusSmall))
+                            }
                             if let problem = item.problem {
                                 Text("Can't be done: \(problem)").font(theme.font(12)).foregroundStyle(theme.accent)
                             }
@@ -400,6 +417,7 @@
                                 .buttonStyle(.pointer)
                                 .font(theme.font(12, .medium))
                                 .frame(height: 28)
+                                .disabled(tidy.isBusy)
                         }
                     }
                 }

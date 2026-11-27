@@ -101,9 +101,20 @@ public enum VaultTidy {
 
 // MARK: - Advisors
 
+/// What the AI proposed: the usable operations, and how many in its answer were not usable.
+public struct TidyProposal: Equatable, Sendable {
+    public var operations: [VaultOperation]
+    public var dropped: Int
+
+    public init(operations: [VaultOperation], dropped: Int = 0) {
+        self.operations = operations
+        self.dropped = dropped
+    }
+}
+
 /// Proposes changes for a set of notes. A protocol, so tests and a different backend can stand in.
 public protocol TidyAdvisor: Sendable {
-    func propose(_ input: TidyInput) async throws(ClassifierError) -> [VaultOperation]
+    func propose(_ input: TidyInput) async throws(ClassifierError) -> TidyProposal
 }
 
 /// Writes the AI's part of the vault guide.
@@ -117,10 +128,11 @@ public struct ClaudeCLIVaultAdvisor: TidyAdvisor, GuideAdvisor {
 
     public init(cli: ClaudeCLIClassifier) { self.cli = cli }
 
-    public func propose(_ input: TidyInput) async throws(ClassifierError) -> [VaultOperation] {
+    public func propose(_ input: TidyInput) async throws(ClassifierError) -> TidyProposal {
         let answer = try await cli.structured(prompt: VaultTidy.prompt(input), schema: VaultOperation.schema)
         do {
-            return try VaultOperation.decodeList(answer).operations
+            let (operations, dropped) = try VaultOperation.decodeList(answer)
+            return TidyProposal(operations: operations, dropped: dropped)
         } catch {
             throw .invalidResult(error.errorDescription ?? "unknown")
         }

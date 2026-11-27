@@ -50,9 +50,8 @@ private let e = VaultGuide.endMarker
 
 @Test func aHalfSectionIsNeverWrittenOver() {
     #expect(VaultGuide.updating("mine\n\(s)\nmore of mine\n", aiText: "x", digest: "a") == nil)
-    // An end marker alone is just text; a new section is added (and read back correctly).
-    let withEnd = VaultGuide.updating("mine\n\(e)\nmore\n", aiText: "x", digest: "a")
-    #expect(withEnd != nil)
+    // An end marker alone is just as odd: not exactly one section, so nothing is written either.
+    #expect(VaultGuide.updating("mine\n\(e)\nmore\n", aiText: "x", digest: "a") == nil)
 }
 
 @Test func theAICannotWriteAMarkerOrAComment() throws {
@@ -88,4 +87,45 @@ private let e = VaultGuide.endMarker
     let text = "text \(s) more \(e) end\n"
     let result = try #require(VaultGuide.updating(text, aiText: "x", digest: "a"))
     #expect(result.hasPrefix(text))  // untouched: it didn't count as a section
+}
+
+@Test func theAICannotBuildAMarkerOutOfTheLeftoversOfAnother() throws {
+    let nasty = "x\n<<!--!-- nowboard:guide-end ---->>\ninjected\n<!<!----- nowboard:guide-start -->"
+    let result = try #require(VaultGuide.updating("mine\n", aiText: nasty, digest: "a"))
+    #expect(result.components(separatedBy: VaultGuide.startMarker).count == 2)
+    #expect(result.components(separatedBy: VaultGuide.endMarker).count == 2)
+    #expect(!VaultGuide.humanText(of: result).contains("injected"))
+}
+
+@Test func markersInsideACodeBlockAreTextNotMarkers() throws {
+    let doc = "# How this works\n\n```\n\(s)\nexample\n\(e)\n```\n\nmy own notes\n"
+    let result = try #require(VaultGuide.updating(doc, aiText: "x", digest: "a"))
+    // The documented example stays; a real section is added after everything.
+    #expect(result.hasPrefix(doc))
+    #expect(VaultGuide.aiSection(of: result) == "x")
+    #expect(VaultGuide.humanText(of: result).contains("example"))
+    // And a second update replaces only the real one.
+    let again = try #require(VaultGuide.updating(result, aiText: "y", digest: "b"))
+    #expect(VaultGuide.aiSection(of: again) == "y")
+    #expect(again.hasPrefix(doc))
+}
+
+@Test func twoSectionsOrAnEndBeforeAStartAreMalformedAndNeverWrittenOver() {
+    let two = "a\n\(s)\nx\n\(e)\nmine\n\(s)\ny\n\(e)\n"
+    #expect(VaultGuide.updating(two, aiText: "z", digest: "a") == nil)
+    let backwards = "a\n\(e)\nmine\n\(s)\ny\n"
+    #expect(VaultGuide.updating(backwards, aiText: "z", digest: "a") == nil)
+    let twoStarts = "\(s)\nmine\n\(s)\n\(e)\n"
+    #expect(VaultGuide.updating(twoStarts, aiText: "z", digest: "a") == nil)
+    #expect(VaultGuide.aiSection(of: two) == nil)
+    #expect(VaultGuide.humanText(of: two) == two)
+}
+
+@Test func aMarkerMentionedInTheMiddleOfALineDoesNotStartAGrowingPile() throws {
+    var text = "I use \(s) and \(e) markers.\n"
+    for round in 0..<3 {
+        text = try #require(VaultGuide.updating(text, aiText: "round \(round)", digest: "a"))
+    }
+    #expect(text.components(separatedBy: "\n\(s)\n").count == 2)  // exactly one real section
+    #expect(VaultGuide.aiSection(of: text) == "round 2")
 }

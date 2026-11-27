@@ -494,6 +494,20 @@
       "expected": "[[Plan]] [[Plan]]",
       "changed": 1,
       "ambiguous": 0
+    },
+    {
+      "description": "An escaped pipe in a table cell is the alias separator.",
+      "old": "Wiki/Plan.md",
+      "new": "Wiki/Roadmap.md",
+      "notes": [
+        "Wiki/Plan.md",
+        "Wiki/Other.md",
+        "Daily/2026-11-26.md"
+      ],
+      "input": "| a | [[Plan\\|the plan]] |\n| b | [[Wiki/Plan#Goals\\|goals]] |",
+      "expected": "| a | [[Roadmap\\|the plan]] |\n| b | [[Wiki/Roadmap#Goals\\|goals]] |",
+      "changed": 2,
+      "ambiguous": 0
     }
   ]
 }

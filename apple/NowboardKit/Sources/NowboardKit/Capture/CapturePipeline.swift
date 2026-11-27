@@ -129,7 +129,9 @@ public final class CapturePipeline: Sendable {
         let name = try config.inbox.writeRaw(text, at: now(), timeZone: timeZone)
         notify(name)
         // (b) to (d), one capture at a time, in the order they came.
-        let problem = await serially { await self.process(name, answer: nil) }
+        let (problem, filedNote) = await serially { await self.process(name, answer: nil) }
+        // The guide step comes after the queue is free, so a slow one never holds up the next capture.
+        if filedNote { _ = await guide?.update() }
         return CaptureReport(entry: entry(name), problem: problem)
     }
 
@@ -141,26 +143,31 @@ public final class CapturePipeline: Sendable {
         guard text.trimmedOrNil != nil else { throw .emptyAnswer }
         // Checked again inside the queue: two answers at once must not both pass,
         // or the second one would be dropped without a word.
-        let problem = try await serially { () async throws(PipelineError) -> CaptureProblem? in
+        let problem = try await serially { () async throws(PipelineError) -> (CaptureProblem?, Bool) in
             guard try self.read(id).outcome == .waitingForAnswer else { throw .notWaiting(id) }
             return await self.process(id, answer: text)
         }
-        return CaptureReport(entry: entry(id), problem: problem)
+        if problem.1 { _ = await guide?.update() }
+        return CaptureReport(entry: entry(id), problem: problem.0)
     }
 
     /// Classifies every capture that has no outcome yet (the classifier was
     /// down when it was typed), oldest first, one at a time.
     @discardableResult
     public func retryUnclassified() async -> [CaptureReport] {
-        await serially {
+        let outcome = await serially { () async -> ([CaptureReport], Bool) in
             var reports: [CaptureReport] = []
+            var filed = false
             // Re-listed each time: other work may have handled some meanwhile.
             for entry in self.entries().filter({ $0.outcome == nil }).sorted(by: { $0.sortKey < $1.sortKey }) {
-                let problem = await self.process(entry.id, answer: nil)
+                let (problem, filedNote) = await self.process(entry.id, answer: nil)
+                filed = filed || filedNote
                 reports.append(CaptureReport(entry: self.entry(entry.id), problem: problem))
             }
-            return reports
+            return (reports, filed)
         }
+        if outcome.1 { _ = await guide?.update() }
+        return outcome.0
     }
 
     /// Leaves a capture alone for good: outcome `skipped`. For one the app
@@ -218,12 +225,13 @@ public final class CapturePipeline: Sendable {
         }
     }
 
-    /// Steps b to d for one capture. `answer` is set for a follow-up.
-    private func process(_ id: String, answer: String?) async -> CaptureProblem? {
-        guard let current = try? read(id) else { return nil }
+    /// Steps b to d for one capture. `answer` is set for a follow-up. Returns what went wrong (if anything)
+    /// and whether a note was filed (the caller then lets the guide catch up).
+    private func process(_ id: String, answer: String?) async -> (CaptureProblem?, Bool) {
+        guard let current = try? read(id) else { return (nil, false) }
         // Already handled by someone else in the meantime? Then there's nothing to do.
-        if answer == nil, current.outcome != nil { return nil }
-        if answer != nil, current.outcome != .waitingForAnswer { return nil }
+        if answer == nil, current.outcome != nil { return (nil, false) }
+        if answer != nil, current.outcome != .waitingForAnswer { return (nil, false) }
 
         let input = CaptureInput(
             text: current.text, today: now(), timeZone: timeZone, categoryIds: categoryIds(),
@@ -235,20 +243,18 @@ public final class CapturePipeline: Sendable {
         do {
             result = try await classifier.classify(input)
         } catch {
-            return .classifier(error)
+            return (.classifier(error), false)
         }
 
         // (c) Apply, and (d) write down what happened.
         do {
             let update = try apply(result, to: current)
             _ = try record(id, update)
-            // A note was filed: if the folders changed, the guide may need a new description.
-            if update.outcome == .noteFiled { _ = await guide?.update() }
-            return nil
+            return (nil, update.outcome == .noteFiled)
         } catch let error as PipelineError {
-            return .filing(error.errorDescription ?? "unknown error")
+            return (.filing(error.errorDescription ?? "unknown error"), false)
         } catch {
-            return .filing(error.localizedDescription)
+            return (.filing(error.localizedDescription), false)
         }
     }
 

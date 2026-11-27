@@ -100,6 +100,8 @@
             .environment(focus)
             .environment(teams)
             .environment(siteBlock)
+            // Tidying waits while a focus session runs (also enforced inside the model).
+            .onChange(of: focus.session.isRunning) { tidy?.sessionRunning = focus.session.isRunning }
             // Switching blocking on or off, or changing the list, while a session runs counts at once.
             .onChange(of: store.settings.blockSites) { siteBlock.update(until: focus.runningEnd, entries: blockEntries(focus.runningEnd)) }
             .onChange(of: store.settings.blockedSites) { siteBlock.update(until: focus.runningEnd, entries: blockEntries(focus.runningEnd)) }
@@ -152,6 +154,7 @@
                 config: config, classifier: cli, categoryIds: { ids.get() }, guide: GuideMaintainer(config: config, advisor: advisor))
             center = made
             tidy = TidyModel(changes: VaultChanges(config: config), advisor: advisor)
+            tidy?.sessionRunning = focus.session.isRunning
             // Captures that couldn't be classified before (offline…) get another go, once.
             made.retry()
         }

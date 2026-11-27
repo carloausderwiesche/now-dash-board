@@ -61,11 +61,14 @@ public enum VaultGuide {
     public static func updating(_ existing: String?, aiText: String, digest: String) -> String? {
         let block = makeBlock(aiText: aiText, digest: digest)
         guard let existing else { return newFilePrefix + block }
-        if let range = blockRange(in: existing) {
-            return String(existing[..<range.outer.lowerBound]) + block + String(existing[range.outer.upperBound...])
+        switch scan(existing) {
+        case .block(let outer, _):
+            return String(existing[..<outer.lowerBound]) + block + String(existing[outer.upperBound...])
+        case .malformed:
+            return nil  // not exactly one section: the text around the markers may be the person's
+        case .none:
+            break
         }
-        // A start marker alone on its line, with no end marker after it: a half section.
-        if existing.split(whereSeparator: \.isNewline).contains(where: { $0 == startMarker }) { return nil }
         // No section yet: add it after what's there, with a blank line before.
         var result = existing
         if let last = result.unicodeScalars.last, last != "\n" { result += "\n" }
@@ -90,7 +93,10 @@ public enum VaultGuide {
     static func makeBlock(aiText: String, digest: String) -> String {
         var text = aiText
         // The AI can't write a marker or open a comment: that could swallow the person's text later.
-        for forbidden in ["<!--", "-->"] { text = text.replacingOccurrences(of: forbidden, with: "") }
+        // Removing one can make another appear (`<<!--!--` becomes `<!--`), so repeat until none is left.
+        while text.contains("<!--") || text.contains("-->") {
+            for forbidden in ["<!--", "-->"] { text = text.replacingOccurrences(of: forbidden, with: "") }
+        }
         text = text.replacingOccurrences(of: "\r\n", with: "\n").trimmingCharacters(in: .whitespacesAndNewlines)
         if text.count > maxAICharacters {
             text = String(text.prefix(maxAICharacters))
@@ -102,21 +108,56 @@ public enum VaultGuide {
     }
 
     /// Where our section is: all of it (markers included, with the line break after the end marker),
-    /// and the part between the markers.
+    /// and the part between the markers. Nil if there is none, OR if the markers are not exactly one start
+    /// followed by one end (see `scan`).
     private static func blockRange(in text: String) -> (outer: Range<String.Index>, inner: Range<String.Index>)? {
-        guard let start = text.range(of: startMarker), let end = text.range(of: endMarker, range: start.upperBound..<text.endIndex) else {
-            return nil
-        }
-        // The markers must be alone on their lines.
-        guard isWholeLine(start, in: text), isWholeLine(end, in: text) else { return nil }
-        var outerEnd = end.upperBound
-        if outerEnd < text.endIndex, text[outerEnd] == "\n" || text[outerEnd] == "\r\n" { outerEnd = text.index(after: outerEnd) }
-        return (start.lowerBound..<outerEnd, start.upperBound..<end.lowerBound)
+        guard case .block(let outer, let inner) = scan(text) else { return nil }
+        return (outer, inner)
     }
 
-    private static func isWholeLine(_ range: Range<String.Index>, in text: String) -> Bool {
-        let before = range.lowerBound == text.startIndex || text[text.index(before: range.lowerBound)].isNewline
-        let after = range.upperBound == text.endIndex || text[range.upperBound].isNewline
-        return before && after
+    enum Scan {
+        case none
+        case block(outer: Range<String.Index>, inner: Range<String.Index>)
+        /// Marker lines that don't make exactly one section (two starts, an end first, a start alone…).
+        case malformed
+    }
+
+    /// Finds the marker lines: a line that is exactly a marker (trailing spaces allowed), outside fenced
+    /// code blocks. Exactly one start followed by one end is a section; no markers at all is none;
+    /// anything else is malformed, and nothing is written over it.
+    static func scan(_ text: String) -> Scan {
+        var starts: [Range<String.Index>] = []
+        var ends: [Range<String.Index>] = []
+        var fence: (marker: Character, length: Int)?
+        var i = text.startIndex
+        while i < text.endIndex {
+            let lineEnd = text[i...].firstIndex(where: \.isNewline) ?? text.endIndex
+            let line = text[i..<lineEnd]
+            let trimmed = line.drop { $0 == " " }
+            // Fenced code blocks (``` or ~~~): markers inside them are text, not markers.
+            if line.count - trimmed.count <= 3, let m = trimmed.first, m == "`" || m == "~" {
+                let run = trimmed.prefix { $0 == m }.count
+                if run >= 3 {
+                    if let open = fence {
+                        if m == open.marker, run >= open.length, trimmed.dropFirst(run).allSatisfy({ $0 == " " || $0 == "\t" }) { fence = nil }
+                    } else if !(m == "`" && trimmed.dropFirst(run).contains("`")) {
+                        fence = (m, run)
+                    }
+                    i = lineEnd < text.endIndex ? text.index(after: lineEnd) : text.endIndex
+                    continue
+                }
+            }
+            if fence == nil {
+                let content = line.trimmingCharacters(in: .whitespaces)
+                if content == startMarker { starts.append(i..<lineEnd) }
+                if content == endMarker { ends.append(i..<lineEnd) }
+            }
+            i = lineEnd < text.endIndex ? text.index(after: lineEnd) : text.endIndex
+        }
+        if starts.isEmpty && ends.isEmpty { return .none }
+        guard starts.count == 1, ends.count == 1, starts[0].upperBound <= ends[0].lowerBound else { return .malformed }
+        var outerEnd = ends[0].upperBound
+        if outerEnd < text.endIndex { outerEnd = text.index(after: outerEnd) }  // the line break after the end marker
+        return .block(outer: starts[0].lowerBound..<outerEnd, inner: starts[0].upperBound..<ends[0].lowerBound)
     }
 }
