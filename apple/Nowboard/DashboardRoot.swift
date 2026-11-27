@@ -32,6 +32,8 @@
         @State private var focus = FocusSessionModel()
         /// What the Teams box shows (read from the Dock badge only while the box is on screen).
         @State private var teams = TeamsUnreadModel()
+        /// Blocking distracting sites during a focus session (through a helper the user approves once).
+        @State private var siteBlock = SiteBlockModel()
 
         /// Debug builds can open on another page: `-page tasks`.
         private static var firstPage: DashboardPage {
@@ -86,6 +88,8 @@
             .task(id: captureKey) { makeCenter() }
             .onAppear {
                 categoryIds.set(store.settings.categories.map(\.id))
+                // Before `attach`, which reports a restored running session right away.
+                focus.onRunningEndChange = { end in siteBlock.update(until: end, entries: blockEntries(end)) }
                 focus.attach(to: store)
                 #if DEBUG
                     focus.applyDebugArguments()
@@ -93,7 +97,19 @@
             }
             .environment(focus)
             .environment(teams)
+            .environment(siteBlock)
+            // Switching blocking on or off, or changing the list, while a session runs counts at once.
+            .onChange(of: store.settings.blockSites) { siteBlock.update(until: focus.runningEnd, entries: blockEntries(focus.runningEnd)) }
+            .onChange(of: store.settings.blockedSites) { siteBlock.update(until: focus.runningEnd, entries: blockEntries(focus.runningEnd)) }
             .onChange(of: store.settings.categories.map(\.id)) { _, ids in categoryIds.set(ids) }
+        }
+
+        // MARK: - Site blocking
+
+        /// The sites to block for a session ending at `end`: the person's list if blocking is on and a
+        /// session is running, nothing otherwise (which unblocks).
+        private func blockEntries(_ end: Date?) -> [String] {
+            end != nil && store.settings.blockSites ? store.settings.blockedSites : []
         }
 
         // MARK: - Capture centre

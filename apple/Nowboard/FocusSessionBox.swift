@@ -10,6 +10,7 @@
     struct FocusSessionBox: View {
         @Environment(BoardStore.self) private var store
         @Environment(FocusSessionModel.self) private var model
+        @Environment(SiteBlockModel.self) private var siteBlock
         /// What is typed in the custom minutes field.
         @State private var customText = ""
         @FocusState private var customFocused: Bool
@@ -33,6 +34,7 @@
                     lengthChips(session)
                 }
                 buttons(session)
+                siteBlocking()
             }
             .onAppear { syncCustomText() }
             .onChange(of: session.minutes) { syncCustomText() }
@@ -170,6 +172,56 @@
         private func syncCustomText() {
             let minutes = model.session.minutes
             customText = FocusSession.presets.contains(minutes) ? "" : "\(minutes)"
+        }
+
+        // MARK: Site blocking
+
+        /// "Block sites" (on by default) and what the helper says: not set up, waiting for approval,
+        /// ready, or blocked until a time.
+        @ViewBuilder
+        private func siteBlocking() -> some View {
+            @Bindable var store = store
+            let theme = store.theme
+            VStack(alignment: .leading, spacing: 6) {
+                Toggle(isOn: $store.settings.blockSites) {
+                    Text("Block sites").font(theme.font(14, .medium))
+                }
+                .toggleStyle(.switch)
+                .controlSize(.small)
+                .tint(theme.ink)
+                .accessibilityLabel("Block distracting sites during a session")
+                if store.settings.blockSites {
+                    HStack(spacing: 10) {
+                        Text(siteBlockLine).font(theme.font(13)).foregroundStyle(theme.muted).fixedSize(horizontal: false, vertical: true)
+                        switch siteBlock.state {
+                        case .notSetUp:
+                            linkButton("Set up") { siteBlock.setUp() }
+                        case .needsApproval:
+                            linkButton("Open Settings") { siteBlock.openSettings() }
+                        default:
+                            EmptyView()
+                        }
+                    }
+                }
+            }
+        }
+
+        private var siteBlockLine: String {
+            switch siteBlock.state {
+            case .notSetUp: "Needs a one-time setup."
+            case .needsApproval: "Approve Nowboard in System Settings → Login Items."
+            case .ready: "Blocks \(BlockedSites.domains(for: store.settings.blockedSites).count) names while a session runs."
+            case .active(let until): "Sites blocked until \(until.formatted(date: .omitted, time: .shortened))."
+            case .failed(let message): message
+            }
+        }
+
+        private func linkButton(_ title: String, action: @escaping () -> Void) -> some View {
+            let theme = store.theme
+            return Button(action: action) {
+                Text(title).font(theme.font(13, .semibold)).foregroundStyle(theme.ink).underline()
+            }
+            .buttonStyle(.pointer)
         }
 
         // MARK: Buttons

@@ -68,6 +68,11 @@ struct SettingsPanel: View {
             Field(label: "Tasks folder") {
                 folder(theme: theme)
             }
+            #if os(macOS)
+                Field(label: "Blocked during focus") {
+                    BlockedSitesEditor()
+                }
+            #endif
             Field(label: "Finished tasks in your daily note") {
                 query(theme: theme)
             }
@@ -427,3 +432,64 @@ struct GripIcon: Shape {
         return p
     }
 }
+
+#if os(macOS)
+    // MARK: - Blocked sites
+
+    /// The sites that are blocked while a focus session runs (docs/adr/0019): a list with × on each
+    /// and a field to add one. Type a name or paste an address; each site stands for every name it uses.
+    private struct BlockedSitesEditor: View {
+        @Environment(BoardStore.self) private var store
+        @State private var adding = ""
+        @State private var refused = false
+        @State private var protectedName = false
+
+        var body: some View {
+            let theme = store.theme
+            VStack(alignment: .leading, spacing: 6) {
+                ForEach(store.settings.blockedSites, id: \.self) { site in
+                    HStack(spacing: 8) {
+                        Text(site).font(theme.font(13)).lineLimit(1).truncationMode(.middle)
+                        Spacer(minLength: 8)
+                        Button {
+                            store.settings.blockedSites.removeAll { $0 == site }
+                        } label: {
+                            Image(systemName: "xmark").font(.system(size: 10, weight: .semibold)).foregroundStyle(theme.muted)
+                                .frame(width: 28, height: 28).contentShape(Rectangle())
+                        }
+                        .buttonStyle(.pointer)
+                        .accessibilityLabel("Remove \(site)")
+                    }
+                }
+                HStack(spacing: 8) {
+                    TextField("Add a site, e.g. news.example.com", text: $adding)
+                        .textFieldStyle(.plain)
+                        .font(theme.font(13))
+                        .padding(.horizontal, 10)
+                        .frame(height: 34)
+                        .background(theme.bg, in: RoundedRectangle(cornerRadius: theme.radiusSmall))
+                        .overlay(RoundedRectangle(cornerRadius: theme.radiusSmall).strokeBorder(refused ? theme.accent : theme.line, lineWidth: 1))
+                        .onSubmit(add)
+                    SmallButton(title: "Add", action: add)
+                }
+                Text(refused ? (protectedName ? "That name is protected: it belongs to the Mac or Apple." : "That isn't a site name.") : "Blocked only while a focus session runs.")
+                    .font(theme.font(12))
+                    .foregroundStyle(refused ? theme.accent : theme.muted)
+            }
+        }
+
+        private func add() {
+            let list = BlockedSites.adding(adding, to: store.settings.blockedSites)
+            if list == store.settings.blockedSites, !adding.trimmingCharacters(in: .whitespaces).isEmpty,
+                BlockedSites.normalized(adding) == nil
+            {
+                refused = true
+                protectedName = BlockedSites.isProtectedEntry(adding)
+                return
+            }
+            refused = false
+            store.settings.blockedSites = list
+            adding = ""
+        }
+    }
+#endif

@@ -48,6 +48,17 @@
         func requestAccess() {}
     }
 
+    private struct NeverRegistration: HelperRegistration {
+        var status: HelperRegistrationStatus { .notRegistered }
+        func register() throws {}
+        func openSystemSettings() {}
+    }
+
+    private struct NeverClient: FocusBlockClient {
+        func block(domains: [String], until: Date) async -> String? { nil }
+        func unblock() async -> String? { nil }
+    }
+
     /// The Dashboard page on screen, a suggested task, and a click on "Today": the grid goes from an
     /// empty box to a card while SwiftUI is laying out. This used to crash on `Int(infinity)`.
     @MainActor @Test func sendingASuggestedTaskToTodayOnTheDashboardDoesNotCrash() async throws {
@@ -60,7 +71,7 @@
         let model = FocusSessionModel()
         model.attach(to: store)
 
-        let host = NSHostingView(rootView: DashboardPageView().environment(store).environment(model).environment(TeamsUnreadModel(reader: NeverReader())).frame(width: 1400, height: 800))
+        let host = NSHostingView(rootView: DashboardPageView().environment(store).environment(model).environment(TeamsUnreadModel(reader: NeverReader())).environment(SiteBlockModel(registration: NeverRegistration(), client: NeverClient())).frame(width: 1400, height: 800))
         let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 1400, height: 800), styleMask: [.titled], backing: .buffered, defer: false)
         window.contentView = host
         window.orderFront(nil)
