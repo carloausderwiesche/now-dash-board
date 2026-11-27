@@ -47,3 +47,4 @@ ADRs aren't edited after they're accepted, except for their status. To change a 
 | [0017](0017-mac-dashboard.md) | The Mac app opens a Dashboard that drops the board's one-column rules | Accepted |
 | [0018](0018-teams-unread-from-the-dock-badge.md) | The Teams unread count is read from its Dock badge through Accessibility | Proposed |
 | [0019](0019-site-blocking-with-a-root-helper.md) | Sites are blocked during a focus session through the hosts file, by a root helper | Proposed |
+| [0020](0020-the-ai-may-tidy-the-vault-but-never-delete.md) | The AI may tidy the vault, but never delete | Proposed |

@@ -26,6 +26,8 @@
         /// The capture machinery for the real vault. Nil on the demo board, or
         /// when the Tasks folder isn't in an Obsidian vault.
         @State private var center: CaptureCenter?
+        /// The tidy-up of the vault (the Inbox page's "Tidy vault"); nil without a vault.
+        @State private var tidy: TidyModel?
         /// The category ids the classifier may choose from, kept up to date from the settings.
         @State private var categoryIds = CategoryIds()
         /// The focus session (its box is on the Dashboard page; it keeps running on the other pages).
@@ -54,7 +56,7 @@
                     switch page {
                     case .dashboard: DashboardPageView()
                     case .tasks: BoardView(embedded: true)
-                    case .inbox: InboxPage(center: center)
+                    case .inbox: InboxPage(center: center, tidy: tidy, sessionRunning: focus.session.isRunning)
                     }
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -98,6 +100,8 @@
             .environment(focus)
             .environment(teams)
             .environment(siteBlock)
+            // Tidying waits while a focus session runs (also enforced inside the model).
+            .onChange(of: focus.session.isRunning) { tidy?.sessionRunning = focus.session.isRunning }
             // Switching blocking on or off, or changing the list, while a session runs counts at once.
             .onChange(of: store.settings.blockSites) { siteBlock.update(until: focus.runningEnd, entries: blockEntries(focus.runningEnd)) }
             .onChange(of: store.settings.blockedSites) { siteBlock.update(until: focus.runningEnd, entries: blockEntries(focus.runningEnd)) }
@@ -133,6 +137,7 @@
 
         private func makeCenter() {
             center = nil
+            tidy = nil
             #if DEBUG
                 // `-demoCapture true`: a throwaway vault and a scripted classifier, for snapshots.
                 if store.isDemo, DebugSnapshot.argument("demoCapture") == "true" {
@@ -142,11 +147,14 @@
             #endif
             guard case .folder(let url) = store.source, let vault = vaultRoot(of: url) else { return }
             let ids = categoryIds
+            let config = VaultConfig.load(vault: vault, tasksFolder: url)
+            let cli = ClaudeSupport.classifier(claudePath: { DeviceSettings.load().claudePath })
+            let advisor = ClaudeCLIVaultAdvisor(cli: cli)
             let made = CaptureCenter(
-                config: VaultConfig.load(vault: vault, tasksFolder: url),
-                classifier: ClaudeSupport.classifier(claudePath: { DeviceSettings.load().claudePath }),
-                categoryIds: { ids.get() })
+                config: config, classifier: cli, categoryIds: { ids.get() }, guide: GuideMaintainer(config: config, advisor: advisor))
             center = made
+            tidy = TidyModel(changes: VaultChanges(config: config), advisor: advisor)
+            tidy?.sessionRunning = focus.session.isRunning
             // Captures that couldn't be classified before (offline…) get another go, once.
             made.retry()
         }

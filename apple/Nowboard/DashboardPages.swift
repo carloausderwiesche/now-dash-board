@@ -159,6 +159,10 @@
     struct InboxPage: View {
         @Environment(BoardStore.self) private var store
         let center: CaptureCenter?
+        /// The AI tidy-up (nil without a vault).
+        let tidy: TidyModel?
+        /// A focus session is running: tidying waits until it ends.
+        let sessionRunning: Bool
 
         var body: some View {
             let theme = store.theme
@@ -166,6 +170,7 @@
                 VStack(alignment: .leading, spacing: 16) {
                     let rows = center.map { InboxList.ordered($0.entries) } ?? []
                     SectionHeading(title: "Inbox", count: rows.count)
+                    if let tidy { TidyPanel(tidy: tidy, sessionRunning: sessionRunning) }
                     if rows.isEmpty {
                         EmptyBox(
                             title: center == nil ? "Captures need a Tasks folder" : "No captures yet",
@@ -269,6 +274,153 @@
                 parts.host = "open"
                 parts.queryItems = [URLQueryItem(name: "path", value: center.config.vault.appendingPathComponent(path).path)]
                 if let url = parts.url { NSWorkspace.shared.open(url) }
+            }
+        }
+    }
+
+    // MARK: - Tidy vault
+
+    /// "Tidy vault": the AI proposes where the notes filed in the Inbox belong; the person approves; each
+    /// change can be undone. Never automatic (docs/vault-changes.md, section 5).
+    struct TidyPanel: View {
+        @Environment(BoardStore.self) private var store
+        let tidy: TidyModel
+        let sessionRunning: Bool
+
+        var body: some View {
+            let theme = store.theme
+            VStack(alignment: .leading, spacing: 12) {
+                HStack(spacing: 12) {
+                    Button { tidy.propose() } label: {
+                        Text(tidy.phase == .proposing ? "Looking…" : "Tidy vault")
+                            .font(theme.font(14, .semibold))
+                            .foregroundStyle(theme.bg)
+                            .padding(.horizontal, 14)
+                            .frame(height: 34)
+                            .background(theme.ink, in: RoundedRectangle(cornerRadius: theme.radiusSmall + 2))
+                            .opacity(canStart ? 1 : 0.4)
+                    }
+                    .buttonStyle(.pointer)
+                    .disabled(!canStart)
+                    Text(hint).font(theme.font(13)).foregroundStyle(theme.muted).fixedSize(horizontal: false, vertical: true)
+                }
+                // While the AI is thinking the person can still stop waiting.
+                if tidy.phase == .proposing {
+                    Button("Stop") { tidy.cancel() }
+                        .buttonStyle(.pointer).font(theme.font(13, .medium)).foregroundStyle(theme.muted)
+                }
+                if case .failed(let why) = tidy.phase {
+                    Text(why).font(theme.font(13, .medium)).foregroundStyle(theme.accent).textSelection(.enabled)
+                }
+                if tidy.phase == .review || tidy.phase == .applying { reviewList(theme) }
+                if tidy.dropped > 0, tidy.phase == .review {
+                    Text("\(tidy.dropped) suggestion\(tidy.dropped == 1 ? " was" : "s were") unusable and left out.")
+                        .font(theme.font(12)).foregroundStyle(theme.muted)
+                }
+                if let message = tidy.message {
+                    Text(message).font(theme.font(13, .medium)).fixedSize(horizontal: false, vertical: true)
+                }
+                if !tidy.recent.isEmpty { recentList(theme) }
+            }
+            .padding(.bottom, 8)
+        }
+
+        private var canStart: Bool {
+            !sessionRunning && (tidy.phase == .idle || tidy.phase == .review || isFailed)
+        }
+
+        private var isFailed: Bool {
+            if case .failed = tidy.phase { return true }
+            return false
+        }
+
+        private var hint: String {
+            sessionRunning
+                ? "Not during a focus session."
+                : "Proposes where the notes in the Inbox folder belong. Nothing changes until you approve, and every change can be undone."
+        }
+
+        private func reviewList(_ theme: Theme) -> some View {
+            VStack(alignment: .leading, spacing: 8) {
+                ForEach(tidy.items) { item in
+                    HStack(alignment: .top, spacing: 10) {
+                        Button { tidy.toggle(item.id) } label: {
+                            Image(systemName: item.approved ? "checkmark.square.fill" : "square")
+                                .font(.system(size: 16))
+                                .foregroundStyle(item.problem == nil ? theme.ink : theme.muted)
+                        }
+                        .buttonStyle(.pointer)
+                        .disabled(item.problem != nil)
+                        .accessibilityLabel(item.approved ? "Approved" : "Not approved")
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(item.operation.summary).font(theme.font(14, .medium))
+                            if let reason = item.operation.reason { Text(reason).font(theme.font(12)).foregroundStyle(theme.muted) }
+                            // What would be added is shown in full: approving means reading it.
+                            if item.operation.kind == .append, let text = item.operation.text {
+                                Text("Adds: “\(text.trimmingCharacters(in: .whitespacesAndNewlines))”")
+                                    .font(theme.font(12))
+                                    .lineLimit(6)
+                                    .padding(8)
+                                    .background(theme.hover, in: RoundedRectangle(cornerRadius: theme.radiusSmall))
+                            }
+                            if let problem = item.problem {
+                                Text("Can't be done: \(problem)").font(theme.font(12)).foregroundStyle(theme.accent)
+                            }
+                        }
+                        Spacer(minLength: 0)
+                    }
+                }
+                HStack(spacing: 10) {
+                    Button { tidy.applyApproved() } label: {
+                        Text(tidy.phase == .applying ? "Working…" : "Apply \(tidy.approvedCount) change\(tidy.approvedCount == 1 ? "" : "s")")
+                            .font(theme.font(14, .semibold))
+                            .foregroundStyle(theme.bg)
+                            .padding(.horizontal, 14)
+                            .frame(height: 34)
+                            .background(theme.ink, in: RoundedRectangle(cornerRadius: theme.radiusSmall + 2))
+                            .opacity(tidy.approvedCount > 0 && tidy.phase == .review ? 1 : 0.4)
+                    }
+                    .buttonStyle(.pointer)
+                    .disabled(tidy.approvedCount == 0 || tidy.phase != .review)
+                    Button("Cancel") { tidy.cancel() }
+                        .buttonStyle(.pointer)
+                        .font(theme.font(14, .medium))
+                        .foregroundStyle(theme.muted)
+                        .disabled(tidy.phase != .review)
+                }
+            }
+            .padding(14)
+            .background(theme.surface, in: RoundedRectangle(cornerRadius: theme.radiusLarge))
+            .overlay(RoundedRectangle(cornerRadius: theme.radiusLarge).strokeBorder(theme.line, lineWidth: 1))
+        }
+
+        private func recentList(_ theme: Theme) -> some View {
+            VStack(alignment: .leading, spacing: 4) {
+                Text("RECENT CHANGES")
+                    .font(theme.font(11, .semibold))
+                    .tracking(Theme.tracking(0.14, size: 11))
+                    .foregroundStyle(theme.muted)
+                ForEach(tidy.recent, id: \.id) { record in
+                    HStack(spacing: 10) {
+                        Text(record.operation.summary)
+                            .font(theme.font(13))
+                            .strikethrough(record.undone)
+                            .foregroundStyle(record.undone ? theme.muted : theme.ink)
+                            .lineLimit(1)
+                            .truncationMode(.middle)
+                        Spacer(minLength: 8)
+                        if record.linksChanged > 0 {
+                            Text("\(record.linksChanged) link\(record.linksChanged == 1 ? "" : "s") updated").font(theme.font(12)).foregroundStyle(theme.muted)
+                        }
+                        if !record.undone {
+                            Button("Undo") { tidy.undo(record.id) }
+                                .buttonStyle(.pointer)
+                                .font(theme.font(12, .medium))
+                                .frame(height: 28)
+                                .disabled(tidy.isBusy)
+                        }
+                    }
+                }
             }
         }
     }

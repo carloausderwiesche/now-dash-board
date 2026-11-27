@@ -46,12 +46,12 @@ final class CaptureCenter {
 
     init(
         config: VaultConfig, classifier: any Classifier, categoryIds: @escaping @Sendable () -> [String],
-        now: @escaping @Sendable () -> Date = { Date() }
+        now: @escaping @Sendable () -> Date = { Date() }, guide: GuideMaintainer? = nil
     ) {
         let changes = self.changes
         self.config = config
         pipeline = CapturePipeline(
-            config: config, classifier: classifier, categoryIds: categoryIds, now: now, onChange: { _ in changes.fire() })
+            config: config, classifier: classifier, categoryIds: categoryIds, now: now, onChange: { _ in changes.fire() }, guide: guide)
         // The pipeline calls this from any thread; refresh on the main one.
         changes.handler = { [weak self] in Task { @MainActor in self?.refresh() } }
         refresh()

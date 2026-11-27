@@ -1,0 +1,513 @@
+{
+  "cases": [
+    {
+      "description": "A plain name stays when the note only changes folder and the name is still unique.",
+      "old": "Wiki/Plan.md",
+      "new": "Archive/Plan.md",
+      "notes": [
+        "Wiki/Plan.md",
+        "Wiki/Other.md",
+        "Daily/2026-11-26.md"
+      ],
+      "input": "See [[Plan]] and [[Other]].",
+      "expected": "See [[Plan]] and [[Other]].",
+      "changed": 0,
+      "ambiguous": 0
+    },
+    {
+      "description": "A full-path link follows the move.",
+      "old": "Wiki/Plan.md",
+      "new": "Archive/Plan.md",
+      "notes": [
+        "Wiki/Plan.md",
+        "Wiki/Other.md",
+        "Daily/2026-11-26.md"
+      ],
+      "input": "See [[Wiki/Plan]].",
+      "expected": "See [[Archive/Plan]].",
+      "changed": 1,
+      "ambiguous": 0
+    },
+    {
+      "description": "A plain name follows a rename.",
+      "old": "Wiki/Plan.md",
+      "new": "Wiki/Roadmap.md",
+      "notes": [
+        "Wiki/Plan.md",
+        "Wiki/Other.md",
+        "Daily/2026-11-26.md"
+      ],
+      "input": "See [[Plan]].",
+      "expected": "See [[Roadmap]].",
+      "changed": 1,
+      "ambiguous": 0
+    },
+    {
+      "description": "A full-path link follows a rename.",
+      "old": "Wiki/Plan.md",
+      "new": "Wiki/Roadmap.md",
+      "notes": [
+        "Wiki/Plan.md",
+        "Wiki/Other.md",
+        "Daily/2026-11-26.md"
+      ],
+      "input": "See [[Wiki/Plan]].",
+      "expected": "See [[Wiki/Roadmap]].",
+      "changed": 1,
+      "ambiguous": 0
+    },
+    {
+      "description": "The alias is kept.",
+      "old": "Wiki/Plan.md",
+      "new": "Wiki/Roadmap.md",
+      "notes": [
+        "Wiki/Plan.md",
+        "Wiki/Other.md",
+        "Daily/2026-11-26.md"
+      ],
+      "input": "See [[Plan|the plan]].",
+      "expected": "See [[Roadmap|the plan]].",
+      "changed": 1,
+      "ambiguous": 0
+    },
+    {
+      "description": "The heading is kept.",
+      "old": "Wiki/Plan.md",
+      "new": "Wiki/Roadmap.md",
+      "notes": [
+        "Wiki/Plan.md",
+        "Wiki/Other.md",
+        "Daily/2026-11-26.md"
+      ],
+      "input": "See [[Plan#Goals]].",
+      "expected": "See [[Roadmap#Goals]].",
+      "changed": 1,
+      "ambiguous": 0
+    },
+    {
+      "description": "The block reference is kept.",
+      "old": "Wiki/Plan.md",
+      "new": "Wiki/Roadmap.md",
+      "notes": [
+        "Wiki/Plan.md",
+        "Wiki/Other.md",
+        "Daily/2026-11-26.md"
+      ],
+      "input": "See [[Plan^abc123]].",
+      "expected": "See [[Roadmap^abc123]].",
+      "changed": 1,
+      "ambiguous": 0
+    },
+    {
+      "description": "Heading and alias together.",
+      "old": "Wiki/Plan.md",
+      "new": "Wiki/Roadmap.md",
+      "notes": [
+        "Wiki/Plan.md",
+        "Wiki/Other.md",
+        "Daily/2026-11-26.md"
+      ],
+      "input": "[[Plan#Goals|our goals]]",
+      "expected": "[[Roadmap#Goals|our goals]]",
+      "changed": 1,
+      "ambiguous": 0
+    },
+    {
+      "description": "An embed keeps its mark.",
+      "old": "Wiki/Plan.md",
+      "new": "Wiki/Roadmap.md",
+      "notes": [
+        "Wiki/Plan.md",
+        "Wiki/Other.md",
+        "Daily/2026-11-26.md"
+      ],
+      "input": "![[Plan]]\n![[Plan#Goals]]",
+      "expected": "![[Roadmap]]\n![[Roadmap#Goals]]",
+      "changed": 2,
+      "ambiguous": 0
+    },
+    {
+      "description": "A link with .md keeps it.",
+      "old": "Wiki/Plan.md",
+      "new": "Wiki/Roadmap.md",
+      "notes": [
+        "Wiki/Plan.md",
+        "Wiki/Other.md",
+        "Daily/2026-11-26.md"
+      ],
+      "input": "[[Plan.md]] [[Wiki/Plan.md]]",
+      "expected": "[[Roadmap.md]] [[Wiki/Roadmap.md]]",
+      "changed": 2,
+      "ambiguous": 0
+    },
+    {
+      "description": "Capitals in a link don't matter for finding the note; the new link uses the new name's capitals.",
+      "old": "Wiki/Plan.md",
+      "new": "Wiki/Roadmap.md",
+      "notes": [
+        "Wiki/Plan.md",
+        "Wiki/Other.md",
+        "Daily/2026-11-26.md"
+      ],
+      "input": "[[plan]] [[WIKI/PLAN]]",
+      "expected": "[[Roadmap]] [[Wiki/Roadmap]]",
+      "changed": 2,
+      "ambiguous": 0
+    },
+    {
+      "description": "Several links in one line, and other links stay.",
+      "old": "Wiki/Plan.md",
+      "new": "Wiki/Roadmap.md",
+      "notes": [
+        "Wiki/Plan.md",
+        "Wiki/Other.md",
+        "Daily/2026-11-26.md"
+      ],
+      "input": "[[Plan]] and [[Other]] and [[Plan|x]]",
+      "expected": "[[Roadmap]] and [[Other]] and [[Roadmap|x]]",
+      "changed": 2,
+      "ambiguous": 0
+    },
+    {
+      "description": "A link to a note that doesn't exist stays.",
+      "old": "Wiki/Plan.md",
+      "new": "Wiki/Roadmap.md",
+      "notes": [
+        "Wiki/Plan.md",
+        "Wiki/Other.md",
+        "Daily/2026-11-26.md"
+      ],
+      "input": "[[Missing]] [[Wiki/Missing]]",
+      "expected": "[[Missing]] [[Wiki/Missing]]",
+      "changed": 0,
+      "ambiguous": 0
+    },
+    {
+      "description": "A link in the same note to its own heading stays.",
+      "old": "Wiki/Plan.md",
+      "new": "Wiki/Roadmap.md",
+      "notes": [
+        "Wiki/Plan.md",
+        "Wiki/Other.md",
+        "Daily/2026-11-26.md"
+      ],
+      "input": "[[#Goals]]",
+      "expected": "[[#Goals]]",
+      "changed": 0,
+      "ambiguous": 0
+    },
+    {
+      "description": "Links in a fenced code block are never touched.",
+      "old": "Wiki/Plan.md",
+      "new": "Wiki/Roadmap.md",
+      "notes": [
+        "Wiki/Plan.md",
+        "Wiki/Other.md",
+        "Daily/2026-11-26.md"
+      ],
+      "input": "```\n[[Plan]]\n```\n[[Plan]]",
+      "expected": "```\n[[Plan]]\n```\n[[Roadmap]]",
+      "changed": 1,
+      "ambiguous": 0
+    },
+    {
+      "description": "Links in a tilde fence are never touched.",
+      "old": "Wiki/Plan.md",
+      "new": "Wiki/Roadmap.md",
+      "notes": [
+        "Wiki/Plan.md",
+        "Wiki/Other.md",
+        "Daily/2026-11-26.md"
+      ],
+      "input": "~~~md\n[[Plan]]\n~~~\n",
+      "expected": "~~~md\n[[Plan]]\n~~~\n",
+      "changed": 0,
+      "ambiguous": 0
+    },
+    {
+      "description": "A longer fence closes only with a fence at least as long.",
+      "old": "Wiki/Plan.md",
+      "new": "Wiki/Roadmap.md",
+      "notes": [
+        "Wiki/Plan.md",
+        "Wiki/Other.md",
+        "Daily/2026-11-26.md"
+      ],
+      "input": "````\n```\n[[Plan]]\n```\n````\n[[Plan]]",
+      "expected": "````\n```\n[[Plan]]\n```\n````\n[[Roadmap]]",
+      "changed": 1,
+      "ambiguous": 0
+    },
+    {
+      "description": "Links in inline code are never touched.",
+      "old": "Wiki/Plan.md",
+      "new": "Wiki/Roadmap.md",
+      "notes": [
+        "Wiki/Plan.md",
+        "Wiki/Other.md",
+        "Daily/2026-11-26.md"
+      ],
+      "input": "Write `[[Plan]]` like [[Plan]].",
+      "expected": "Write `[[Plan]]` like [[Roadmap]].",
+      "changed": 1,
+      "ambiguous": 0
+    },
+    {
+      "description": "Double backticks work too.",
+      "old": "Wiki/Plan.md",
+      "new": "Wiki/Roadmap.md",
+      "notes": [
+        "Wiki/Plan.md",
+        "Wiki/Other.md",
+        "Daily/2026-11-26.md"
+      ],
+      "input": "``a ` [[Plan]] b`` [[Plan]]",
+      "expected": "``a ` [[Plan]] b`` [[Roadmap]]",
+      "changed": 1,
+      "ambiguous": 0
+    },
+    {
+      "description": "A lone backtick is just text.",
+      "old": "Wiki/Plan.md",
+      "new": "Wiki/Roadmap.md",
+      "notes": [
+        "Wiki/Plan.md",
+        "Wiki/Other.md",
+        "Daily/2026-11-26.md"
+      ],
+      "input": "it`s [[Plan]]",
+      "expected": "it`s [[Roadmap]]",
+      "changed": 1,
+      "ambiguous": 0
+    },
+    {
+      "description": "With two notes called Plan, a plain-name link is ambiguous and is left alone.",
+      "old": "Wiki/A/Plan.md",
+      "new": "Wiki/A/Roadmap.md",
+      "notes": [
+        "Wiki/A/Plan.md",
+        "Wiki/B/Plan.md",
+        "Wiki/Other.md"
+      ],
+      "input": "[[Plan]]",
+      "expected": "[[Plan]]",
+      "changed": 0,
+      "ambiguous": 1
+    },
+    {
+      "description": "With two notes called Plan, the full path is exact and follows the rename.",
+      "old": "Wiki/A/Plan.md",
+      "new": "Wiki/A/Roadmap.md",
+      "notes": [
+        "Wiki/A/Plan.md",
+        "Wiki/B/Plan.md",
+        "Wiki/Other.md"
+      ],
+      "input": "[[Wiki/A/Plan]] [[Wiki/B/Plan]]",
+      "expected": "[[Wiki/A/Roadmap]] [[Wiki/B/Plan]]",
+      "changed": 1,
+      "ambiguous": 0
+    },
+    {
+      "description": "A partial path that fits only one note follows the move.",
+      "old": "Wiki/A/Plan.md",
+      "new": "Archive/Plan.md",
+      "notes": [
+        "Wiki/A/Plan.md",
+        "Wiki/B/Plan.md",
+        "Wiki/Other.md"
+      ],
+      "input": "[[A/Plan]]",
+      "expected": "[[Archive/Plan]]",
+      "changed": 1,
+      "ambiguous": 0
+    },
+    {
+      "description": "A partial path that fits two notes is ambiguous.",
+      "old": "Wiki/A/Plan.md",
+      "new": "Archive/Plan.md",
+      "notes": [
+        "Wiki/A/Plan.md",
+        "Other/A/Plan.md"
+      ],
+      "input": "[[A/Plan]]",
+      "expected": "[[A/Plan]]",
+      "changed": 0,
+      "ambiguous": 1
+    },
+    {
+      "description": "Moving a note into a folder that has a note with the same name turns plain links into full paths.",
+      "old": "Wiki/A/Plan.md",
+      "new": "Wiki/B/Plan.md",
+      "notes": [
+        "Wiki/A/Plan.md",
+        "Wiki/B/Other.md"
+      ],
+      "input": "[[Plan]]",
+      "expected": "[[Plan]]",
+      "changed": 0,
+      "ambiguous": 0
+    },
+    {
+      "description": "Moving next to a note with the same name: the plain link becomes a full path.",
+      "old": "Wiki/A/Plan.md",
+      "new": "Wiki/B/Plan.md",
+      "notes": [
+        "Wiki/A/Plan.md",
+        "Wiki/B/Plan.md"
+      ],
+      "input": "[[Wiki/A/Plan]]",
+      "expected": "[[Wiki/B/Plan]]",
+      "changed": 1,
+      "ambiguous": 0
+    },
+    {
+      "description": "Windows line breaks are kept.",
+      "old": "Wiki/Plan.md",
+      "new": "Wiki/Roadmap.md",
+      "notes": [
+        "Wiki/Plan.md",
+        "Wiki/Other.md",
+        "Daily/2026-11-26.md"
+      ],
+      "input": "a [[Plan]]\r\nb\r\n",
+      "expected": "a [[Roadmap]]\r\nb\r\n",
+      "changed": 1,
+      "ambiguous": 0
+    },
+    {
+      "description": "No final line break is kept.",
+      "old": "Wiki/Plan.md",
+      "new": "Wiki/Roadmap.md",
+      "notes": [
+        "Wiki/Plan.md",
+        "Wiki/Other.md",
+        "Daily/2026-11-26.md"
+      ],
+      "input": "[[Plan]]",
+      "expected": "[[Roadmap]]",
+      "changed": 1,
+      "ambiguous": 0
+    },
+    {
+      "description": "Links in frontmatter are links too.",
+      "old": "Wiki/Plan.md",
+      "new": "Wiki/Roadmap.md",
+      "notes": [
+        "Wiki/Plan.md",
+        "Wiki/Other.md",
+        "Daily/2026-11-26.md"
+      ],
+      "input": "---\nproject: '[[Wiki/Plan]]'\n---\ntext",
+      "expected": "---\nproject: '[[Wiki/Roadmap]]'\n---\ntext",
+      "changed": 1,
+      "ambiguous": 0
+    },
+    {
+      "description": "Unicode names work.",
+      "old": "Wiki/Café.md",
+      "new": "Wiki/Cafés.md",
+      "notes": [
+        "Wiki/Café.md"
+      ],
+      "input": "[[Café]] 日本語",
+      "expected": "[[Cafés]] 日本語",
+      "changed": 1,
+      "ambiguous": 0
+    },
+    {
+      "description": "Markdown links are not wiki links and stay.",
+      "old": "Wiki/Plan.md",
+      "new": "Wiki/Roadmap.md",
+      "notes": [
+        "Wiki/Plan.md",
+        "Wiki/Other.md",
+        "Daily/2026-11-26.md"
+      ],
+      "input": "[text](Plan.md) [[Plan]]",
+      "expected": "[text](Plan.md) [[Roadmap]]",
+      "changed": 1,
+      "ambiguous": 0
+    },
+    {
+      "description": "Broken or nested brackets are left alone.",
+      "old": "Wiki/Plan.md",
+      "new": "Wiki/Roadmap.md",
+      "notes": [
+        "Wiki/Plan.md",
+        "Wiki/Other.md",
+        "Daily/2026-11-26.md"
+      ],
+      "input": "[[Plan [[Plan]]",
+      "expected": "[[Plan [[Roadmap]]",
+      "changed": 1,
+      "ambiguous": 0
+    },
+    {
+      "description": "An empty link stays.",
+      "old": "Wiki/Plan.md",
+      "new": "Wiki/Roadmap.md",
+      "notes": [
+        "Wiki/Plan.md",
+        "Wiki/Other.md",
+        "Daily/2026-11-26.md"
+      ],
+      "input": "[[]] [[|x]]",
+      "expected": "[[]] [[|x]]",
+      "changed": 0,
+      "ambiguous": 0
+    },
+    {
+      "description": "Spaces inside the target are ignored when matching.",
+      "old": "Wiki/Plan.md",
+      "new": "Wiki/Roadmap.md",
+      "notes": [
+        "Wiki/Plan.md",
+        "Wiki/Other.md",
+        "Daily/2026-11-26.md"
+      ],
+      "input": "[[ Plan ]]",
+      "expected": "[[Roadmap]]",
+      "changed": 1,
+      "ambiguous": 0
+    },
+    {
+      "description": "A note with spaces in its name.",
+      "old": "Wiki/My Plan.md",
+      "new": "Wiki/Our Plan.md",
+      "notes": [
+        "Wiki/My Plan.md"
+      ],
+      "input": "[[My Plan]] [[Wiki/My Plan|x]]",
+      "expected": "[[Our Plan]] [[Wiki/Our Plan|x]]",
+      "changed": 2,
+      "ambiguous": 0
+    },
+    {
+      "description": "A move out of a folder with a plain-name link that stays valid.",
+      "old": "Wiki/Ideas/Plan.md",
+      "new": "Plan.md",
+      "notes": [
+        "Wiki/Ideas/Plan.md"
+      ],
+      "input": "[[Plan]] [[Wiki/Ideas/Plan]]",
+      "expected": "[[Plan]] [[Plan]]",
+      "changed": 1,
+      "ambiguous": 0
+    },
+    {
+      "description": "An escaped pipe in a table cell is the alias separator.",
+      "old": "Wiki/Plan.md",
+      "new": "Wiki/Roadmap.md",
+      "notes": [
+        "Wiki/Plan.md",
+        "Wiki/Other.md",
+        "Daily/2026-11-26.md"
+      ],
+      "input": "| a | [[Plan\\|the plan]] |\n| b | [[Wiki/Plan#Goals\\|goals]] |",
+      "expected": "| a | [[Roadmap\\|the plan]] |\n| b | [[Wiki/Roadmap#Goals\\|goals]] |",
+      "changed": 2,
+      "ambiguous": 0
+    }
+  ]
+}

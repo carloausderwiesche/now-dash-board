@@ -100,10 +100,15 @@ public enum ClaudeCLI {
     /// text. A process gets its arguments one by one, so no quoting is
     /// needed and a quote typed in a capture can't change the command.
     public static func arguments(for input: CaptureInput) -> [String] {
+        arguments(prompt: input.prompt, schema: CaptureSchema.make(categoryIds: input.categoryIds))
+    }
+
+    /// The same arguments for any prompt and any answer schema (the vault tidy-up uses them too).
+    public static func arguments(prompt: String, schema: JSONValue) -> [String] {
         [
-            "-p", input.prompt,
+            "-p", prompt,
             "--output-format", "json",
-            "--json-schema", CaptureSchema.make(categoryIds: input.categoryIds).jsonString(),
+            "--json-schema", schema.jsonString(),
             "--no-session-persistence",
             "--tools", "",
             "--safe-mode",
@@ -119,6 +124,37 @@ public enum ClaudeCLI {
     /// Reads what the tool printed: one JSON object, or a list whose last
     /// `"type": "result"` entry counts. Errors say what was wrong.
     public static func parse(_ stdout: Data, categoryIds: [String]) throws(ClassifierError) -> Parsed {
+        let (answer, diagnostics) = try structuredOutput(stdout)
+        let result: CaptureResult
+        do {
+            result = try CaptureResult.decode(answer, categoryIds: categoryIds)
+        } catch {
+            // `decode` only throws `CaptureError.invalidResult`; the message is what we want.
+            throw .invalidResult(error.errorDescription ?? "unknown")
+        }
+        return Parsed(result: result, diagnostics: diagnostics)
+    }
+
+    /// The tool's own error, if the output says one (`is_error`): its text, else the subtype.
+    public static func errorMessage(in stdout: Data) -> String? {
+        guard let object = try? JSONSerialization.jsonObject(with: stdout), let final = finalObject(object),
+            final["is_error"] as? Bool == true
+        else { return nil }
+        return (final["result"] as? String)?.trimmedOrNil ?? (final["subtype"] as? String) ?? "unknown error"
+    }
+
+    /// The `result` entry of one object or of a list.
+    private static func finalObject(_ object: Any) -> [String: Any]? {
+        if let one = object as? [String: Any] { return one }
+        if let list = object as? [Any] {
+            return list.last(where: { ($0 as? [String: Any])?["type"] as? String == "result" }) as? [String: Any]
+        }
+        return nil
+    }
+
+    /// The answer object (`structured_output`) of the tool's output, and what it reported about the call.
+    /// Errors say what was wrong. Whoever asked checks the answer's content itself.
+    public static func structuredOutput(_ stdout: Data) throws(ClassifierError) -> (answer: Data, diagnostics: ClassifierDiagnostics) {
         let object: Any
         do {
             object = try JSONSerialization.jsonObject(with: stdout)
@@ -151,13 +187,6 @@ public enum ClaudeCLI {
         } catch {
             throw .noStructuredOutput
         }
-        let result: CaptureResult
-        do {
-            result = try CaptureResult.decode(answer, categoryIds: categoryIds)
-        } catch {
-            // `decode` only throws `CaptureError.invalidResult`; the message is what we want.
-            throw .invalidResult(error.errorDescription ?? "unknown")
-        }
 
         let usage = final["usage"] as? [String: Any]
         let diagnostics = ClassifierDiagnostics(
@@ -165,7 +194,7 @@ public enum ClaudeCLI {
             inputTokens: (usage?["input_tokens"] as? NSNumber)?.intValue,
             outputTokens: (usage?["output_tokens"] as? NSNumber)?.intValue,
             durationMs: (final["duration_ms"] as? NSNumber)?.intValue)
-        return Parsed(result: result, diagnostics: diagnostics)
+        return (answer, diagnostics)
     }
 
     /// The start of some output as text, for error messages.
