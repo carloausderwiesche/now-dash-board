@@ -17,12 +17,8 @@
         var body: some View {
             let theme = store.theme
             let session = model.session
-            VStack(alignment: .leading, spacing: 16) {
-                Text("FOCUS SESSION")
-                    .font(theme.font(11, .semibold))
-                    .tracking(Theme.tracking(0.14, size: 11))
-                    .foregroundStyle(theme.muted)
-
+            // A section like Today and Suggested: the same heading and rule, content on the page.
+            DashboardSection(title: "Focus") {
                 HStack(alignment: .center, spacing: 20) {
                     ring(session)
                     VStack(alignment: .leading, spacing: 10) {
@@ -38,10 +34,6 @@
                 }
                 buttons(session)
             }
-            .padding(20)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(theme.surface, in: RoundedRectangle(cornerRadius: theme.radiusLarge))
-            .overlay(RoundedRectangle(cornerRadius: theme.radiusLarge).strokeBorder(theme.line, lineWidth: 1))
             .onAppear { syncCustomText() }
             .onChange(of: session.minutes) { syncCustomText() }
             .animation(.easeOut(duration: 0.25), value: session.phase)
@@ -68,19 +60,22 @@
             let theme = store.theme
             let remaining = session.remaining(at: now)
             return ZStack {
-                Circle().stroke(theme.line, lineWidth: 8)
+                Circle().stroke(theme.line, lineWidth: 5)
                 Circle()
                     .trim(from: 0, to: session.fraction(at: now))
-                    .stroke(session.isPaused ? theme.muted : theme.accent, style: StrokeStyle(lineWidth: 8, lineCap: .round))
+                    // Ink, not the accent: the accent is for NOW on the focus card; this stays calm.
+                    .stroke(session.isPaused ? theme.muted : theme.ink, style: StrokeStyle(lineWidth: 5, lineCap: .round))
                     .rotationEffect(.degrees(-90))
                     // Each second's step glides instead of jumping.
                     .animation(.linear(duration: 1), value: session.fraction(at: now))
                 Text(FocusSession.format(remaining))
-                    .font(theme.font(session.minutes >= 60 ? 22 : 28, .semibold))
+                    .font(theme.font(session.minutes >= 60 ? 17 : 22, .semibold))
                     .monospacedDigit()
                     .foregroundStyle(session.isPaused ? theme.muted : theme.ink)
             }
-            .frame(width: 112, height: 112)
+            // A little room so the stroke's outer half doesn't stick out past the column's left edge.
+            .padding(3)
+            .frame(width: 94, height: 94)
             .accessibilityElement(children: .ignore)
             .accessibilityLabel("Time left")
             .accessibilityValue(FocusSession.format(remaining))
@@ -106,10 +101,8 @@
                     if idle { Image(systemName: "chevron.up.chevron.down").font(.system(size: 9, weight: .semibold)) }
                 }
                 .font(theme.font(14, .medium))
-                .padding(.horizontal, 12)
-                .frame(height: 34)
+                .frame(height: 32)
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .background(theme.well, in: RoundedRectangle(cornerRadius: theme.radiusSmall + 2))
                 .contentShape(Rectangle())
             }
             .menuStyle(.borderlessButton)
@@ -135,9 +128,10 @@
                         Text("\(minutes)")
                             .font(theme.font(14, .semibold))
                             .monospacedDigit()
-                            .foregroundStyle(on ? theme.bg : theme.ink)
-                            .frame(width: 44, height: 34)
-                            .background(on ? theme.ink : theme.well, in: RoundedRectangle(cornerRadius: theme.radiusSmall + 2))
+                            .foregroundStyle(on ? theme.ink : theme.muted)
+                            .frame(width: 44, height: 32)
+                            // The chosen length is a soft tint; the others are plain text.
+                            .background(on ? theme.well : .clear, in: RoundedRectangle(cornerRadius: theme.radiusSmall + 2))
                     }
                     .buttonStyle(.pointer)
                     .accessibilityLabel("\(minutes) minutes")
@@ -157,9 +151,8 @@
                     Text("min").font(theme.font(12)).foregroundStyle(theme.muted)
                 }
                 .padding(.horizontal, 10)
-                .frame(height: 34)
-                .background(custom ? theme.ink.opacity(0.12) : theme.well, in: RoundedRectangle(cornerRadius: theme.radiusSmall + 2))
-                .overlay(RoundedRectangle(cornerRadius: theme.radiusSmall + 2).strokeBorder(custom ? theme.ink : .clear, lineWidth: 1))
+                .frame(height: 32)
+                .background(custom ? theme.well : .clear, in: RoundedRectangle(cornerRadius: theme.radiusSmall + 2))
             }
             .disabled(!idle)
             .opacity(idle ? 1 : 0.5)
@@ -227,10 +220,9 @@
             let theme = store.theme
             return Button(action: action) {
                 Text(title)
-                    .foregroundStyle(theme.ink)
-                    .padding(.horizontal, 18)
+                    .foregroundStyle(theme.muted)
+                    .padding(.horizontal, 12)
                     .frame(height: 36)
-                    .background(theme.well, in: RoundedRectangle(cornerRadius: theme.radiusSmall + 2))
             }
             .buttonStyle(.pointer)
         }

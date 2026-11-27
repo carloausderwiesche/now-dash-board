@@ -23,6 +23,24 @@
         }
     }
 
+    /// The look every box on the Dashboard shares: the same heading as Today and
+    /// Suggested (22pt title, a rule under it), and the content on the page itself.
+    /// No card, no fill, no border: boxes are sections, so the page stays calm.
+    /// Later boxes (chat, calendar, music) use this too.
+    struct DashboardSection<Content: View>: View {
+        let title: String
+        var count: Int? = nil
+        @ViewBuilder var content: Content
+
+        var body: some View {
+            VStack(alignment: .leading, spacing: 16) {
+                SectionHeading(title: title, count: count)
+                content
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+    }
+
     // MARK: - Dashboard page
 
     struct DashboardPageView: View {
@@ -56,7 +74,8 @@
                     VStack(alignment: .leading, spacing: 20) {
                         ForEach(boxes) { $0.content() }
                     }
-                    .frame(width: 420, alignment: .top)
+                    // Same top padding as the left column: the first heading and its rule line up with "Today".
+                    .frame(width: 380, alignment: .top)
                     .padding(.trailing, 48)
                     .padding(.top, 14)
                 }
