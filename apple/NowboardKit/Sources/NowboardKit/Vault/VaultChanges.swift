@@ -56,9 +56,12 @@ public struct ChangeRecord: Codable, Equatable, Sendable {
     enum CodingKeys: String, CodingKey { case id, time, operation, from, files, linksChanged, linksAmbiguous }
 }
 
-public final class VaultChanges {
+/// Swift note: `@unchecked Sendable` = "safe to use from background threads, I promise". It holds only
+/// constants (the config and a clock), and each change works on files, so a change on a background thread
+/// is fine. The app makes one change at a time.
+public final class VaultChanges: @unchecked Sendable {
     public let config: VaultConfig
-    private let now: () -> Date
+    private let now: @Sendable () -> Date
 
     /// The hidden folder (Obsidian ignores folders that start with a dot).
     public static let folderName = ".nowboard"
@@ -66,7 +69,7 @@ public final class VaultChanges {
     private var logURL: URL { root.appendingPathComponent("changes.jsonl") }
     private var historyURL: URL { root.appendingPathComponent("history", isDirectory: true) }
 
-    public init(config: VaultConfig, now: @escaping () -> Date = { Date() }) {
+    public init(config: VaultConfig, now: @escaping @Sendable () -> Date = { Date() }) {
         self.config = config
         self.now = now
     }
