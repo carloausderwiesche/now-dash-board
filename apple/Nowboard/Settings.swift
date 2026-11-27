@@ -16,6 +16,10 @@ struct DeviceSettings: Codable, Equatable {
     /// Where the `claude` command-line tool is, if it can't be found on its own
     /// (macOS only; there's no screen for it yet). Nil = look in the usual places.
     var claudePath: String?
+    /// A focus session that is running or paused (or has run out while the app was closed), as
+    /// `FocusSession.encoded()` made it, so it survives quitting the app. Nil = no session.
+    /// Optional: settings saved before it existed still load.
+    var focusSessionData: Data?
 
     private static let key = "settings"
 
@@ -48,6 +52,7 @@ extension DeviceSettings {
         theme = try c.decode(String.self, forKey: .theme)
         categories = try c.decode([Category].self, forKey: .categories)
         claudePath = try c.decodeIfPresent(String.self, forKey: .claudePath)
+        focusSessionData = try c.decodeIfPresent(Data.self, forKey: .focusSessionData)
         density = try c.decodeIfPresent(CardDensity.self, forKey: .density)
             ?? (try legacy.decodeIfPresent(Bool.self, forKey: .compact) == true ? .compact : .roomy)
     }

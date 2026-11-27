@@ -35,11 +35,14 @@ public struct CaptureStripInput: Equatable, Sendable {
     public var waitingCount: Int
     public var recent: RecentCapture?
     public var now: Date
+    /// A focus session is running: a question must not interrupt it (it waits, and the Inbox badge still counts it).
+    public var sessionRunning: Bool
 
     public init(
         pending: Int = 0, problem: String? = nil, textUnsaved: Bool = false, openQuestion: InboxEntry? = nil, waitingCount: Int = 0,
-        recent: RecentCapture? = nil, now: Date = Date()
+        recent: RecentCapture? = nil, now: Date = Date(), sessionRunning: Bool = false
     ) {
+        self.sessionRunning = sessionRunning
         self.pending = pending
         self.problem = problem
         self.textUnsaved = textUnsaved
@@ -67,12 +70,16 @@ public enum CaptureStrip: Equatable, Sendable {
     public static let fadeAfter: TimeInterval = 8
 
     /// Decides what to show. In this order of importance: something is being
-    /// sorted; an error; a question waiting for an answer; a result from the
-    /// last few seconds; nothing.
+    /// sorted; an error; a question waiting for an answer (unless a focus session
+    /// is running); a result from the last few seconds; nothing.
     public static func decide(_ input: CaptureStripInput) -> CaptureStrip? {
         if input.pending > 0 { return .sorting }
         if let problem = input.problem { return .problem(message: problem, textSaved: !input.textUnsaved) }
+        // During a focus session a question waits: not shown, and (because the capture bar
+        // asks this same function) Return makes a new capture instead of answering it.
         if let question = input.openQuestion {
+            // Nothing at all: not even "it's a question, answering comes later", which would be untrue.
+            if input.sessionRunning { return nil }
             return .question(
                 entryID: question.id, typed: question.text, question: question.followUp ?? CaptureResult.defaultQuestion,
                 others: max(0, input.waitingCount - 1))

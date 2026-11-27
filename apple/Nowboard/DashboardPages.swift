@@ -9,8 +9,8 @@
     // MARK: - Boxes
 
     /// A box for the dashboard's right column (Teams, music, a calendar…).
-    /// None exist yet: the column only appears once one is registered, and the
-    /// Today grid uses the full width until then. No placeholders.
+    /// The column only appears once one is registered, and the Today grid uses
+    /// the full width until then. No placeholders: only real boxes are listed.
     struct DashboardBox: Identifiable {
         let id: String
         let content: @MainActor () -> AnyView
@@ -18,7 +18,9 @@
 
     enum DashboardBoxes {
         /// The boxes to show, in order. Later packages add theirs here.
-        @MainActor static var registered: [DashboardBox] { [] }
+        @MainActor static var registered: [DashboardBox] {
+            [DashboardBox(id: "focus-session") { AnyView(FocusSessionBox()) }]
+        }
     }
 
     // MARK: - Dashboard page

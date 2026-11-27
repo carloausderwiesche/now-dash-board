@@ -28,6 +28,8 @@
         @State private var center: CaptureCenter?
         /// The category ids the classifier may choose from, kept up to date from the settings.
         @State private var categoryIds = CategoryIds()
+        /// The focus session (its box is on the Dashboard page; it keeps running on the other pages).
+        @State private var focus = FocusSessionModel()
 
         /// Debug builds can open on another page: `-page tasks`.
         private static var firstPage: DashboardPage {
@@ -53,9 +55,11 @@
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .overlay(alignment: .bottom) { UndoPill() }
-                CaptureBar(center: center, unavailable: unavailableMessage, page: page)
+                CaptureBar(center: center, unavailable: unavailableMessage, page: page, sessionRunning: focus.session.isRunning)
             }
             .background(theme.bg.ignoresSafeArea())
+            // No round window buttons: the dashboard is one window that fills the top (WindowChrome.swift).
+            .background(HideWindowButtons())
             .foregroundStyle(theme.ink)
             .tint(theme.accent)
             .preferredColorScheme(theme.colorScheme)
@@ -78,7 +82,14 @@
             }
             // A capture centre for the vault the Tasks folder is in, made again when the folder changes.
             .task(id: captureKey) { makeCenter() }
-            .onAppear { categoryIds.set(store.settings.categories.map(\.id)) }
+            .onAppear {
+                categoryIds.set(store.settings.categories.map(\.id))
+                focus.attach(to: store)
+                #if DEBUG
+                    focus.applyDebugArguments()
+                #endif
+            }
+            .environment(focus)
             .onChange(of: store.settings.categories.map(\.id)) { _, ids in categoryIds.set(ids) }
         }
 
@@ -169,7 +180,7 @@
                 // The settings popover opens under this.
                 .onGeometryChange(for: CGRect.self) { $0.frame(in: .named(rootSpace)) } action: { store.settingsAnchor = $0 }
             }
-            // 34pt on top leave room for the window buttons (there is no title bar).
+            // The window buttons are hidden; the 34pt on top is the strip that still drags the window.
             .padding(.top, 34)
             .padding(.horizontal, 48)
             .padding(.bottom, 14)

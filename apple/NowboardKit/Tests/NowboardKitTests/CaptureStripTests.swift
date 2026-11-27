@@ -165,3 +165,30 @@ private func recent(_ e: InboxEntry, secondsAgo: Double = 1, category: String? =
     #expect(InboxList.openQuestion([newer, other, older])?.text == "older")
     #expect(InboxList.openQuestion([other]) == nil)
 }
+
+// MARK: - Focus sessions
+
+@Test func aRunningFocusSessionHidesTheQuestionButNotTheRest() {
+    let q = entry("q.md", text: "Mia", outcome: .waitingForAnswer, followUp: "Which?")
+    let waiting = CaptureStripInput(openQuestion: q, waitingCount: 2, now: t0, sessionRunning: true)
+    #expect(CaptureStrip.decide(waiting) == nil)  // nothing interrupts
+    // Without a session the same input asks.
+    if case .question? = CaptureStrip.decide(CaptureStripInput(openQuestion: q, waitingCount: 2, now: t0)) {} else { Issue.record("expected the question") }
+    // Sorting and errors still show: they are about what you just did.
+    #expect(CaptureStrip.decide(CaptureStripInput(pending: 1, openQuestion: q, now: t0, sessionRunning: true)) == .sorting)
+    #expect(CaptureStrip.decide(CaptureStripInput(problem: "boom", openQuestion: q, now: t0, sessionRunning: true)) == .problem(message: "boom", textSaved: true))
+}
+
+@Test func aWaitingQuestionKeepsEverythingElseQuietDuringASession() {
+    let q = entry("q.md", outcome: .waitingForAnswer, followUp: "Which?")
+    let done = recent(entry("d.md", outcome: .taskSuggested, taskFile: "T.md"))
+    // A question is open: no strip, not even a result line.
+    #expect(CaptureStrip.decide(CaptureStripInput(openQuestion: q, waitingCount: 1, recent: done, now: t0, sessionRunning: true)) == nil)
+    // A capture that just became a question must not say "answering comes later".
+    let asked = recent(entry("n.md", outcome: .questionOpen))
+    #expect(CaptureStrip.decide(CaptureStripInput(recent: asked, now: t0, sessionRunning: true)) != nil)  // no open question: the honest line
+    // With no question open, a result shows during a session.
+    if case .result? = CaptureStrip.decide(CaptureStripInput(recent: done, now: t0, sessionRunning: true)) {} else { Issue.record("expected a result") }
+    // After the session: the question is back, ahead of the result, as before.
+    if case .question? = CaptureStrip.decide(CaptureStripInput(openQuestion: q, waitingCount: 1, recent: done, now: t0, sessionRunning: false)) {} else { Issue.record("expected the question") }
+}

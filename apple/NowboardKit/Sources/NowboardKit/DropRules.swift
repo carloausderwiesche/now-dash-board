@@ -63,7 +63,11 @@ public enum DropRules {
 
     /// How many columns a grid of `width` has (the CardGridLayout / CSS auto-fill rule).
     public static func columns(width: CGFloat, minWidth: CGFloat, spacing: CGFloat) -> Int {
-        max(1, Int((width + spacing) / (minWidth + spacing)))
+        let fit = (width + spacing) / (minWidth + spacing)
+        // `Int(x)` crashes for infinity and NaN. A layout can be offered an
+        // unlimited width while SwiftUI measures it: one column then.
+        guard fit.isFinite else { return 1 }
+        return max(1, Int(fit))
     }
 
     /// The drop spot in a grid under the pointer, or nil to keep the current one.
