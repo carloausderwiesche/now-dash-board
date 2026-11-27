@@ -27,6 +27,7 @@ The Mac app reads Teams' Dock badge through the Accessibility interface and show
 ## Consequences
 
 - **Fragile on purpose-built terms.** The Dock's internal structure and the badge text are not a public contract: a macOS update, a Teams update (it already has two bundle ids: classic and the new Teams) or a changed badge style (a dot with no number) can break or blur the reading. The parser says "unknown" instead of guessing, and the box shows "no reading" rather than a wrong number.
+- **A Dock that doesn't answer is not "zero".** An error while reading (the Dock busy or restarting) keeps what the box showed before, each question to the Dock times out after one second, and only the item titled "Microsoft Teams" or "Teams" counts.
 - **Needs a permission the person grants by hand.** Without it the box says so, and the rest of the app is unaffected. The permission is tied to the app's code signature: a debug build signed ad hoc loses it on every rebuild and must be allowed again.
 - **A privacy-relevant permission.** Accessibility lets an app read the screen of other apps. The app only asks the Dock about one icon, but the permission itself is broad, so the person decides, and can withdraw it any time in System Settings.
 - The app is not sandboxed ([ADR 0009](0009-mac-app-without-sandbox.md)), which Accessibility needs; a sandboxed app could not do this.

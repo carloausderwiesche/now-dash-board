@@ -63,23 +63,46 @@
         reader.reading = .label("2")  // the person allowed it in System Settings
         model.requestAccess()
         #expect(reader.requests == 1)
-        try await Task.sleep(for: .seconds(1.5))
+        // It looks again about a second later: wait for that (up to 10 s) instead of guessing a time.
+        for _ in 0..<200 where model.status != .unread(.count(2)) { try await Task.sleep(for: .milliseconds(50)) }
         #expect(model.status == .unread(.count(2)))
     }
 
-    @MainActor @Test func theCountFollowsTheDockWhilePolling() async throws {
+    @MainActor @Test func aLookThatGotNoAnswerKeepsWhatWasShown() async {
+        let reader = FakeReader(.label("4"))
+        let model = TeamsUnreadModel(reader: reader)
+        await model.refresh()
+        #expect(model.status == .unread(.count(4)))
+        reader.reading = .failed  // the Dock was busy this time
+        await model.refresh()
+        #expect(model.status == .unread(.count(4)))  // not "0", not "no Dock icon"
+        reader.reading = .label("5")
+        await model.refresh()
+        #expect(model.status == .unread(.count(5)))
+    }
+
+    @MainActor @Test func pollingLooksRepeatedlyAndForgetsTheReadingWhenItStops() async throws {
         let reader = FakeReader(.label("1"))
         let model = TeamsUnreadModel(reader: reader)
         let polling = Task { await model.poll() }
-        try await Task.sleep(for: .milliseconds(300))
+        for _ in 0..<200 where model.status == nil { try await Task.sleep(for: .milliseconds(20)) }
         #expect(model.status == .unread(.count(1)))
-        let readsBefore = reader.reads
         polling.cancel()
-        reader.reading = .label("7")
+        await polling.value
+        // The box left the screen: no stale number is kept for when it comes back.
+        #expect(model.status == nil)
+        let readsAfterStop = reader.reads
         try await Task.sleep(for: .milliseconds(300))
-        // Cancelled: it stopped looking, so it never saw 7.
-        #expect(model.status == .unread(.count(1)))
-        #expect(reader.reads == readsBefore)
+        #expect(reader.reads == readsAfterStop)  // and it has stopped looking
+    }
+
+    @Test func onlyTheTeamsDockItemCounts() {
+        for title in ["Microsoft Teams", "Microsoft Teams (work or school)", "Teams", "  teams ", "MICROSOFT TEAMS"] {
+            #expect(AccessibilityDockBadgeReader.isTeams(title), "\(title)")
+        }
+        for title in ["Steam", "Steamed Teams Toolkit", "Teams Toolkit", "Notes", "", "Team"] {
+            #expect(!AccessibilityDockBadgeReader.isTeams(title), "\(title)")
+        }
     }
 
     @Test func theRealReaderNeverShowsAPromptWhenOnlyAsked() {

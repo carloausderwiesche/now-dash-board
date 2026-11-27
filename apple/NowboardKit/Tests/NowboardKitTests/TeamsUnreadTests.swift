@@ -38,6 +38,16 @@ import Testing
     #expect(UnreadCount.parse("1\u{00A0}234") == .count(1234))
 }
 
+@Test func aDecimalIsNeverTurnedIntoACount() {
+    // The separators are only for groups of three digits: "1.5" is not fifteen.
+    for text in ["1.5", "1,5", ".5", ",5", "1 2", "12.34", "1,23", "1234,567", "1..234", "1,,234", "1.234.", ".1.234"] {
+        #expect(UnreadCount.parse(text) == .unknown, "\(text)")
+    }
+    #expect(UnreadCount.parse("1.234.567") == .count(1_234_567))
+    #expect(UnreadCount.parse("12,345+") == .atLeast(12_345))
+    #expect(UnreadCount.parse("1.5+") == .unknown)
+}
+
 @Test func aDotOrUnknownTextMeansUnreadWithoutACount() {
     for text in ["•", "●", "·", "!", "new", "unread", "3 new", "-3", "1e3", "12abc", "٣", "１２", "NaN", "∞"] {
         #expect(UnreadCount.parse(text) == .unknown, "\(text)")
@@ -90,4 +100,5 @@ import Testing
     #expect(DockBadgeReading.label(nil).status == .unread(.none))  // running, no badge: nothing unread
     #expect(DockBadgeReading.label("5").status == .unread(.count(5)))
     #expect(DockBadgeReading.label("•").status == .unread(.unknown))
+    #expect(DockBadgeReading.failed.status == nil)  // no answer: the box keeps what it had
 }

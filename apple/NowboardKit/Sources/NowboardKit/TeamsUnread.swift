@@ -39,13 +39,17 @@ public enum UnreadCount: Equatable, Sendable {
         return .unknown
     }
 
-    /// A whole number, with thousands separators allowed (`1,234`, `1.234`, `1 234`).
-    /// Nil for anything else, including negative numbers and numbers too big for an `Int`.
+    /// A whole number: plain digits, or digits in groups of three with a separator between
+    /// the groups (`1,234`, `1.234`, `1 234`). So `1.5`, `1,5` and `.5` are NOT numbers
+    /// (they'd be a decimal, not 15 or 5). Nil for anything else, including negative numbers,
+    /// look-alike digits and numbers too big for an `Int`.
+    ///
+    /// Swift note: `/…/` is a regular expression; `wholeMatch` must match the whole text.
     private static func number(_ text: String) -> Int? {
-        let cleaned = text.filter { !",. \u{00A0}\u{202F}".contains($0) }
-        // Only ASCII digits: `Int("٣")` is nil, but be explicit that look-alikes are not numbers.
-        guard !cleaned.isEmpty, cleaned.allSatisfy({ $0 >= "0" && $0 <= "9" }), let n = Int(cleaned) else { return nil }
-        return n
+        let plain = text.wholeMatch(of: /[0-9]+/) != nil
+        let grouped = text.wholeMatch(of: /[0-9]{1,3}([.,\u{00A0}\u{202F} ][0-9]{3})+/) != nil
+        guard plain || grouped else { return nil }
+        return Int(text.filter { $0 >= "0" && $0 <= "9" })
     }
 
     /// Whether anything is unread.
@@ -110,14 +114,18 @@ public enum DockBadgeReading: Equatable, Sendable {
     case notInDock
     /// Teams is running; this is its badge text (nil = no badge).
     case label(String?)
+    /// The Dock didn't answer properly this time (busy, restarting). That says nothing about
+    /// Teams: the box keeps what it showed before instead of guessing.
+    case failed
 
-    /// The status the box shows for this reading.
-    public var status: TeamsStatus {
+    /// The status the box shows for this reading, or nil for "no answer this time".
+    public var status: TeamsStatus? {
         switch self {
         case .notAllowed: .notAllowed
         case .notRunning: .notRunning
         case .notInDock: .notInDock
         case .label(let text): .unread(UnreadCount.parse(text))
+        case .failed: nil
         }
     }
 }

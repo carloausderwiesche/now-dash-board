@@ -49,6 +49,7 @@
                 } else {
                     // Not looked yet: a quiet placeholder for a moment, not a wrong number.
                     Text("…").font(theme.font(36, .semibold)).foregroundStyle(theme.muted)
+                        .accessibilityLabel("Looking at Teams")
                 }
             }
             // Looks now and every few seconds while the box is on screen; stops when it leaves.

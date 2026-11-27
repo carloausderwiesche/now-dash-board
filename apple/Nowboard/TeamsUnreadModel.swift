@@ -40,35 +40,70 @@
 
         func read() -> DockBadgeReading {
             guard AXIsProcessTrusted() else { return .notAllowed }
-            let running = NSWorkspace.shared.runningApplications.contains { app in
-                app.bundleIdentifier.map(Self.teamsBundleIDs.contains) ?? false
-            }
+            // (Asking per bundle id is safe from a background thread.)
+            let running = Self.teamsBundleIDs.contains { !NSRunningApplication.runningApplications(withBundleIdentifier: $0).isEmpty }
             guard running else { return .notRunning }
             guard let dock = NSRunningApplication.runningApplications(withBundleIdentifier: "com.apple.dock").first else {
-                return .notInDock
+                return .failed  // the Dock is restarting
             }
             let root = AXUIElementCreateApplication(dock.processIdentifier)
+            // Don't wait the default six seconds per question if the Dock is busy.
+            AXUIElementSetMessagingTimeout(root, 1)
             // The Dock's tree: the application → a list → one item per icon.
-            for list in children(of: root) {
-                for item in children(of: list) {
-                    guard let title = string(item, kAXTitleAttribute), title.lowercased().contains("teams") else { continue }
-                    // AXStatusLabel is the text of the red badge; missing = no badge.
-                    return .label(string(item, "AXStatusLabel"))
+            guard case .value(let lists) = children(of: root) else { return .failed }
+            for list in lists {
+                guard case .value(let items) = children(of: list) else { continue }
+                for item in items {
+                    guard case .value(let title) = string(item, kAXTitleAttribute), Self.isTeams(title) else { continue }
+                    // AXStatusLabel is the text of the red badge. "No such attribute" or "no value"
+                    // means no badge; any other error means we don't know (not "nothing unread").
+                    switch string(item, "AXStatusLabel") {
+                    case .value(let text): return .label(text)
+                    case .none: return .label(nil)
+                    case .failed: return .failed
+                    }
                 }
             }
             return .notInDock
         }
 
-        private func children(of element: AXUIElement) -> [AXUIElement] {
-            var value: CFTypeRef?
-            guard AXUIElementCopyAttributeValue(element, kAXChildrenAttribute as CFString, &value) == .success else { return [] }
-            return (value as? [AXUIElement]) ?? []
+        /// The Dock item's title for Teams: "Microsoft Teams" (also "Microsoft Teams (work or school)") or just "Teams".
+        /// Not any title that merely contains "teams".
+        static func isTeams(_ title: String) -> Bool {
+            let t = title.lowercased().trimmingCharacters(in: .whitespaces)
+            return t == "teams" || t.hasPrefix("microsoft teams")
         }
 
-        private func string(_ element: AXUIElement, _ attribute: String) -> String? {
+        /// What asking the Accessibility interface for something gave: a value, "there is none", or "it didn't work".
+        private enum Answer<Value> {
+            case value(Value)
+            case none
+            case failed
+        }
+
+        private func copy(_ element: AXUIElement, _ attribute: String) -> Answer<CFTypeRef> {
             var value: CFTypeRef?
-            guard AXUIElementCopyAttributeValue(element, attribute as CFString, &value) == .success else { return nil }
-            return value as? String
+            switch AXUIElementCopyAttributeValue(element, attribute as CFString, &value) {
+            case .success: return value.map { .value($0) } ?? .none
+            case .noValue, .attributeUnsupported: return .none
+            default: return .failed
+            }
+        }
+
+        private func children(of element: AXUIElement) -> Answer<[AXUIElement]> {
+            switch copy(element, kAXChildrenAttribute) {
+            case .value(let v): return .value((v as? [AXUIElement]) ?? [])
+            case .none: return .value([])
+            case .failed: return .failed
+            }
+        }
+
+        private func string(_ element: AXUIElement, _ attribute: String) -> Answer<String> {
+            switch copy(element, attribute) {
+            case .value(let v): return (v as? String).map { .value($0) } ?? .none
+            case .none: return .none
+            case .failed: return .failed
+            }
         }
     }
 
@@ -88,25 +123,38 @@
         var display: TeamsDisplay? { status.map(TeamsDisplay.init) }
 
         /// Looks once, off the main thread (the Dock can be slow to answer), and keeps the answer.
+        /// If a look is already under way this one does nothing, so an older answer can't overwrite
+        /// a newer one. A look that got no answer (the Dock was busy) keeps what was shown before.
         func refresh() async {
+            guard !looking else { return }
+            looking = true
+            defer { looking = false }
             let reader = reader
             let reading = await Task.detached(priority: .utility) { reader.read() }.value
-            status = reading.status
+            if let new = reading.status { status = new }
         }
 
+        @ObservationIgnored private var looking = false
+        @ObservationIgnored private var recheck: Task<Void, Never>?
+
         /// Looks now and then every few seconds, until the task is cancelled (the box leaves the screen).
+        /// Then the old reading is forgotten, so coming back never shows a stale number.
         func poll() async {
             while !Task.isCancelled {
                 await refresh()
                 try? await Task.sleep(for: .seconds(Self.interval))
             }
+            status = nil
+            recheck?.cancel()
         }
 
         /// The "Allow access" button: shows macOS's prompt, then looks again a moment later.
         func requestAccess() {
             reader.requestAccess()
-            Task {
+            recheck?.cancel()
+            recheck = Task {
                 try? await Task.sleep(for: .seconds(1))
+                guard !Task.isCancelled else { return }
                 await refresh()
             }
         }
