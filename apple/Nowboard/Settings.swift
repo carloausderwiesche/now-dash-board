@@ -3,6 +3,7 @@
 // 0011); the copy kept here is for the demo board and for starting that file.
 
 import Foundation
+import NowboardKit
 
 /// How much room a card takes (Settings → Cards).
 enum CardDensity: String, Codable, CaseIterable {
@@ -20,6 +21,10 @@ struct DeviceSettings: Codable, Equatable {
     /// `FocusSession.encoded()` made it, so it survives quitting the app. Nil = no session.
     /// Optional: settings saved before it existed still load.
     var focusSessionData: Data?
+    /// Block distracting sites while a focus session runs (macOS only; on by default).
+    var blockSites = true
+    /// The sites to block: base names (`youtube.com`). Each one stands for every name the site uses.
+    var blockedSites = BlockedSites.defaults
 
     private static let key = "settings"
 
@@ -53,6 +58,8 @@ extension DeviceSettings {
         categories = try c.decode([Category].self, forKey: .categories)
         claudePath = try c.decodeIfPresent(String.self, forKey: .claudePath)
         focusSessionData = try c.decodeIfPresent(Data.self, forKey: .focusSessionData)
+        blockSites = try c.decodeIfPresent(Bool.self, forKey: .blockSites) ?? true
+        blockedSites = try c.decodeIfPresent([String].self, forKey: .blockedSites) ?? BlockedSites.defaults
         density = try c.decodeIfPresent(CardDensity.self, forKey: .density)
             ?? (try legacy.decodeIfPresent(Bool.self, forKey: .compact) == true ? .compact : .roomy)
     }

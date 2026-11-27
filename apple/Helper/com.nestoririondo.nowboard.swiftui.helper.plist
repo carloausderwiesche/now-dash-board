@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<!-- A launchd daemon description (see docs/adr/0019). macOS reads this file from inside the app,
+     after the user approves the helper once in System Settings → General → Login Items & Extensions.
+     It then starts the helper as root and keeps it running: the helper removes a stale block when it starts. -->
+<dict>
+    <key>Label</key>
+    <string>com.nestoririondo.nowboard.swiftui.helper</string>
+    <!-- Where the helper program is, inside the app bundle. -->
+    <key>BundleProgram</key>
+    <string>Contents/MacOS/NowboardHelper</string>
+    <!-- The XPC service name the app connects to. -->
+    <key>MachServices</key>
+    <dict>
+        <key>com.nestoririondo.nowboard.swiftui.helper</key>
+        <true/>
+    </dict>
+    <key>AssociatedBundleIdentifiers</key>
+    <array>
+        <string>com.nestoririondo.nowboard.swiftui</string>
+    </array>
+    <key>RunAtLoad</key>
+    <true/>
+    <key>KeepAlive</key>
+    <true/>
+</dict>
+</plist>

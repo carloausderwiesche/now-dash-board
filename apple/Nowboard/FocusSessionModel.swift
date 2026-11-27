@@ -16,6 +16,14 @@
         /// What the task picker shows while idle.
         var choice = FocusTaskChoice.automatic
 
+        /// Told when the session starts or stops running: the end time while it runs, else nil. The dashboard
+        /// uses it for site blocking (a running session blocks; pausing, finishing or Reset unblocks).
+        @ObservationIgnored var onRunningEndChange: ((Date?) -> Void)?
+        /// The end of the session while it runs, nil otherwise.
+        var runningEnd: Date? {
+            if case .running(let end) = session.phase { return end }
+            return nil
+        }
         @ObservationIgnored private weak var store: BoardStore?
         /// Waits for the end of a running session, then notices that it is over.
         @ObservationIgnored private var finishTimer: Task<Void, Never>?
@@ -36,6 +44,7 @@
             }
             persist()
             scheduleFinish()
+            onRunningEndChange?(runningEnd)
             // After the Mac wakes up, or the app comes forward, the end may have passed.
             let center = NotificationCenter.default
             let wake = NSWorkspace.shared.notificationCenter.addObserver(
@@ -142,6 +151,7 @@
         private func changed() {
             persist()
             scheduleFinish()
+            onRunningEndChange?(runningEnd)
         }
 
         /// Remembers a running, paused or finished session (an idle one is nothing to remember).
