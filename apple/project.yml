@@ -86,6 +86,12 @@ targets:
         "CODE_SIGN_IDENTITY[sdk=iphoneos*]": Apple Development
         # Néstor Iriondo (Personal Team). Not a secret: it's in every app it signs.
         "DEVELOPMENT_TEAM[sdk=iphoneos*]": PG7J2YC6L3
+        # The Mac app is signed with a developer team, because site blocking (ADR 0019) needs it: the
+        # app and its root helper check each other's code signature and compare the team. This is
+        # Carlo's Personal Team (the owner of this checkout). Whoever builds the Mac app with another
+        # Apple ID changes this line (and the same one under NowboardHelper) to their own team id.
+        "CODE_SIGN_IDENTITY[sdk=macosx*]": Apple Development
+        "DEVELOPMENT_TEAM[sdk=macosx*]": JZLT94DZPK
         ENABLE_PREVIEWS: YES
 
   # The site-blocking helper (docs/adr/0019): a small program macOS runs as root after the
@@ -108,7 +114,9 @@ targets:
         PRODUCT_BUNDLE_IDENTIFIER: com.nestoririondo.nowboard.swiftui.helper
         SWIFT_VERSION: "6.0"
         CODE_SIGN_STYLE: Automatic
-        CODE_SIGN_IDENTITY: "-"
+        # Same team as the app (see there): the helper only answers an app signed by its own team.
+        CODE_SIGN_IDENTITY: Apple Development
+        DEVELOPMENT_TEAM: JZLT94DZPK
         # An embedded Info.plist gives the program its bundle id as its code-signing identity
         # (otherwise it is "NowboardHelper-<hash>"), which launchd and the signing rules look at.
         GENERATE_INFOPLIST_FILE: YES
