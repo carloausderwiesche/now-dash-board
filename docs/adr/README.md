@@ -45,3 +45,4 @@ ADRs aren't edited after they're accepted, except for their status. To change a 
 | [0015](0015-classify-captures-with-claude-cli.md) | Captures are classified by the `claude` command-line tool, with a local Ollama model as fallback | Accepted |
 | [0016](0016-notes-filed-by-the-app-and-daily-note-line.md) | Notes are filed by the app and appended to the daily note | Accepted |
 | [0017](0017-mac-dashboard.md) | The Mac app opens a Dashboard that drops the board's one-column rules | Accepted |
+| [0018](0018-teams-unread-from-the-dock-badge.md) | The Teams unread count is read from its Dock badge through Accessibility | Proposed |

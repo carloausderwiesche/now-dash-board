@@ -3,6 +3,7 @@
 
 #if os(macOS)
     import AppKit
+    import NowboardKit
     import SwiftUI
     import Testing
 
@@ -40,6 +41,13 @@
 #if os(macOS)
     // MARK: - The real click
 
+    /// A Dock reader that never looks at the real Dock (this test is about the layout).
+    private struct NeverReader: DockBadgeReader {
+        func isAllowed() -> Bool { false }
+        func read() -> DockBadgeReading { .notAllowed }
+        func requestAccess() {}
+    }
+
     /// The Dashboard page on screen, a suggested task, and a click on "Today": the grid goes from an
     /// empty box to a card while SwiftUI is laying out. This used to crash on `Int(infinity)`.
     @MainActor @Test func sendingASuggestedTaskToTodayOnTheDashboardDoesNotCrash() async throws {
@@ -52,7 +60,7 @@
         let model = FocusSessionModel()
         model.attach(to: store)
 
-        let host = NSHostingView(rootView: DashboardPageView().environment(store).environment(model).frame(width: 1400, height: 800))
+        let host = NSHostingView(rootView: DashboardPageView().environment(store).environment(model).environment(TeamsUnreadModel(reader: NeverReader())).frame(width: 1400, height: 800))
         let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 1400, height: 800), styleMask: [.titled], backing: .buffered, defer: false)
         window.contentView = host
         window.orderFront(nil)

@@ -30,6 +30,8 @@
         @State private var categoryIds = CategoryIds()
         /// The focus session (its box is on the Dashboard page; it keeps running on the other pages).
         @State private var focus = FocusSessionModel()
+        /// What the Teams box shows (read from the Dock badge only while the box is on screen).
+        @State private var teams = TeamsUnreadModel()
 
         /// Debug builds can open on another page: `-page tasks`.
         private static var firstPage: DashboardPage {
@@ -90,6 +92,7 @@
                 #endif
             }
             .environment(focus)
+            .environment(teams)
             .onChange(of: store.settings.categories.map(\.id)) { _, ids in categoryIds.set(ids) }
         }
 

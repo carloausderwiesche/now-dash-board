@@ -19,7 +19,10 @@
     enum DashboardBoxes {
         /// The boxes to show, in order. Later packages add theirs here.
         @MainActor static var registered: [DashboardBox] {
-            [DashboardBox(id: "focus-session") { AnyView(FocusSessionBox()) }]
+            [
+                DashboardBox(id: "focus-session") { AnyView(FocusSessionBox()) },
+                DashboardBox(id: "teams-unread") { AnyView(TeamsBox()) },
+            ]
         }
     }
 
@@ -71,7 +74,8 @@
                 }
                 .scrollIndicators(.hidden)
                 if !boxes.isEmpty {
-                    VStack(alignment: .leading, spacing: 20) {
+                    // The same gap between sections as in the left column.
+                    VStack(alignment: .leading, spacing: 36) {
                         ForEach(boxes) { $0.content() }
                     }
                     // Same top padding as the left column: the first heading and its rule line up with "Today".
