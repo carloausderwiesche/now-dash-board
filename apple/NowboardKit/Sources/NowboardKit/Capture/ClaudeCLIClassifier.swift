@@ -66,6 +66,24 @@ public struct ClaudeCLIClassifier: Classifier {
     }
 
     public func classify(_ input: CaptureInput) async throws(ClassifierError) -> CaptureResult {
+        let output = try await runTool(ClaudeCLI.arguments(for: input))
+        let parsed = try ClaudeCLI.parse(output.stdout, categoryIds: input.categoryIds)
+        onDiagnostics?(parsed.diagnostics)
+        return parsed.result
+    }
+
+    /// Asks the tool anything with an answer schema and returns the answer object (its `structured_output`
+    /// as JSON). The caller checks what is in it. Used by the vault tidy-up and the vault guide.
+    public func structured(prompt: String, schema: JSONValue) async throws(ClassifierError) -> Data {
+        let output = try await runTool(ClaudeCLI.arguments(prompt: prompt, schema: schema))
+        let (answer, diagnostics) = try ClaudeCLI.structuredOutput(output.stdout)
+        onDiagnostics?(diagnostics)
+        return answer
+    }
+
+    /// Runs the tool once in a new empty folder and returns what it printed. A failure (not found, a timeout,
+    /// an error code, an error the tool reports) is thrown with a sentence.
+    private func runTool(_ arguments: [String]) async throws(ClassifierError) -> ProcessOutput {
         guard let executable = await locateExecutable() else { throw .cliNotFound }
 
         // The tool runs in a new, empty folder, so it can't see (or be
@@ -81,7 +99,7 @@ public struct ClaudeCLIClassifier: Classifier {
         let output: ProcessOutput
         do {
             output = try await runner.run(
-                executable: executable, arguments: ClaudeCLI.arguments(for: input), workingDirectory: folder, timeout: timeout)
+                executable: executable, arguments: arguments, workingDirectory: folder, timeout: timeout)
         } catch {
             // Swift note: with typed throws, `error` here is a `ProcessRunError`.
             switch error {
@@ -96,25 +114,11 @@ public struct ClaudeCLIClassifier: Classifier {
         // Some failures come as JSON on stdout together with an exit code
         // (`is_error`). Its message is better than a bare exit code.
         if output.exitCode != 0 {
-            if case .cliReportedError(let text)? = Self.failure(in: output.stdout, categoryIds: input.categoryIds) {
-                throw .cliReportedError(text)
-            }
+            if let text = ClaudeCLI.errorMessage(in: output.stdout) { throw .cliReportedError(text) }
             let stderr = String(decoding: output.stderr.prefix(2000), as: UTF8.self).trimmingCharacters(in: .whitespacesAndNewlines)
             throw .nonZeroExit(code: output.exitCode, stderr: String(stderr.prefix(300)))
         }
 
-        let parsed = try ClaudeCLI.parse(output.stdout, categoryIds: input.categoryIds)
-        onDiagnostics?(parsed.diagnostics)
-        return parsed.result
-    }
-
-    /// The error `parse` finds in some output, if it's one.
-    private static func failure(in stdout: Data, categoryIds: [String]) -> ClassifierError? {
-        do {
-            _ = try ClaudeCLI.parse(stdout, categoryIds: categoryIds)
-            return nil
-        } catch {
-            return error
-        }
+        return output
     }
 }
